@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNostr } from '@/context/NostrContext';
 import { getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
@@ -69,7 +69,7 @@ function useWindowSize() {
   return windowSize;
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { isAuthenticated, logout } = useNostr();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -757,13 +757,52 @@ export default function ChatPage() {
                     </div>
                   ) : message.role === 'system' ? (
                     /* System Message (for errors) */
-                    <div className="flex justify-center mb-6">
-                      <div className="max-w-[85%] bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
-                        <div className="flex items-center gap-2">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300">
-                            <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                          <p className="text-sm font-medium">{message.content}</p>
+                    <div className="flex justify-center mb-6 group">
+                      <div className="flex flex-col">
+                        <div className="max-w-[85%] bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
+                          <div className="flex items-center gap-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300">
+                              <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <p className="text-sm font-medium">{message.content}</p>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <button
+                            onClick={() => {
+                              const lastUserMessage = messages.slice(0, index).filter(m => m.role === 'user').pop();
+                              if (lastUserMessage) {
+                                const newMessages = messages.slice(0, messages.findIndex(m => m === lastUserMessage) + 1);
+                                setMessages(newMessages);
+                                fetchAIResponse(newMessages);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="rotate-45"
+                            >
+                              <path
+                                d="M21.168 8A10.003 10.003 0 0 0 12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M17 8h4.4a.6.6 0 0 0 .6-.6V3"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            Retry
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -906,5 +945,17 @@ export default function ChatPage() {
         onClose={() => setIsLoginModalOpen(false)} 
       />
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen w-full bg-black">
+        <Loader2 className="h-8 w-8 text-white/50 animate-spin" />
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }
