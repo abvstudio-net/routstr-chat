@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useNostr } from '@/context/NostrContext';
 import { getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -72,6 +72,7 @@ function useWindowSize() {
 export default function ChatPage() {
   const { isAuthenticated, logout } = useNostr();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // State management
@@ -136,7 +137,7 @@ export default function ChatPage() {
     });
   }, [activeConversationId, messages]);
 
-  // Fetch available models from API
+  // Fetch available models from API and handle URL model selection
   const fetchModels = useCallback(async () => {
     try {
       setIsLoadingModels(true);
@@ -151,7 +152,20 @@ export default function ChatPage() {
       if (data && data.models && Array.isArray(data.models)) {
         setModels(data.models);
 
-        // Set default model - either last used or first in the list
+        // Get model ID from URL if present
+        const urlModelId = searchParams.get('model');
+        
+        if (urlModelId) {
+          // Find the model from the URL parameter
+          const urlModel = data.models.find((m: Model) => m.id === urlModelId);
+          if (urlModel) {
+            setSelectedModel(urlModel);
+            localStorage.setItem('lastUsedModel', urlModelId);
+            return;
+          }
+        }
+
+        // If no URL model or model not found, use last used or first available
         const lastUsedModelId = localStorage.getItem('lastUsedModel');
         if (lastUsedModelId) {
           const lastModel = data.models.find((m: Model) => m.id === lastUsedModelId);
@@ -169,7 +183,7 @@ export default function ChatPage() {
     } finally {
       setIsLoadingModels(false);
     }
-  }, []);
+  }, [searchParams]);
 
   // Get user balance and saved conversations from localStorage on page load
   useEffect(() => {
@@ -853,7 +867,7 @@ export default function ChatPage() {
             </div>
 
             <div className="text-xs text-center text-white/50 mt-2">
-              Powered by Google: {selectedModel?.name || 'AI'} • {isAuthenticated ? (
+              Powered by {selectedModel?.name} • {isAuthenticated ? (
                 <span className="text-white/30">{balance} sats available</span>
               ) : (
                 <button
