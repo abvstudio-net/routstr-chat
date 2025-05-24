@@ -94,6 +94,7 @@ function ChatPageContent() {
 
   // UI state
   const [isModelDrawerOpen, setIsModelDrawerOpen] = useState(false);
+  const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -103,6 +104,24 @@ function ChatPageContent() {
   // Responsive design
   const isMobile = useMediaQuery('(max-width: 768px)');
   useWindowSize(); // Call for side effects only
+
+  // Close model drawer when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isModelDrawerOpen && modelDrawerRef.current && 
+          !modelDrawerRef.current.contains(event.target as Node)) {
+        setIsModelDrawerOpen(false);
+      }
+    };
+
+    if (isModelDrawerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isModelDrawerOpen]);
 
   // Model search query - we only need the value, not the setter
   const modelSearchQuery = '';
@@ -201,25 +220,26 @@ function ChatPageContent() {
         setMintUrl(storedMintUrl);
       }
 
-      setBalance(getBalanceFromStoredProofs());
-
-      const savedConversationsData = localStorage.getItem('saved_conversations');
-      if (savedConversationsData) {
-        try {
-          const parsedConversations = JSON.parse(savedConversationsData);
-          if (Array.isArray(parsedConversations)) {
-            setConversations(parsedConversations);
-          } else {
+      const loadData = async () => {
+        await refreshBalance();
+        const savedConversationsData = localStorage.getItem('saved_conversations');
+        if (savedConversationsData) {
+          try {
+            const parsedConversations = JSON.parse(savedConversationsData);
+            if (Array.isArray(parsedConversations)) {
+              setConversations(parsedConversations);
+            } else {
+              setConversations([]);
+            }
+          } catch {
             setConversations([]);
           }
-        } catch {
+        } else {
           setConversations([]);
         }
-      } else {
-        setConversations([]);
-      }
-
-      fetchModels();
+        fetchModels();
+      };
+      loadData();
     }
   }, [isAuthenticated, router, authChecked, fetchModels]);
 
@@ -388,7 +408,7 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      setBalance(getBalanceFromStoredProofs());
+      await refreshBalance();
 
     } catch (error) {
       // Only add error to chat, don't use unused error state
@@ -423,6 +443,8 @@ function ChatPageContent() {
 
     await fetchAIResponse(updatedMessages);
   };
+
+  
 
   const createNewConversation = () => {
     const newId = Date.now().toString();
@@ -474,6 +496,29 @@ function ChatPageContent() {
     model.id.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
     (model.description && model.description.toLowerCase().includes(modelSearchQuery.toLowerCase()))
   );
+
+  const refreshBalance = async () => {
+    try {
+      const token = await getOrCreateApiToken(mintUrl, 12);
+      const response = await fetch('https://api.routstr.com/v1/wallet/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch wallet balance');
+      }
+
+      const data = await response.json();
+      const apiBalance = Math.floor(data.balance / 1000);
+      const proofsBalance = getBalanceFromStoredProofs();
+      setBalance(apiBalance + proofsBalance);
+    } catch (error) {
+      // Fall back to just proofs balance if API fails
+      setBalance(getBalanceFromStoredProofs());
+    }
+  };
 
   const clearConversations = () => {
     setConversations([]);
@@ -645,7 +690,10 @@ function ChatPageContent() {
               </button>
 
               {isModelDrawerOpen && isAuthenticated && (
-                <div className="absolute top-full left-0 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                <div 
+                  ref={modelDrawerRef}
+                  className="absolute top-full left-0 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
+                >
                   {isLoadingModels ? (
                     <div className="flex justify-center items-center py-4">
                       <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
