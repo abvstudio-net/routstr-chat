@@ -531,24 +531,14 @@ function ChatPageContent() {
 
   if (!authChecked) {
     return (
-      <div className="flex items-center justify-center h-screen w-full bg-black">
+      <div className="flex items-center justify-center h-dvh w-full bg-black">
         <Loader2 className="h-8 w-8 text-white/50 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen w-full bg-black text-white overflow-hidden">
-      {/* Mobile Sidebar Toggle */}
-      {isMobile && !isSidebarOpen && (
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="fixed z-30 top-[30px] transform -translate-y-1/2 left-4 bg-black rounded-full p-1.5 shadow-md border border-white/10 hover:bg-white/5 cursor-pointer"
-        >
-          <Menu className="h-4 w-4 text-white/70" />
-        </button>
-      )}
-
+    <div className="flex h-dvh w-full bg-black text-white overflow-hidden">
       {/* Mobile Sidebar Overlay */}
       {isMobile && (
         <div
@@ -677,22 +667,40 @@ function ChatPageContent() {
 
       {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden relative transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'ml-0' : ''}`}>
-        {/* Model Selection Bar */}
-        <div className="bg-black z-0">
-          <div className={`mx-auto w-full max-w-4xl flex items-center ${isMobile ? 'justify-center pl-10' : 'justify-between'} h-[60px] ${isSidebarCollapsed && !isMobile ? 'pl-14' : 'px-4'}`}>
+        {/* Fixed Model Selection Header */}
+        <div className="fixed top-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-b border-white/10 z-40">
+          <div className="flex items-center justify-center h-[60px] px-4 relative">
+            {/* Mobile Menu Button */}
+            {isMobile && !isAuthenticated && (
+              <button
+                onClick={() => setIsLoginModalOpen(true)}
+                className="absolute left-4 bg-black rounded-full p-1.5 shadow-md border border-white/10 hover:bg-white/5 cursor-pointer"
+              >
+                <Menu className="h-4 w-4 text-white/70" />
+              </button>
+            )}
+            {isMobile && isAuthenticated && (
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="absolute left-4 bg-black rounded-full p-1.5 shadow-md border border-white/10 hover:bg-white/5 cursor-pointer"
+              >
+                <Menu className="h-4 w-4 text-white/70" />
+              </button>
+            )}
+            
             <div className="relative">
               <button
                 onClick={() => isAuthenticated ? setIsModelDrawerOpen(!isModelDrawerOpen) : setIsLoginModalOpen(true)}
-                className={`flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md ${isMobile ? 'py-2 px-3 h-[36px]' : 'p-3'} text-sm transition-colors cursor-pointer`}
+                className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10"
               >
-                <span>{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
+                <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
                 <ChevronDown className="h-4 w-4 text-white/70" />
               </button>
 
               {isModelDrawerOpen && isAuthenticated && (
                 <div 
                   ref={modelDrawerRef}
-                  className="absolute top-full left-0 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
+                  className="absolute top-full left-1/2 transform -translate-x-1/2 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
                 >
                   {isLoadingModels ? (
                     <div className="flex justify-center items-center py-4">
@@ -721,23 +729,23 @@ function ChatPageContent() {
                 </div>
               )}
             </div>
-            {!isMobile && (
-              <div className="text-xs text-white/50">
-                {isAuthenticated ? `${balance} sats available` : (
-                  <button
-                    onClick={() => setIsLoginModalOpen(true)}
-                    className="px-4 py-1.5 rounded-full bg-white text-black hover:bg-gray-200 transition-colors"
-                  >
-                    Sign in
-                  </button>
-                )}
-              </div>
-            )}
+            
+            {/* Balance/Sign in button in top right */}
+            <div className="absolute right-4 text-xs text-white/50">
+              {isAuthenticated ? `${balance} sats` : (
+                <button
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="px-3 py-1.5 rounded-full bg-white text-black hover:bg-gray-200 transition-colors text-xs"
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Chat Messages with top padding for fixed header */}
+        <div className="flex-1 overflow-y-auto pt-[60px]">
           <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 pt-24">
@@ -921,8 +929,8 @@ function ChatPageContent() {
           </div>
         </div>
 
-        {/* Chat Input */}
-        <div className="p-3 md:p-4 bg-black">
+        {/* Fixed Chat Input at bottom */}
+        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-t border-white/10 p-3 md:p-4">
           <div className="mx-auto w-full max-w-4xl">
             <div className="relative flex items-center">
               <input
@@ -954,16 +962,7 @@ function ChatPageContent() {
             </div>
 
             <div className="text-xs text-center text-white/50 mt-2">
-              Powered by {selectedModel?.name} • {isAuthenticated ? (
-                <span className="text-white/30">{balance} sats available</span>
-              ) : (
-                <button
-                  onClick={() => setIsLoginModalOpen(true)}
-                  className="text-white/30 hover:text-white/50"
-                >
-                  Sign in to chat
-                </button>
-              )}
+              Powered by {selectedModel?.name}
             </div>
           </div>
         </div>
@@ -999,7 +998,7 @@ function ChatPageContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-screen w-full bg-black">
+      <div className="flex items-center justify-center h-dvh w-full bg-black">
         <Loader2 className="h-8 w-8 text-white/50 animate-spin" />
       </div>
     }>

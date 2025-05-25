@@ -1,6 +1,6 @@
-import { Event } from 'nostr-tools';
-import { GiftWrap, wrapCashuToken, unwrapCashuToken } from './nip60Utils';
-import { CashuMint, CashuWallet } from '@cashu/cashu-ts';
+import { Event } from "nostr-tools";
+import { GiftWrap, wrapCashuToken, unwrapCashuToken } from "./nip60Utils";
+import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
 
 /**
  * Gets the current balance from stored proofs
@@ -59,7 +59,7 @@ export const getStoredWrappedTokens = (): Event[] => {
 export const removeWrappedToken = (tokenId: string): void => {
   try {
     const tokens = getStoredWrappedTokens();
-    const updatedTokens = tokens.filter(token => token.id !== tokenId);
+    const updatedTokens = tokens.filter((token) => token.id !== tokenId);
     localStorage.setItem("wrapped_cashu_tokens", JSON.stringify(updatedTokens));
   } catch (error) {
     console.error("Error removing wrapped token:", error);
@@ -72,12 +72,16 @@ export const removeWrappedToken = (tokenId: string): void => {
  * @param amount Amount in sats to generate token for
  * @returns Generated token string or null if failed
  */
-export const generateApiToken = async (mintUrl: string, amount: number): Promise<string | null> => {
+export const generateApiToken = async (
+  mintUrl: string,
+  amount: number
+): Promise<string | null> => {
   try {
     // Get stored proofs
     const storedProofs = localStorage.getItem("cashu_proofs");
     if (!storedProofs) {
-      throw new Error('No Cashu tokens found. Please mint some tokens first.');
+      console.warn("No Cashu tokens found for generating API token");
+      return null;
     }
 
     const proofs = JSON.parse(storedProofs);
@@ -91,20 +95,20 @@ export const generateApiToken = async (mintUrl: string, amount: number): Promise
     const { send, keep } = await wallet.send(amount, proofs);
 
     if (!send || send.length === 0) {
-      throw new Error('Failed to generate token');
+      throw new Error("Failed to generate token");
     }
 
     // Update stored proofs with remaining proofs
-    localStorage.setItem('cashu_proofs', JSON.stringify(keep));
+    localStorage.setItem("cashu_proofs", JSON.stringify(keep));
 
     // Create a token string in the proper Cashu format
     const tokenObj = {
-      token: [{ mint: mintUrl, proofs: send }]
+      token: [{ mint: mintUrl, proofs: send }],
     };
 
     return `cashuA${btoa(JSON.stringify(tokenObj))}`;
   } catch (error) {
-    console.error('Failed to generate API token:', error);
+    console.error("Failed to generate API token:", error);
     return null;
   }
 };
@@ -113,26 +117,35 @@ export const generateApiToken = async (mintUrl: string, amount: number): Promise
  * Manages token lifecycle - reuses existing token or generates new one
  * @param mintUrl The Cashu mint URL
  * @param amount Amount in sats for new token if needed
- * @returns Token string or null if failed
+ * @returns Token string, null if failed, or object with hasTokens: false if no tokens available
  */
-export const getOrCreateApiToken = async (mintUrl: string, amount: number): Promise<string | null> => {
+export const getOrCreateApiToken = async (
+  mintUrl: string,
+  amount: number
+): Promise<string | null | { hasTokens: false }> => {
   try {
     // Try to get existing token
-    const storedToken = localStorage.getItem('current_cashu_token');
+    const storedToken = localStorage.getItem("current_cashu_token");
     if (storedToken) {
       return storedToken;
+    }
+
+    // Check if any tokens are available
+    const storedProofs = localStorage.getItem("cashu_proofs");
+    if (!storedProofs) {
+      return { hasTokens: false };
     }
 
     // Generate new token if none exists
     const newToken = await generateApiToken(mintUrl, amount);
     if (newToken) {
-      localStorage.setItem('current_cashu_token', newToken);
+      localStorage.setItem("current_cashu_token", newToken);
       return newToken;
     }
 
     return null;
   } catch (error) {
-    console.error('Error in token management:', error);
+    console.error("Error in token management:", error);
     return null;
   }
 };
@@ -141,5 +154,5 @@ export const getOrCreateApiToken = async (mintUrl: string, amount: number): Prom
  * Invalidates the current API token
  */
 export const invalidateApiToken = () => {
-  localStorage.removeItem('current_cashu_token');
+  localStorage.removeItem("current_cashu_token");
 };
