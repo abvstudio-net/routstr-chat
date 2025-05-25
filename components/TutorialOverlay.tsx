@@ -151,7 +151,7 @@ export default function TutorialOverlay({ isOpen, onClose, onComplete }: Tutoria
 
     switch (currentStepData.position) {
       case 'top':
-        style.top = rect.top - tooltipHeight - offset;
+        style.top = rect.top - tooltipHeight - offset - (currentStepData.id === 'chat-input' ? 80 : 0);
         style.left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
         break;
       case 'bottom':
