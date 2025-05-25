@@ -21,6 +21,7 @@ import { Model, getModelNameWithoutProvider } from '@/data/models';
 import ReactMarkdown from 'react-markdown';
 import SettingsModal from '@/components/SettingsModal';
 import LoginModal from '@/components/LoginModal';
+import TutorialOverlay from '@/components/TutorialOverlay';
 
 // Types
 interface Message {
@@ -92,6 +93,9 @@ function ChatPageContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mintUrl, setMintUrl] = useState('https://mint.minibits.cash/Bitcoin');
 
+  // Tutorial state
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+
   // UI state
   const [isModelDrawerOpen, setIsModelDrawerOpen] = useState(false);
   const modelDrawerRef = useRef<HTMLDivElement>(null);
@@ -108,8 +112,8 @@ function ChatPageContent() {
   // Close model drawer when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (isModelDrawerOpen && modelDrawerRef.current && 
-          !modelDrawerRef.current.contains(event.target as Node)) {
+      if (isModelDrawerOpen && modelDrawerRef.current &&
+        !modelDrawerRef.current.contains(event.target as Node)) {
         setIsModelDrawerOpen(false);
       }
     };
@@ -173,7 +177,7 @@ function ChatPageContent() {
 
         // Get model ID from URL if present
         const urlModelId = searchParams.get('model');
-        
+
         if (urlModelId) {
           // Find the model from the URL parameter
           const urlModel = data.models.find((m: Model) => m.id === urlModelId);
@@ -242,6 +246,19 @@ function ChatPageContent() {
       loadData();
     }
   }, [isAuthenticated, router, authChecked, fetchModels]);
+
+  // Check for first visit and show tutorial
+  useEffect(() => {
+    if (authChecked && isAuthenticated && !isMobile) {
+      const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
+      if (!hasSeenTutorial) {
+        // Small delay to ensure UI is rendered
+        setTimeout(() => {
+          setIsTutorialOpen(true);
+        }, 1000);
+      }
+    }
+  }, [authChecked, isAuthenticated, isMobile]);
 
   // iOS Safari viewport height stabilization
   useEffect(() => {
@@ -444,7 +461,7 @@ function ChatPageContent() {
     await fetchAIResponse(updatedMessages);
   };
 
-  
+
 
   const createNewConversation = () => {
     const newId = Date.now().toString();
@@ -505,7 +522,7 @@ function ChatPageContent() {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch wallet balance');
       }
@@ -525,6 +542,14 @@ function ChatPageContent() {
     setActiveConversationId(null);
     setMessages([]);
     localStorage.removeItem('saved_conversations');
+  };
+
+  const handleTutorialComplete = () => {
+    localStorage.setItem('hasSeenTutorial', 'true');
+  };
+
+  const handleTutorialClose = () => {
+    setIsTutorialOpen(false);
   };
 
   if (!authChecked) {
@@ -587,6 +612,7 @@ function ChatPageContent() {
                   if (isMobile) setIsSidebarOpen(false);
                 }}
                 className="w-full flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+                data-tutorial="new-chat-button"
               >
                 <PlusCircle className="h-4 w-4" />
                 <span>New chat</span>
@@ -636,6 +662,7 @@ function ChatPageContent() {
                 <button
                   onClick={() => setIsSettingsOpen(true)}
                   className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+                  data-tutorial="settings-button"
                 >
                   <Settings className="h-4 w-4" />
                   <span>Settings</span>
@@ -685,18 +712,19 @@ function ChatPageContent() {
                 <Menu className="h-4 w-4 text-white/70" />
               </button>
             )}
-            
+
             <div className="relative">
               <button
                 onClick={() => isAuthenticated ? setIsModelDrawerOpen(!isModelDrawerOpen) : setIsLoginModalOpen(true)}
                 className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10"
+                data-tutorial="model-selector"
               >
                 <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
                 <ChevronDown className="h-4 w-4 text-white/70" />
               </button>
 
               {isModelDrawerOpen && isAuthenticated && (
-                <div 
+                <div
                   ref={modelDrawerRef}
                   className="absolute top-full left-1/2 transform -translate-x-1/2 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
                 >
@@ -727,7 +755,7 @@ function ChatPageContent() {
                 </div>
               )}
             </div>
-            
+
             {/* Balance/Sign in button in top right */}
             <div className="absolute right-4 text-xs text-white/50">
               {isAuthenticated ? `${balance} sats` : (
@@ -944,6 +972,7 @@ function ChatPageContent() {
                 placeholder={isAuthenticated ? `Ask anything...` : `Sign in to start chatting...`}
                 className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-12"
                 autoComplete="off"
+                data-tutorial="chat-input"
               />
               <button
                 onClick={sendMessage}
@@ -981,9 +1010,16 @@ function ChatPageContent() {
       )}
 
       {/* Login Modal */}
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* Tutorial Overlay */}
+      <TutorialOverlay
+        isOpen={isTutorialOpen}
+        onComplete={handleTutorialComplete}
+        onClose={handleTutorialClose}
       />
     </div>
   );
