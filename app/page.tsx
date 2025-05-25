@@ -524,9 +524,7 @@ function ChatPageContent() {
     setConversations([]);
     setActiveConversationId(null);
     setMessages([]);
-    localStorage.removeItem('cashu_proofs');
     localStorage.removeItem('saved_conversations');
-    setBalance(0);
   };
 
   if (!authChecked) {
