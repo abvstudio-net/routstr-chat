@@ -930,7 +930,7 @@ function ChatPageContent() {
         </div>
 
         {/* Fixed Chat Input at bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30">
+        <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
           <div className="mx-auto w-full max-w-4xl">
             <div className="relative flex items-center">
               <input
