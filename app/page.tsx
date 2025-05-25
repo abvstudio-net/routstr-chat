@@ -668,7 +668,7 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden relative transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'ml-0' : ''}`}>
         {/* Fixed Model Selection Header */}
-        <div className="fixed top-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-b border-white/10 z-40">
+        <div className="fixed top-0 left-0 right-0 bg-black/95 backdrop-blur-sm z-40">
           <div className="flex items-center justify-center h-[60px] px-4 relative">
             {/* Mobile Menu Button */}
             {isMobile && !isAuthenticated && (
@@ -744,8 +744,8 @@ function ChatPageContent() {
           </div>
         </div>
 
-        {/* Chat Messages with top padding for fixed header */}
-        <div className="flex-1 overflow-y-auto pt-[60px]">
+        {/* Chat Messages - takes remaining space */}
+        <div className="flex-1 overflow-y-auto pt-[60px] pb-[80px]">
           <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 pt-24">
@@ -930,7 +930,7 @@ function ChatPageContent() {
         </div>
 
         {/* Fixed Chat Input at bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-t border-white/10 p-3 md:p-4">
+        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-t border-white/10 p-3 md:p-4 z-30">
           <div className="mx-auto w-full max-w-4xl">
             <div className="relative flex items-center">
               <input
@@ -959,10 +959,6 @@ function ChatPageContent() {
                   <Send className="h-5 w-5 text-white" />
                 )}
               </button>
-            </div>
-
-            <div className="text-xs text-center text-white/50 mt-2">
-              Powered by {selectedModel?.name}
             </div>
           </div>
         </div>
