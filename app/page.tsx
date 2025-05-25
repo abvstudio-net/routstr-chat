@@ -668,7 +668,7 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden relative transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'ml-0' : ''}`}>
         {/* Fixed Model Selection Header */}
-        <div className="fixed top-0 left-0 right-0 bg-black/95 backdrop-blur-sm z-40">
+        <div className={`fixed top-0 bg-black/95 backdrop-blur-sm z-40 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
           <div className="flex items-center justify-center h-[60px] px-4 relative">
             {/* Mobile Menu Button */}
             {isMobile && !isAuthenticated && (
@@ -930,7 +930,7 @@ function ChatPageContent() {
         </div>
 
         {/* Fixed Chat Input at bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm border-t border-white/10 p-3 md:p-4 z-30">
+        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30">
           <div className="mx-auto w-full max-w-4xl">
             <div className="relative flex items-center">
               <input
