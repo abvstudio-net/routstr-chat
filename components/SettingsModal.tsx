@@ -55,7 +55,7 @@ const SettingsModal = ({
 }: SettingsModalProps) => {
   const { publicKey } = useNostr();
   const [tempMintUrl, setTempMintUrl] = useState(mintUrl);
-  const [activeTab, setActiveTab] = useState<'settings' | 'wallet'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history'>('settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
   const [mintQuote, setMintQuote] = useState<MintQuoteResponse | null>(null);
@@ -73,6 +73,13 @@ const SettingsModal = ({
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState<Array<{
+    type: 'mint' | 'send' | 'import';
+    amount: number;
+    timestamp: number;
+    status: 'success' | 'failed';
+    message?: string;
+  }>>([]);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -157,6 +164,13 @@ const SettingsModal = ({
           setBalance(newBalance);
 
           setSuccessMessage('Payment received! Tokens minted successfully.');
+          setTransactionHistory(prev => [...prev, {
+            type: 'mint',
+            amount: amount,
+            timestamp: Date.now(),
+            status: 'success',
+            message: 'Tokens minted'
+          }]);
 
           setShowInvoiceModal(false);
           setMintQuote(null);
@@ -243,8 +257,15 @@ const SettingsModal = ({
 
       setBalance((prevBalance) => prevBalance + importedAmount);
 
-      setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
-      setTokenToImport('');
+          setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
+          setTransactionHistory(prev => [...prev, {
+            type: 'import',
+            amount: importedAmount,
+            timestamp: Date.now(),
+            status: 'success',
+            message: 'Tokens imported'
+          }]);
+          setTokenToImport('');
     } catch (err) {
       const error = err as Error;
       if (error?.message?.includes('already spent') ||
@@ -300,8 +321,15 @@ const SettingsModal = ({
       const token = `cashuA${btoa(JSON.stringify(tokenObj))}`;
 
       setGeneratedToken(token);
-      setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
-      setSendAmount('');
+          setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
+          setTransactionHistory(prev => [...prev, {
+            type: 'send',
+            amount: amount,
+            timestamp: Date.now(),
+            status: 'success',
+            message: 'Tokens sent'
+          }]);
+          setSendAmount('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate token');
     } finally {
@@ -471,6 +499,13 @@ const SettingsModal = ({
           >
             Wallet
           </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/50 hover:text-white'} cursor-pointer`}
+            onClick={() => setActiveTab('history')}
+            type="button"
+          >
+            History
+          </button>
         </div>
 
         <div className="p-4">
@@ -558,7 +593,7 @@ const SettingsModal = ({
                 </div>
               </div>
             </>
-          ) : (
+          ) : activeTab === 'wallet' ? (
             /* Wallet Tab */
             <div className="space-y-6">
               {/* Balance Display */}
@@ -700,6 +735,36 @@ const SettingsModal = ({
                     {isImporting ? 'Importing...' : 'Import Token'}
                   </button>
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <h3 className="text-sm font-medium text-white/80 mb-2">Transaction History</h3>
+              <div className="bg-white/5 border border-white/10 rounded-md p-4">
+                {transactionHistory.length === 0 ? (
+                  <div className="text-xs text-white/50 mb-2">No transactions yet</div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {transactionHistory.map((tx, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-md">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            tx.status === 'success' ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                          <div>
+                            <div className="text-sm font-medium text-white capitalize">{tx.type}</div>
+                            <div className="text-xs text-white/50">
+                              {new Date(tx.timestamp).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-sm font-mono text-white">
+                          {tx.amount} sats
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
