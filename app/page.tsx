@@ -337,11 +337,15 @@ function ChatPageContent() {
     setIsLoading(true);
     setStreamingContent('');
 
-    try {
+    const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
       const token = await getOrCreateApiToken(mintUrl, 12);
 
       if (!token) {
-        throw new Error('Failed to get or create token. Please check your balance.');
+        throw new Error('Insufficient balance. Please add more funds to continue.');
+      }
+
+      if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
+        throw new Error('Insufficient balance. Please add more funds to continue.');
       }
 
       const response = await fetch('https://api.routstr.com/v1/chat/completions', {
@@ -362,8 +366,31 @@ function ChatPageContent() {
           invalidateApiToken();
           throw new Error('Token expired. Please try again.');
         }
+
+        // Handle insufficient balance (402)
+        if (response.status === 402 && retryOnInsufficientBalance) {
+          // Invalidate current token since it's out of balance
+          invalidateApiToken();
+
+          // Try to create a new token and retry once
+          const newToken = await getOrCreateApiToken(mintUrl, 12);
+
+          if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
+            throw new Error('Insufficient balance. Please add more funds to continue.');
+          }
+
+          // Recursive call with retry flag set to false to prevent infinite loops
+          return makeRequest(false);
+        }
+
         throw new Error(`API error: ${response.status}`);
       }
+
+      return response;
+    };
+
+    try {
+      const response = await makeRequest();
 
       if (!response.body) {
         throw new Error('Response body is not available');
@@ -516,8 +543,17 @@ function ChatPageContent() {
   );
 
   const refreshBalance = async () => {
-    try {
+    const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<void> => {
       const token = await getOrCreateApiToken(mintUrl, 12);
+
+      if (!token) {
+        throw new Error('No token available');
+      }
+
+      if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
+        throw new Error('No tokens available for balance check');
+      }
+
       const response = await fetch('https://api.routstr.com/v1/wallet/', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -525,6 +561,22 @@ function ChatPageContent() {
       });
 
       if (!response.ok) {
+        // Handle insufficient balance (402) 
+        if (response.status === 402 && retryOnInsufficientBalance) {
+          // Invalidate current token since it's out of balance
+          invalidateApiToken();
+
+          // Try to create a new token and retry once
+          const newToken = await getOrCreateApiToken(mintUrl, 12);
+
+          if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
+            throw new Error('No tokens available for balance check');
+          }
+
+          // Recursive call with retry flag set to false to prevent infinite loops
+          return makeBalanceRequest(false);
+        }
+
         throw new Error('Failed to fetch wallet balance');
       }
 
@@ -532,6 +584,10 @@ function ChatPageContent() {
       const apiBalance = Math.floor(data.balance / 1000);
       const proofsBalance = getBalanceFromStoredProofs();
       setBalance(apiBalance + proofsBalance);
+    };
+
+    try {
+      await makeBalanceRequest();
     } catch (error) {
       // Fall back to just proofs balance if API fails
       setBalance(getBalanceFromStoredProofs());
@@ -842,7 +898,7 @@ function ChatPageContent() {
                     /* System Message (for errors) */
                     <div className="flex justify-center mb-6 group">
                       <div className="flex flex-col">
-                        <div className="max-w-[85%] bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
+                        <div className="bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
                           <div className="flex items-center gap-2">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300">
                               <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

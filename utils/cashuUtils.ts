@@ -95,7 +95,7 @@ export const generateApiToken = async (
     const { send, keep } = await wallet.send(amount, proofs);
 
     if (!send || send.length === 0) {
-      throw new Error("Failed to generate token");
+      return null;
     }
 
     // Update stored proofs with remaining proofs
@@ -108,6 +108,10 @@ export const generateApiToken = async (
 
     return `cashuA${btoa(JSON.stringify(tokenObj))}`;
   } catch (error) {
+    if (error instanceof Error && error.message.includes('funds')) {
+      return null;
+    }
+    // Only log unexpected errors
     console.error("Failed to generate API token:", error);
     return null;
   }
