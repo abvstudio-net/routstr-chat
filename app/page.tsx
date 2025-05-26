@@ -18,7 +18,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { Model, getModelNameWithoutProvider } from '@/data/models';
-import ReactMarkdown from 'react-markdown';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 import SettingsModal from '@/components/SettingsModal';
 import LoginModal from '@/components/LoginModal';
 import TutorialOverlay from '@/components/TutorialOverlay';
@@ -92,6 +92,7 @@ function ChatPageContent() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mintUrl, setMintUrl] = useState('https://mint.minibits.cash/Bitcoin');
+  const [textareaHeight, setTextareaHeight] = useState(48);
 
   // Tutorial state
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -892,9 +893,7 @@ function ChatPageContent() {
                     /* AI Message */
                     <div className="flex flex-col items-start mb-6 group">
                       <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
-                        <div className="prose prose-invert max-w-none text-sm">
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
+                        <MarkdownRenderer content={message.content} />
                       </div>
 
                       {/* Try Again button - only visible on hover */}
@@ -944,9 +943,7 @@ function ChatPageContent() {
             {streamingContent && (
               <div className="flex flex-col items-start mb-6">
                 <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
-                  <div className="prose prose-invert max-w-none text-sm">
-                    <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                  </div>
+                  <MarkdownRenderer content={streamingContent} />
                 </div>
               </div>
             )}
@@ -958,9 +955,8 @@ function ChatPageContent() {
         {/* Fixed Chat Input at bottom */}
         <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
           <div className="mx-auto w-full max-w-4xl">
-            <div className="relative flex items-center">
-              <input
-                type="text"
+            <div className="relative flex items-end">
+              <textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => {
@@ -970,14 +966,27 @@ function ChatPageContent() {
                   }
                 }}
                 placeholder={isAuthenticated ? `Ask anything...` : `Sign in to start chatting...`}
-                className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-12"
+                className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-12 resize-none min-h-[48px] max-h-32 overflow-y-auto"
                 autoComplete="off"
                 data-tutorial="chat-input"
+                rows={1}
+                style={{
+                  height: 'auto',
+                  minHeight: '48px'
+                }}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  const newHeight = Math.min(target.scrollHeight, 128);
+                  target.style.height = newHeight + 'px';
+                  setTextareaHeight(newHeight);
+                }}
               />
               <button
                 onClick={sendMessage}
                 disabled={isLoading || (!isAuthenticated && !inputMessage.trim())}
-                className="absolute right-2 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer"
+                className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'
+                  }`}
                 aria-label="Send message"
               >
                 {isLoading ? (
