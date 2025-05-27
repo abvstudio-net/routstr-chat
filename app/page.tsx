@@ -16,17 +16,27 @@ import {
   PlusCircle,
   Menu,
   Settings,
+  ImagePlus,
 } from 'lucide-react';
 import { Model, getModelNameWithoutProvider } from '@/data/models';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import SettingsModal from '@/components/SettingsModal';
 import LoginModal from '@/components/LoginModal';
 import TutorialOverlay from '@/components/TutorialOverlay';
+import MessageContentRenderer from '@/components/MessageContent';
 
 // Types
+interface MessageContent {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+  };
+}
+
 interface Message {
   role: string;
-  content: string;
+  content: string | MessageContent[];
 }
 
 interface Conversation {
@@ -94,6 +104,10 @@ function ChatPageContent() {
   const [mintUrl, setMintUrl] = useState('https://mint.minibits.cash/Bitcoin');
   const [textareaHeight, setTextareaHeight] = useState(48);
 
+  // Image upload state
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Tutorial state
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
@@ -109,6 +123,85 @@ function ChatPageContent() {
   // Responsive design
   const isMobile = useMediaQuery('(max-width: 768px)');
   useWindowSize(); // Call for side effects only
+
+  // Helper functions for multimodal content
+  const getTextFromContent = useCallback((content: string | MessageContent[]): string => {
+    if (typeof content === 'string') return content;
+    const textContent = content.find(item => item.type === 'text');
+    return textContent?.text || '';
+  }, []);
+
+  const convertMessageForAPI = (message: Message): { role: string; content: string | MessageContent[] } => {
+    return {
+      role: message.role,
+      content: message.content
+    };
+  };
+
+  const createTextMessage = (role: string, text: string): Message => {
+    return {
+      role,
+      content: text
+    };
+  };
+
+  const createMultimodalMessage = (role: string, text: string, images: string[]): Message => {
+    const content: MessageContent[] = [
+      { type: 'text', text }
+    ];
+
+    images.forEach(imageUrl => {
+      content.push({
+        type: 'image_url',
+        image_url: { url: imageUrl }
+      });
+    });
+
+    return {
+      role,
+      content
+    };
+  };
+
+  // Image upload functions
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const newImages: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('image/')) {
+        try {
+          const base64 = await convertFileToBase64(file);
+          newImages.push(base64);
+        } catch (error) {
+          console.error('Error converting file to base64:', error);
+        }
+      }
+    }
+
+    setUploadedImages(prev => [...prev, ...newImages]);
+
+    // Reset the input value to allow uploading the same file again
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   // Close model drawer when clicking outside
   useEffect(() => {
@@ -138,20 +231,34 @@ function ChatPageContent() {
     setConversations(prevConversations => {
       let title = prevConversations.find(c => c.id === activeConversationId)?.title;
       if (!title || title.startsWith('Conversation ')) {
-        const firstUserMessage = messages.find(m => m.role === 'user')?.content;
+        const firstUserMessage = messages.find(m => m.role === 'user');
         if (firstUserMessage) {
-          title = firstUserMessage.length > 30
-            ? firstUserMessage.substring(0, 30) + '...'
-            : firstUserMessage;
+          const messageText = getTextFromContent(firstUserMessage.content);
+          title = messageText.length > 30
+            ? messageText.substring(0, 30) + '...'
+            : messageText;
         }
       }
 
       const updatedConversations = prevConversations.map(conversation => {
         if (conversation.id === activeConversationId) {
+          // Strip image data from messages before saving
+          const messagesToSave = messages.map(msg => {
+            if (Array.isArray(msg.content)) {
+              const textContent = msg.content.filter(item => item.type === 'text');
+              if (textContent.length === 0 && msg.content.some(item => item.type === 'image_url')) {
+                // If only images were present, save a placeholder
+                return { ...msg, content: '[Image(s) not saved to local storage]' };
+              }
+              return { ...msg, content: textContent.length > 0 ? textContent : '[Content removed]' };
+            }
+            return msg;
+          });
+
           return {
             ...conversation,
             title: title || conversation.title,
-            messages: [...messages]
+            messages: messagesToSave
           };
         }
         return conversation;
@@ -159,7 +266,7 @@ function ChatPageContent() {
       localStorage.setItem('saved_conversations', JSON.stringify(updatedConversations));
       return updatedConversations;
     });
-  }, [activeConversationId, messages]);
+  }, [activeConversationId, messages, getTextFromContent]);
 
   // Fetch available models from API and handle URL model selection
   const fetchModels = useCallback(async () => {
@@ -301,13 +408,15 @@ function ChatPageContent() {
   // Set input message to the content of the message being edited
   useEffect(() => {
     if (editingMessageIndex !== null && messages[editingMessageIndex]) {
-      setEditingContent(messages[editingMessageIndex].content);
+      const messageText = getTextFromContent(messages[editingMessageIndex].content);
+      setEditingContent(messageText);
     }
   }, [editingMessageIndex, messages]);
 
   const startEditingMessage = (index: number) => {
     setEditingMessageIndex(index);
-    setEditingContent(messages[index].content);
+    const messageText = getTextFromContent(messages[index].content);
+    setEditingContent(messageText);
   };
 
   const cancelEditing = () => {
@@ -333,7 +442,7 @@ function ChatPageContent() {
     }
   };
 
-  const fetchAIResponse = async (messageHistory: Array<{ role: string, content: string }>) => {
+  const fetchAIResponse = async (messageHistory: Message[]) => {
     setIsLoading(true);
     setStreamingContent('');
 
@@ -348,6 +457,9 @@ function ChatPageContent() {
         throw new Error('Insufficient balance. Please add more funds to continue.');
       }
 
+      // Convert messages to API format
+      const apiMessages = messageHistory.map(convertMessageForAPI);
+
       const response = await fetch('https://api.routstr.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -356,7 +468,7 @@ function ChatPageContent() {
         },
         body: JSON.stringify({
           model: selectedModel?.id,
-          messages: messageHistory,
+          messages: apiMessages,
           stream: true
         })
       });
@@ -445,10 +557,7 @@ function ChatPageContent() {
       }
 
       if (accumulatedContent) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: accumulatedContent
-        }]);
+        setMessages(prev => [...prev, createTextMessage('assistant', accumulatedContent)]);
       }
 
       setStreamingContent('');
@@ -459,10 +568,7 @@ function ChatPageContent() {
       // Only add error to chat, don't use unused error state
       const errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
 
-      setMessages(prev => [...prev, {
-        role: 'system',
-        content: errorMessage
-      }]);
+      setMessages(prev => [...prev, createTextMessage('system', errorMessage)]);
     } finally {
       setIsLoading(false);
     }
@@ -474,22 +580,25 @@ function ChatPageContent() {
       return;
     }
 
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() && uploadedImages.length === 0) return;
 
     if (!activeConversationId) {
       createNewConversation();
     }
 
-    const userMessage = { role: 'user', content: inputMessage };
+    // Create user message with text and images
+    const userMessage = uploadedImages.length > 0
+      ? createMultimodalMessage('user', inputMessage, uploadedImages)
+      : createTextMessage('user', inputMessage);
+
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
 
     setInputMessage('');
+    setUploadedImages([]);
 
     await fetchAIResponse(updatedMessages);
   };
-
-
 
   const createNewConversation = () => {
     const newId = Date.now().toString();
@@ -878,7 +987,9 @@ function ChatPageContent() {
                           <div>
                             <div className="group relative">
                               <div className="bg-gray-700/70 rounded-2xl py-3 px-4 text-white">
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                <div className="text-sm">
+                                  <MessageContentRenderer content={message.content} />
+                                </div>
                               </div>
                               <div className="flex justify-end mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                 <button
@@ -903,7 +1014,7 @@ function ChatPageContent() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300">
                               <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                             </svg>
-                            <p className="text-sm font-medium">{message.content}</p>
+                            <p className="text-sm font-medium">{getTextFromContent(message.content)}</p>
                           </div>
                         </div>
                         <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -949,7 +1060,7 @@ function ChatPageContent() {
                     /* AI Message */
                     <div className="flex flex-col items-start mb-6 group">
                       <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
-                        <MarkdownRenderer content={message.content} />
+                        <MessageContentRenderer content={message.content} />
                       </div>
 
                       {/* Try Again button - only visible on hover */}
@@ -1011,7 +1122,38 @@ function ChatPageContent() {
         {/* Fixed Chat Input at bottom */}
         <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
           <div className="mx-auto w-full max-w-4xl">
+            {/* Image Preview */}
+            {uploadedImages.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {uploadedImages.map((image, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={image}
+                      alt={`Upload ${index + 1}`}
+                      className="w-16 h-16 object-cover rounded-lg border border-white/10"
+                    />
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="relative flex items-end">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
               <textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
@@ -1022,7 +1164,7 @@ function ChatPageContent() {
                   }
                 }}
                 placeholder={isAuthenticated ? `Ask anything...` : `Sign in to start chatting...`}
-                className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-12 resize-none min-h-[48px] max-h-32 overflow-y-auto"
+                className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-24 resize-none min-h-[48px] max-h-32 overflow-y-auto"
                 autoComplete="off"
                 data-tutorial="chat-input"
                 rows={1}
@@ -1038,9 +1180,22 @@ function ChatPageContent() {
                   setTextareaHeight(newHeight);
                 }}
               />
+
+              {/* Image upload button */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!isAuthenticated}
+                className={`absolute right-12 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'
+                  }`}
+                aria-label="Upload image"
+              >
+                <ImagePlus className="h-5 w-5 text-white/70" />
+              </button>
+
+              {/* Send button */}
               <button
                 onClick={sendMessage}
-                disabled={isLoading || (!isAuthenticated && !inputMessage.trim())}
+                disabled={isLoading || (!isAuthenticated && !inputMessage.trim() && uploadedImages.length === 0)}
                 className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'
                   }`}
                 aria-label="Send message"
