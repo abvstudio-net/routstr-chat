@@ -1121,7 +1121,7 @@ function ChatPageContent() {
 
         {/* Fixed Chat Input at bottom */}
         <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
-          <div className="mx-auto w-full max-w-4xl">
+          <div className="mx-auto w-full max-w-2xl">
             {/* Image Preview */}
             {uploadedImages.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -1164,7 +1164,7 @@ function ChatPageContent() {
                   }
                 }}
                 placeholder={isAuthenticated ? `Ask anything...` : `Sign in to start chatting...`}
-                className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pr-24 resize-none min-h-[48px] max-h-32 overflow-y-auto"
+                className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none pl-14 pr-12 resize-none min-h-[48px] max-h-32 overflow-y-auto"
                 autoComplete="off"
                 data-tutorial="chat-input"
                 rows={1}
@@ -1185,19 +1185,17 @@ function ChatPageContent() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!isAuthenticated}
-                className={`absolute right-12 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'
-                  }`}
+                className={`absolute left-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
                 aria-label="Upload image"
               >
-                <ImagePlus className="h-5 w-5 text-white/70" />
+                <ImagePlus className="h-5 w-5 text-white" />
               </button>
 
               {/* Send button */}
               <button
                 onClick={sendMessage}
                 disabled={isLoading || (!isAuthenticated && !inputMessage.trim() && uploadedImages.length === 0)}
-                className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'
-                  }`}
+                className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
                 aria-label="Send message"
               >
                 {isLoading ? (
