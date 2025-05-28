@@ -1,7 +1,10 @@
 'use client';
 
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import CodeBlock from './CodeBlock';
+import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
   content: string;
@@ -11,6 +14,8 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
     <div className="prose prose-invert max-w-none text-sm leading-relaxed">
       <ReactMarkdown
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           // Code blocks and inline code
           code: ({ className, children, ...props }: any) => {
@@ -25,7 +30,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               </CodeBlock>
             );
           },
-          
+
           // Headings
           h1: ({ children }) => (
             <h1 className="text-2xl font-bold text-white mb-4 mt-6 first:mt-0">
@@ -57,14 +62,14 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               {children}
             </h6>
           ),
-          
+
           // Paragraphs
           p: ({ children }) => (
             <p className="text-white/90 mb-4 leading-relaxed last:mb-0">
               {children}
             </p>
           ),
-          
+
           // Lists
           ul: ({ children }) => (
             <ul className="list-disc ml-4 mb-4 space-y-1 text-white/90 [&>li]:pl-1">
@@ -81,7 +86,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               {children}
             </li>
           ),
-          
+
           // Links
           a: ({ href, children }) => (
             <a
@@ -93,14 +98,14 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               {children}
             </a>
           ),
-          
+
           // Blockquotes
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-white/20 pl-4 py-2 mb-4 text-white/80 italic bg-white/5 rounded-r">
               {children}
             </blockquote>
           ),
-          
+
           // Tables
           table: ({ children }) => (
             <div className="overflow-x-auto mb-4">
@@ -134,12 +139,12 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               {children}
             </td>
           ),
-          
+
           // Horizontal rule
           hr: () => (
             <hr className="border-white/20 my-6" />
           ),
-          
+
           // Strong and emphasis
           strong: ({ children }) => (
             <strong className="font-semibold text-white">
@@ -151,7 +156,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               {children}
             </em>
           ),
-          
+
           // Images
           img: ({ src, alt }) => (
             <img
