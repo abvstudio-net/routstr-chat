@@ -17,7 +17,7 @@ import Sidebar from '@/components/chat/Sidebar';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
-import { Conversation, Message, MessageContent } from '@/types/chat';
+import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
 
 function ChatPageContent() {
   const { isAuthenticated, logout } = useNostr();
@@ -52,6 +52,8 @@ function ChatPageContent() {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState<TransactionHistory[]>([]);
+  const [hotTokenBalance, setHotTokenBalance] = useState<number>(0);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -226,7 +228,23 @@ function ChatPageContent() {
       }
 
       const loadData = async () => {
-        await refreshBalance();
+        const {apiBalance, proofsBalance} = await refreshBalance();
+        setHotTokenBalance(apiBalance);
+        const savedTransactionHistory = localStorage.getItem('transaction_history');
+        if (savedTransactionHistory) {
+          try {
+            const parsedTransactionHistory = JSON.parse(savedTransactionHistory);
+            if (Array.isArray(parsedTransactionHistory)) {
+              setTransactionHistory(parsedTransactionHistory);
+            } else {
+              setTransactionHistory([]);
+            }
+          } catch {
+            setTransactionHistory([]);
+          }
+        } else {
+          setTransactionHistory([]);
+        }
         const savedConversationsData = localStorage.getItem('saved_conversations');
         if (savedConversationsData) {
           try {
@@ -338,6 +356,8 @@ function ChatPageContent() {
   const fetchAIResponse = async (messageHistory: Message[]) => {
     setIsLoading(true);
     setStreamingContent('');
+
+    const initialBalance = hotTokenBalance;
 
     const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
       const token = await getOrCreateApiToken(mintUrl, 12);
@@ -455,8 +475,21 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      await refreshBalance();
+      const {apiBalance, proofsBalance} = await refreshBalance();
+      const satsSpent = initialBalance - apiBalance;
 
+
+      const newTransaction: TransactionHistory = {
+        type: 'spent',
+        amount: satsSpent/1000,
+        timestamp: Date.now(),
+        status: 'success',
+        model: selectedModel?.id,
+        message: 'Tokens spent'
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
+      setHotTokenBalance(apiBalance);
     } catch (error) {
       // Only add error to chat, don't use unused error state
       const errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
@@ -540,8 +573,8 @@ function ChatPageContent() {
 
   const filteredModels = models;
 
-  const refreshBalance = async () => {
-    const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<void> => {
+  const refreshBalance = async (): Promise<{apiBalance:number, proofsBalance:number}> => {
+    const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
       const token = await getOrCreateApiToken(mintUrl, 12);
 
       if (!token) {
@@ -559,7 +592,7 @@ function ChatPageContent() {
       });
 
       if (!response.ok) {
-        // Handle insufficient balance (402) 
+        // Handle insufficient balance (402)
         if (response.status === 402 && retryOnInsufficientBalance) {
           // Invalidate current token since it's out of balance
           invalidateApiToken();
@@ -579,16 +612,20 @@ function ChatPageContent() {
       }
 
       const data = await response.json();
-      const apiBalance = Math.floor(data.balance / 1000);
+      const apiBalance = data.balance;
       const proofsBalance = getBalanceFromStoredProofs();
-      setBalance(apiBalance + proofsBalance);
+      setBalance(Math.floor(apiBalance / 1000) + proofsBalance);
+      return {apiBalance, proofsBalance};
     };
 
     try {
-      await makeBalanceRequest();
+      const {apiBalance, proofsBalance} = await makeBalanceRequest();
+      return {apiBalance, proofsBalance};
     } catch (error) {
       // Fall back to just proofs balance if API fails
-      setBalance(getBalanceFromStoredProofs());
+      const proofsBalance = getBalanceFromStoredProofs();
+      setBalance(proofsBalance);
+      return {apiBalance: 0, proofsBalance};
     }
   };
 
@@ -743,6 +780,8 @@ function ChatPageContent() {
           clearConversations={clearConversations}
           logout={logout}
           router={router}
+          transactionHistory={transactionHistory}
+          setTransactionHistory={setTransactionHistory}
         />
       )}
 

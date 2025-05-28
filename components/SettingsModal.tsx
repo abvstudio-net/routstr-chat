@@ -7,6 +7,7 @@ import { Model } from '@/data/models';
 import QRCode from 'react-qr-code';
 import { useNostr } from '@/context/NostrContext';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { TransactionHistory } from '@/types/chat';
 
 // Types for Cashu
 interface CashuProof {
@@ -37,6 +38,8 @@ interface SettingsModalProps {
   clearConversations: () => void;
   logout?: () => void;
   router?: AppRouterInstance;
+  transactionHistory: TransactionHistory[];
+  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void
 }
 
 const SettingsModal = ({
@@ -51,7 +54,9 @@ const SettingsModal = ({
   setBalance,
   clearConversations,
   logout,
-  router
+  router,
+  transactionHistory, 
+  setTransactionHistory
 }: SettingsModalProps) => {
   const { publicKey } = useNostr();
   const [tempMintUrl, setTempMintUrl] = useState(mintUrl);
@@ -73,13 +78,7 @@ const SettingsModal = ({
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [transactionHistory, setTransactionHistory] = useState<Array<{
-    type: 'mint' | 'send' | 'import';
-    amount: number;
-    timestamp: number;
-    status: 'success' | 'failed';
-    message?: string;
-  }>>([]);
+
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -164,13 +163,15 @@ const SettingsModal = ({
           setBalance(newBalance);
 
           setSuccessMessage('Payment received! Tokens minted successfully.');
-          setTransactionHistory(prev => [...prev, {
+          const newTransaction: TransactionHistory = {
             type: 'mint',
             amount: amount,
             timestamp: Date.now(),
             status: 'success',
             message: 'Tokens minted'
-          }]);
+          }
+          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+          setTransactionHistory(prev => [...prev, newTransaction]);
 
           setShowInvoiceModal(false);
           setMintQuote(null);
@@ -258,13 +259,16 @@ const SettingsModal = ({
       setBalance((prevBalance) => prevBalance + importedAmount);
 
           setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
-          setTransactionHistory(prev => [...prev, {
+
+          const newTransaction: TransactionHistory = {
             type: 'import',
             amount: importedAmount,
             timestamp: Date.now(),
             status: 'success',
             message: 'Tokens imported'
-          }]);
+          }
+          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+          setTransactionHistory(prev => [...prev, newTransaction]);
           setTokenToImport('');
     } catch (err) {
       const error = err as Error;
@@ -322,13 +326,16 @@ const SettingsModal = ({
 
       setGeneratedToken(token);
           setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
-          setTransactionHistory(prev => [...prev, {
+          
+          const newTransaction: TransactionHistory = {
             type: 'send',
             amount: amount,
             timestamp: Date.now(),
             status: 'success',
             message: 'Tokens sent'
-          }]);
+          }
+          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+          setTransactionHistory(prev => [...prev, newTransaction]);
           setSendAmount('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate token');
@@ -753,6 +760,7 @@ const SettingsModal = ({
                           }`} />
                           <div>
                             <div className="text-sm font-medium text-white capitalize">{tx.type}</div>
+                            <div className="text-sm text-white">{tx.model}</div>
                             <div className="text-xs text-white/50">
                               {new Date(tx.timestamp).toLocaleString()}
                             </div>
@@ -763,8 +771,28 @@ const SettingsModal = ({
                         </div>
                       </div>
                     ))}
+                    {/* Danger Zone */}
+                    <div className="mt-8 pt-4 border-t border-white/10">
+                      <h3 className="text-sm font-medium text-red-400 mb-4">Danger Zone</h3>
+                      <div className="space-y-3">
+                        <button
+                          className="w-full bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-2 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to clear all transaction history? This cannot be undone.')) {
+                              setTransactionHistory([]);
+                              localStorage.removeItem('saved_conversations');
+                              onClose();
+                            }
+                          }}
+                          type="button"
+                        >
+                          Clear transaction history
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
+
               </div>
             </div>
           )}
