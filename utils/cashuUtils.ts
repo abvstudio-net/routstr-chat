@@ -2,6 +2,66 @@ import { Event } from "nostr-tools";
 import { GiftWrap, wrapCashuToken, unwrapCashuToken } from "./nip60Utils";
 import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
 
+
+/**
+ * Gets both wallet + current Token balance from stored proofs and routstr API
+ * @returns The total balance in mSats
+ */
+export const fetchBalances = async (mintUrl: string): Promise<{apiBalance:number, proofsBalance:number}> => {
+  const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
+    const token = await getOrCreateApiToken(mintUrl, 12);
+
+    if (!token) {
+      throw new Error('No token available');
+    }
+
+    if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
+      throw new Error('No tokens available for balance check');
+    }
+
+    const response = await fetch('https://api.routstr.com/v1/wallet/', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      // Handle insufficient balance (402)
+      if (response.status === 402 && retryOnInsufficientBalance) {
+        // Invalidate current token since it's out of balance
+        invalidateApiToken();
+
+        // Try to create a new token and retry once
+        const newToken = await getOrCreateApiToken(mintUrl, 12);
+
+        if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
+          throw new Error('No tokens available for balance check');
+        }
+
+        // Recursive call with retry flag set to false to prevent infinite loops
+        return makeBalanceRequest(false);
+      }
+
+      throw new Error('Failed to fetch wallet balance');
+    }
+
+    const data = await response.json();
+    const apiBalance = data.balance;
+    const proofsBalance = getBalanceFromStoredProofs() * 1000; // to convert it into mSats
+
+    return {apiBalance, proofsBalance};
+  };
+
+  try {
+    const {apiBalance, proofsBalance} = await makeBalanceRequest();
+    return {apiBalance, proofsBalance};
+  } catch (error) {
+    // Fall back to just proofs balance if API fails
+    const proofsBalance = getBalanceFromStoredProofs();
+    return {apiBalance: 0, proofsBalance};
+  }
+};
+
 /**
  * Gets the current balance from stored proofs
  * @returns The total balance in sats

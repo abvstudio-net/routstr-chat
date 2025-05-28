@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNostr } from '@/context/NostrContext';
-import { getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
+import { fetchBalances, getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Loader2,
@@ -228,7 +228,8 @@ function ChatPageContent() {
       }
 
       const loadData = async () => {
-        const {apiBalance, proofsBalance} = await refreshBalance();
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+        setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000));
         setHotTokenBalance(apiBalance);
         const savedTransactionHistory = localStorage.getItem('transaction_history');
         if (savedTransactionHistory) {
@@ -475,9 +476,9 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      const {apiBalance, proofsBalance} = await refreshBalance();
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); // balances returned in mSats
       const satsSpent = initialBalance - apiBalance;
-
 
       const newTransaction: TransactionHistory = {
         type: 'spent',
@@ -485,7 +486,8 @@ function ChatPageContent() {
         timestamp: Date.now(),
         status: 'success',
         model: selectedModel?.id,
-        message: 'Tokens spent'
+        message: 'Tokens spent',
+        balance: (apiBalance+proofsBalance)/1000
       }
       localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
       setTransactionHistory(prev => [...prev, newTransaction]);
@@ -572,62 +574,6 @@ function ChatPageContent() {
   };
 
   const filteredModels = models;
-
-  const refreshBalance = async (): Promise<{apiBalance:number, proofsBalance:number}> => {
-    const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
-      const token = await getOrCreateApiToken(mintUrl, 12);
-
-      if (!token) {
-        throw new Error('No token available');
-      }
-
-      if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
-        throw new Error('No tokens available for balance check');
-      }
-
-      const response = await fetch('https://api.routstr.com/v1/wallet/', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        // Handle insufficient balance (402)
-        if (response.status === 402 && retryOnInsufficientBalance) {
-          // Invalidate current token since it's out of balance
-          invalidateApiToken();
-
-          // Try to create a new token and retry once
-          const newToken = await getOrCreateApiToken(mintUrl, 12);
-
-          if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-            throw new Error('No tokens available for balance check');
-          }
-
-          // Recursive call with retry flag set to false to prevent infinite loops
-          return makeBalanceRequest(false);
-        }
-
-        throw new Error('Failed to fetch wallet balance');
-      }
-
-      const data = await response.json();
-      const apiBalance = data.balance;
-      const proofsBalance = getBalanceFromStoredProofs();
-      setBalance(Math.floor(apiBalance / 1000) + proofsBalance);
-      return {apiBalance, proofsBalance};
-    };
-
-    try {
-      const {apiBalance, proofsBalance} = await makeBalanceRequest();
-      return {apiBalance, proofsBalance};
-    } catch (error) {
-      // Fall back to just proofs balance if API fails
-      const proofsBalance = getBalanceFromStoredProofs();
-      setBalance(proofsBalance);
-      return {apiBalance: 0, proofsBalance};
-    }
-  };
 
   const clearConversations = () => {
     setConversations([]);

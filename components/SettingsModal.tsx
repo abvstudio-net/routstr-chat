@@ -8,6 +8,7 @@ import QRCode from 'react-qr-code';
 import { useNostr } from '@/context/NostrContext';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { TransactionHistory } from '@/types/chat';
+import { fetchBalances, getBalanceFromStoredProofs } from '@/utils/cashuUtils';
 
 // Types for Cashu
 interface CashuProof {
@@ -100,13 +101,8 @@ const SettingsModal = ({
         await wallet.loadMint();
         if (isMounted) setCashuWallet(wallet);
 
-        // Calculate balance from stored proofs
-        const storedProofs = localStorage.getItem('cashu_proofs');
-        if (storedProofs) {
-          const proofs = JSON.parse(storedProofs) as readonly CashuProof[];
-          const totalAmount = proofs.reduce((total, proof) => total + proof.amount, 0);
-          setBalance(totalAmount);
-        }
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+        setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); //balances returned in mSats
       } catch {
         if (isMounted) setError('Failed to initialize wallet. Please try again.');
       }
@@ -160,7 +156,10 @@ const SettingsModal = ({
 
           const newBalance = existingProofs.reduce((total, proof) => total + proof.amount, 0) +
             proofs.reduce((total, proof) => total + proof.amount, 0);
-          setBalance(newBalance);
+
+
+          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+          setBalance(Math.floor(apiBalance / 1000) + newBalance)
 
           setSuccessMessage('Payment received! Tokens minted successfully.');
           const newTransaction: TransactionHistory = {
@@ -168,7 +167,8 @@ const SettingsModal = ({
             amount: amount,
             timestamp: Date.now(),
             status: 'success',
-            message: 'Tokens minted'
+            message: 'Tokens minted',
+            balance: Math.floor(apiBalance / 1000) + newBalance
           }
           localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
           setTransactionHistory(prev => [...prev, newTransaction]);
@@ -183,12 +183,9 @@ const SettingsModal = ({
             setError('This token has already been spent.');
           } else if (err?.message?.includes('already issued') ||
             err?.message?.includes('already minted')) {
-            const storedProofs = localStorage.getItem('cashu_proofs');
-            if (storedProofs) {
-              const proofs = JSON.parse(storedProofs) as readonly CashuProof[];
-              const totalAmount = proofs.reduce((total, proof) => total + proof.amount, 0);
-              setBalance(totalAmount);
-            }
+              
+            const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+            setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); //balances returned in mSats
             setSuccessMessage('Payment already processed! Your balance has been updated.');
             setShowInvoiceModal(false);
             setMintQuote(null);
@@ -258,18 +255,20 @@ const SettingsModal = ({
 
       setBalance((prevBalance) => prevBalance + importedAmount);
 
-          setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
+      setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
 
-          const newTransaction: TransactionHistory = {
-            type: 'import',
-            amount: importedAmount,
-            timestamp: Date.now(),
-            status: 'success',
-            message: 'Tokens imported'
-          }
-          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
-          setTransactionHistory(prev => [...prev, newTransaction]);
-          setTokenToImport('');
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      const newTransaction: TransactionHistory = {
+        type: 'import',
+        amount: importedAmount,
+        timestamp: Date.now(),
+        status: 'success',
+        message: 'Tokens imported',
+        balance: Math.floor(apiBalance / 1000) + importedAmount
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
+      setTokenToImport('');
     } catch (err) {
       const error = err as Error;
       if (error?.message?.includes('already spent') ||
@@ -325,18 +324,20 @@ const SettingsModal = ({
       const token = `cashuA${btoa(JSON.stringify(tokenObj))}`;
 
       setGeneratedToken(token);
-          setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
-          
-          const newTransaction: TransactionHistory = {
-            type: 'send',
-            amount: amount,
-            timestamp: Date.now(),
-            status: 'success',
-            message: 'Tokens sent'
-          }
-          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
-          setTransactionHistory(prev => [...prev, newTransaction]);
-          setSendAmount('');
+      setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
+      
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      const newTransaction: TransactionHistory = {
+        type: 'send',
+        amount: amount,
+        timestamp: Date.now(),
+        status: 'success',
+        message: 'Tokens sent',
+        balance: Math.floor(apiBalance / 1000) + amount
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
+      setSendAmount('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate token');
     } finally {
@@ -607,7 +608,10 @@ const SettingsModal = ({
               <div className="bg-white/5 border border-white/10 rounded-md p-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-white/70">Available Balance</span>
-                  <span className="text-lg font-semibold text-white">{balance} sats</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-lg font-semibold text-white">{balance} sats</span>
+                    <span className="text-sm text-white/69">({balance-getBalanceFromStoredProofs()}+{getBalanceFromStoredProofs()}) sats</span>
+                  </div>
                 </div>
               </div>
 
@@ -766,8 +770,13 @@ const SettingsModal = ({
                             </div>
                           </div>
                         </div>
-                        <div className="text-sm font-mono text-white">
-                          {tx.amount} sats
+                        <div>
+                          <div className="text-sm font-mono text-white">
+                            {tx.amount} sats
+                          </div>
+                          <div className="text-xs text-white/69">
+                            Balance: {tx.balance} sats
+                          </div>
                         </div>
                       </div>
                     ))}

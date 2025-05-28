@@ -33,4 +33,5 @@ export interface TransactionHistory {
   status: 'success' | 'failed';
   model?: string;
   message?: string;
+  balance?: number;
 }
