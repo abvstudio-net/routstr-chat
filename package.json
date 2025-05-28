@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cashu/cashu-ts": "^2.4.2",
+    "@modelcontextprotocol/sdk": "^1.12.0",
     "@radix-ui/react-avatar": "^1.1.9",
     "@radix-ui/react-dialog": "^1.1.13",
     "@radix-ui/react-popover": "^1.1.11",
