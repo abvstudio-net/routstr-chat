@@ -60,10 +60,23 @@ const tutorialSteps: TutorialStep[] = [
   }
 ];
 
+const TUTORIAL_STORAGE_KEY = 'routstr:tutorialSkipped';
+
 export default function TutorialOverlay({ isOpen, onClose, onComplete }: TutorialOverlayProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightElement, setHighlightElement] = useState<HTMLElement | null>(null);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+  const [shouldShow, setShouldShow] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const skipped = localStorage.getItem(TUTORIAL_STORAGE_KEY);
+      if (skipped === 'true') {
+        onClose();
+        setShouldShow(false);
+      }
+    }
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -118,10 +131,13 @@ export default function TutorialOverlay({ isOpen, onClose, onComplete }: Tutoria
   };
 
   const skipTutorial = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+    }
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !shouldShow) return null;
 
   const currentStepData = tutorialSteps[currentStep];
   const isLastStep = currentStep === tutorialSteps.length - 1;

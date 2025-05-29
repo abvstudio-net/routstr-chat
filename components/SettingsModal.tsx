@@ -7,6 +7,8 @@ import { Model } from '@/data/models';
 import QRCode from 'react-qr-code';
 import { useNostr } from '@/context/NostrContext';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { TransactionHistory } from '@/types/chat';
+import { fetchBalances, getBalanceFromStoredProofs } from '@/utils/cashuUtils';
 
 // Types for Cashu
 interface CashuProof {
@@ -37,6 +39,8 @@ interface SettingsModalProps {
   clearConversations: () => void;
   logout?: () => void;
   router?: AppRouterInstance;
+  transactionHistory: TransactionHistory[];
+  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void
 }
 
 const SettingsModal = ({
@@ -51,11 +55,13 @@ const SettingsModal = ({
   setBalance,
   clearConversations,
   logout,
-  router
+  router,
+  transactionHistory, 
+  setTransactionHistory
 }: SettingsModalProps) => {
   const { publicKey } = useNostr();
   const [tempMintUrl, setTempMintUrl] = useState(mintUrl);
-  const [activeTab, setActiveTab] = useState<'settings' | 'wallet'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history'>('settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
   const [mintQuote, setMintQuote] = useState<MintQuoteResponse | null>(null);
@@ -73,6 +79,7 @@ const SettingsModal = ({
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -94,13 +101,8 @@ const SettingsModal = ({
         await wallet.loadMint();
         if (isMounted) setCashuWallet(wallet);
 
-        // Calculate balance from stored proofs
-        const storedProofs = localStorage.getItem('cashu_proofs');
-        if (storedProofs) {
-          const proofs = JSON.parse(storedProofs) as readonly CashuProof[];
-          const totalAmount = proofs.reduce((total, proof) => total + proof.amount, 0);
-          setBalance(totalAmount);
-        }
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+        setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); //balances returned in mSats
       } catch {
         if (isMounted) setError('Failed to initialize wallet. Please try again.');
       }
@@ -154,9 +156,22 @@ const SettingsModal = ({
 
           const newBalance = existingProofs.reduce((total, proof) => total + proof.amount, 0) +
             proofs.reduce((total, proof) => total + proof.amount, 0);
-          setBalance(newBalance);
+
+
+          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+          setBalance(Math.floor(apiBalance / 1000) + newBalance)
 
           setSuccessMessage('Payment received! Tokens minted successfully.');
+          const newTransaction: TransactionHistory = {
+            type: 'mint',
+            amount: amount,
+            timestamp: Date.now(),
+            status: 'success',
+            message: 'Tokens minted',
+            balance: Math.floor(apiBalance / 1000) + newBalance
+          }
+          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+          setTransactionHistory(prev => [...prev, newTransaction]);
 
           setShowInvoiceModal(false);
           setMintQuote(null);
@@ -168,12 +183,9 @@ const SettingsModal = ({
             setError('This token has already been spent.');
           } else if (err?.message?.includes('already issued') ||
             err?.message?.includes('already minted')) {
-            const storedProofs = localStorage.getItem('cashu_proofs');
-            if (storedProofs) {
-              const proofs = JSON.parse(storedProofs) as readonly CashuProof[];
-              const totalAmount = proofs.reduce((total, proof) => total + proof.amount, 0);
-              setBalance(totalAmount);
-            }
+              
+            const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+            setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); //balances returned in mSats
             setSuccessMessage('Payment already processed! Your balance has been updated.');
             setShowInvoiceModal(false);
             setMintQuote(null);
@@ -244,6 +256,18 @@ const SettingsModal = ({
       setBalance((prevBalance) => prevBalance + importedAmount);
 
       setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
+
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      const newTransaction: TransactionHistory = {
+        type: 'import',
+        amount: importedAmount,
+        timestamp: Date.now(),
+        status: 'success',
+        message: 'Tokens imported',
+        balance: Math.floor(apiBalance / 1000) + importedAmount
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
       setTokenToImport('');
     } catch (err) {
       const error = err as Error;
@@ -301,6 +325,18 @@ const SettingsModal = ({
 
       setGeneratedToken(token);
       setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
+      
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      const newTransaction: TransactionHistory = {
+        type: 'send',
+        amount: amount,
+        timestamp: Date.now(),
+        status: 'success',
+        message: 'Tokens sent',
+        balance: Math.floor(apiBalance / 1000) + amount
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
       setSendAmount('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate token');
@@ -471,6 +507,13 @@ const SettingsModal = ({
           >
             Wallet
           </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/50 hover:text-white'} cursor-pointer`}
+            onClick={() => setActiveTab('history')}
+            type="button"
+          >
+            History
+          </button>
         </div>
 
         <div className="p-4">
@@ -558,14 +601,17 @@ const SettingsModal = ({
                 </div>
               </div>
             </>
-          ) : (
+          ) : activeTab === 'wallet' ? (
             /* Wallet Tab */
             <div className="space-y-6">
               {/* Balance Display */}
               <div className="bg-white/5 border border-white/10 rounded-md p-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-white/70">Available Balance</span>
-                  <span className="text-lg font-semibold text-white">{balance} sats</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-lg font-semibold text-white">{balance} sats</span>
+                    <span className="text-sm text-white/69">({balance-getBalanceFromStoredProofs()}+{getBalanceFromStoredProofs()}) sats</span>
+                  </div>
                 </div>
               </div>
 
@@ -700,6 +746,62 @@ const SettingsModal = ({
                     {isImporting ? 'Importing...' : 'Import Token'}
                   </button>
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <h3 className="text-sm font-medium text-white/80 mb-2">Transaction History</h3>
+              <div className="bg-white/5 border border-white/10 rounded-md p-4">
+                {transactionHistory.length === 0 ? (
+                  <div className="text-xs text-white/50 mb-2">No transactions yet</div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {transactionHistory.map((tx, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-md">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            tx.status === 'success' ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                          <div>
+                            <div className="text-sm font-medium text-white capitalize">{tx.type}</div>
+                            <div className="text-sm text-white">{tx.model}</div>
+                            <div className="text-xs text-white/50">
+                              {new Date(tx.timestamp).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-mono text-white">
+                            {tx.amount} sats
+                          </div>
+                          <div className="text-xs text-white/69">
+                            Balance: {tx.balance} sats
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Danger Zone */}
+                    <div className="mt-8 pt-4 border-t border-white/10">
+                      <h3 className="text-sm font-medium text-red-400 mb-4">Danger Zone</h3>
+                      <div className="space-y-3">
+                        <button
+                          className="w-full bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-2 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to clear all transaction history? This cannot be undone.')) {
+                              setTransactionHistory([]);
+                              localStorage.removeItem('saved_conversations');
+                              onClose();
+                            }
+                          }}
+                          type="button"
+                        >
+                          Clear transaction history
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
           )}

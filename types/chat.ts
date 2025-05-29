@@ -25,3 +25,13 @@ export interface Model {
     completion: number;
   };
 } 
+
+export interface TransactionHistory {
+  type: 'spent' | 'mint' | 'send' | 'import' | 'refund';
+  amount: number;
+  timestamp: number;
+  status: 'success' | 'failed';
+  model?: string;
+  message?: string;
+  balance?: number;
+}

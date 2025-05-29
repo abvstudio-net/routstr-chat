@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNostr } from '@/context/NostrContext';
-import { getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
+import { fetchBalances, getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Loader2,
@@ -17,7 +17,7 @@ import Sidebar from '@/components/chat/Sidebar';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
-import { Conversation, Message, MessageContent } from '@/types/chat';
+import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
 
 function ChatPageContent() {
   const { isAuthenticated, logout } = useNostr();
@@ -52,6 +52,8 @@ function ChatPageContent() {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState<TransactionHistory[]>([]);
+  const [hotTokenBalance, setHotTokenBalance] = useState<number>(0);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -226,7 +228,24 @@ function ChatPageContent() {
       }
 
       const loadData = async () => {
-        await refreshBalance();
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+        setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000));
+        setHotTokenBalance(apiBalance);
+        const savedTransactionHistory = localStorage.getItem('transaction_history');
+        if (savedTransactionHistory) {
+          try {
+            const parsedTransactionHistory = JSON.parse(savedTransactionHistory);
+            if (Array.isArray(parsedTransactionHistory)) {
+              setTransactionHistory(parsedTransactionHistory);
+            } else {
+              setTransactionHistory([]);
+            }
+          } catch {
+            setTransactionHistory([]);
+          }
+        } else {
+          setTransactionHistory([]);
+        }
         const savedConversationsData = localStorage.getItem('saved_conversations');
         if (savedConversationsData) {
           try {
@@ -338,6 +357,8 @@ function ChatPageContent() {
   const fetchAIResponse = async (messageHistory: Message[]) => {
     setIsLoading(true);
     setStreamingContent('');
+
+    const initialBalance = hotTokenBalance;
 
     const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
       const token = await getOrCreateApiToken(mintUrl, 12);
@@ -455,8 +476,22 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      await refreshBalance();
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); // balances returned in mSats
+      const satsSpent = initialBalance - apiBalance;
 
+      const newTransaction: TransactionHistory = {
+        type: 'spent',
+        amount: satsSpent/1000,
+        timestamp: Date.now(),
+        status: 'success',
+        model: selectedModel?.id,
+        message: 'Tokens spent',
+        balance: (apiBalance+proofsBalance)/1000
+      }
+      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
+      setTransactionHistory(prev => [...prev, newTransaction]);
+      setHotTokenBalance(apiBalance);
     } catch (error) {
       // Only add error to chat, don't use unused error state
       const errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
@@ -539,58 +574,6 @@ function ChatPageContent() {
   };
 
   const filteredModels = models;
-
-  const refreshBalance = async () => {
-    const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<void> => {
-      const token = await getOrCreateApiToken(mintUrl, 12);
-
-      if (!token) {
-        throw new Error('No token available');
-      }
-
-      if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
-        throw new Error('No tokens available for balance check');
-      }
-
-      const response = await fetch('https://api.routstr.com/v1/wallet/', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        // Handle insufficient balance (402) 
-        if (response.status === 402 && retryOnInsufficientBalance) {
-          // Invalidate current token since it's out of balance
-          invalidateApiToken();
-
-          // Try to create a new token and retry once
-          const newToken = await getOrCreateApiToken(mintUrl, 12);
-
-          if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-            throw new Error('No tokens available for balance check');
-          }
-
-          // Recursive call with retry flag set to false to prevent infinite loops
-          return makeBalanceRequest(false);
-        }
-
-        throw new Error('Failed to fetch wallet balance');
-      }
-
-      const data = await response.json();
-      const apiBalance = Math.floor(data.balance / 1000);
-      const proofsBalance = getBalanceFromStoredProofs();
-      setBalance(apiBalance + proofsBalance);
-    };
-
-    try {
-      await makeBalanceRequest();
-    } catch (error) {
-      // Fall back to just proofs balance if API fails
-      setBalance(getBalanceFromStoredProofs());
-    }
-  };
 
   const clearConversations = () => {
     setConversations([]);
@@ -743,6 +726,8 @@ function ChatPageContent() {
           clearConversations={clearConversations}
           logout={logout}
           router={router}
+          transactionHistory={transactionHistory}
+          setTransactionHistory={setTransactionHistory}
         />
       )}
 
