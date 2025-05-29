@@ -23,6 +23,7 @@ export interface Model {
   description?: string;
   sats_pricing: {
     completion: number;
+    max_cost: number;
   };
 } 
 
