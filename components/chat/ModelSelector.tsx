@@ -12,6 +12,7 @@ interface ModelSelectorProps {
   isLoadingModels: boolean;
   filteredModels: Model[];
   handleModelChange: (modelId: string) => void;
+  balance: number;
 }
 
 export default function ModelSelector({
@@ -23,6 +24,7 @@ export default function ModelSelector({
   isLoadingModels,
   filteredModels: models,
   handleModelChange,
+  balance,
 }: ModelSelectorProps) {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +34,11 @@ export default function ModelSelector({
   const filteredModels = models.filter(model => 
     getModelNameWithoutProvider(model.name).toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Check if a model is available based on balance
+  const isModelAvailable = (model: Model) => {
+    return balance >= model.sats_pricing.max_cost;
+  };
 
   // Focus search input when drawer opens
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function ModelSelector({
       {isModelDrawerOpen && isAuthenticated && (
         <div
           ref={modelDrawerRef}
-          className="absolute top-full left-1/2 transform -translate-x-1/2 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"
+          className="absolute top-full left-1/2 transform -translate-x-1/2 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-hidden z-50"
         >
           {/* Search bar */}
           <div className="sticky top-0 p-2 bg-black/90 backdrop-blur-sm border-b border-white/10">
@@ -121,24 +128,37 @@ export default function ModelSelector({
               <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
             </div>
           ) : (
-            <div className="p-1">
+            <div className="p-1 overflow-y-auto max-h-48">
               {filteredModels.length > 0 ? (
-                filteredModels.map((model) => (
-                  <div
-                    key={model.id}
-                    className={`p-2 text-sm rounded-md cursor-pointer ${selectedModel?.id === model.id
-                      ? 'bg-white/10'
-                      : 'hover:bg-white/5'
+                filteredModels.map((model) => {
+                  const isAvailable = isModelAvailable(model);
+                  return (
+                    <div
+                      key={model.id}
+                      className={`p-2 text-sm rounded-md ${
+                        !isAvailable 
+                          ? 'opacity-40 cursor-not-allowed' 
+                          : selectedModel?.id === model.id
+                          ? 'bg-white/10 cursor-pointer'
+                          : 'hover:bg-white/5 cursor-pointer'
                       }`}
-                    onClick={() => {
-                      handleModelChange(model.id);
-                      setIsModelDrawerOpen(false);
-                    }}
-                  >
-                    <div className="font-medium">{getModelNameWithoutProvider(model.name)}</div>
-                    <div className="text-xs text-white/50">{model.sats_pricing.completion.toFixed(4)} sats</div>
-                  </div>
-                ))
+                      onClick={() => {
+                        if (isAvailable) {
+                          handleModelChange(model.id);
+                          setIsModelDrawerOpen(false);
+                        }
+                      }}
+                    >
+                      <div className="font-medium">{getModelNameWithoutProvider(model.name)}</div>
+                      <div className="text-xs text-white/50">
+                        {model.sats_pricing.completion.toFixed(4)} sats
+                        {!isAvailable && model.sats_pricing.max_cost > 0 && (
+                          <span className="ml-2 text-yellow-400 font-medium">• Min: {model.sats_pricing.max_cost.toFixed(0)} sats</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="p-2 text-sm text-white/50 text-center">No models found</div>
               )}

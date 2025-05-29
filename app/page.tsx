@@ -664,6 +664,7 @@ function ChatPageContent() {
               isLoadingModels={isLoadingModels}
               filteredModels={filteredModels}
               handleModelChange={handleModelChange}
+              balance={balance}
             />
 
             {/* Balance/Sign in button in top right */}
