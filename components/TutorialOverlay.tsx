@@ -73,6 +73,7 @@ export default function TutorialOverlay({ isOpen, onClose, onComplete }: Tutoria
       const skipped = localStorage.getItem(TUTORIAL_STORAGE_KEY);
       if (skipped === 'true') {
         onClose();
+        setShouldShow(false);
       }
     }
   }, [onClose]);

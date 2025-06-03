@@ -241,7 +241,7 @@ function ChatPageContent() {
         setHotTokenBalance(apiBalance);
 
         // Check for low balance condition
-        if (apiBalance === 0 && (proofsBalance / 1000) < 12) {
+        if (apiBalance === 0 && proofsBalance !== 0 && (proofsBalance / 1000) < 12) {
           setShowLowBalanceModal(true);
         }
         const savedTransactionHistory = localStorage.getItem('transaction_history');
