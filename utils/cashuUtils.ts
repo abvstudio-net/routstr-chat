@@ -7,7 +7,7 @@ import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
  * Gets both wallet + current Token balance from stored proofs and routstr API
  * @returns The total balance in mSats
  */
-export const fetchBalances = async (mintUrl: string): Promise<{apiBalance:number, proofsBalance:number}> => {
+export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{apiBalance:number, proofsBalance:number}> => {
   const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
     const token = await getOrCreateApiToken(mintUrl, 12);
 
@@ -19,7 +19,7 @@ export const fetchBalances = async (mintUrl: string): Promise<{apiBalance:number
       throw new Error('No tokens available for balance check');
     }
 
-    const response = await fetch('https://api.routstr.com/v1/wallet/', {
+    const response = await fetch(`${baseUrl}v1/wallet/`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -47,7 +47,9 @@ export const fetchBalances = async (mintUrl: string): Promise<{apiBalance:number
 
     const data = await response.json();
     const apiBalance = data.balance;
+    const apiKey = data.api_key;
     const proofsBalance = getBalanceFromStoredProofs() * 1000; // to convert it into mSats
+    localStorage.setItem("current_api_key", apiKey);
 
     return {apiBalance, proofsBalance};
   };
@@ -57,7 +59,7 @@ export const fetchBalances = async (mintUrl: string): Promise<{apiBalance:number
     return {apiBalance, proofsBalance};
   } catch (error) {
     // Fall back to just proofs balance if API fails
-    const proofsBalance = getBalanceFromStoredProofs();
+    const proofsBalance = getBalanceFromStoredProofs() * 1000; // to convert it into mSats
     return {apiBalance: 0, proofsBalance};
   }
 };

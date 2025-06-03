@@ -17,6 +17,7 @@ import Sidebar from '@/components/chat/Sidebar';
 import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
+import LowBalanceModal from '@/components/chat/LowBalanceModal';
 import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
 
 function ChatPageContent() {
@@ -39,6 +40,7 @@ function ChatPageContent() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mintUrl, setMintUrl] = useState('https://mint.minibits.cash/Bitcoin');
+  const [baseUrl, setBaseUrl] = useState('https://api.routstr.com/');
   const [textareaHeight, setTextareaHeight] = useState(48);
 
   // Image upload state
@@ -54,6 +56,7 @@ function ChatPageContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState<TransactionHistory[]>([]);
   const [hotTokenBalance, setHotTokenBalance] = useState<number>(0);
+  const [showLowBalanceModal, setShowLowBalanceModal] = useState<boolean>(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -167,7 +170,7 @@ function ChatPageContent() {
   const fetchModels = useCallback(async () => {
     try {
       setIsLoadingModels(true);
-      const response = await fetch('https://api.routstr.com/');
+      const response = await fetch(baseUrl);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch models: ${response.status}`);
@@ -209,7 +212,7 @@ function ChatPageContent() {
     } finally {
       setIsLoadingModels(false);
     }
-  }, [searchParams]);
+  }, [searchParams, baseUrl]);
 
   // Get user balance and saved conversations from localStorage on page load
   useEffect(() => {
@@ -226,11 +229,21 @@ function ChatPageContent() {
       if (storedMintUrl) {
         setMintUrl(storedMintUrl);
       }
+      const storedBaseUrl = localStorage.getItem('base_url');
+      if (storedBaseUrl) {
+        setBaseUrl(storedBaseUrl);
+      }
 
       const loadData = async () => {
-        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
-        setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000));
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+
+        setBalance((apiBalance / 1000) + (proofsBalance / 1000));
         setHotTokenBalance(apiBalance);
+
+        // Check for low balance condition
+        if (apiBalance === 0 && (proofsBalance / 1000) < 12) {
+          setShowLowBalanceModal(true);
+        }
         const savedTransactionHistory = localStorage.getItem('transaction_history');
         if (savedTransactionHistory) {
           try {
@@ -317,6 +330,10 @@ function ChatPageContent() {
     localStorage.setItem('mint_url', mintUrl);
   }, [mintUrl]);
 
+  useEffect(() => {
+    localStorage.setItem('base_url', baseUrl);
+  }, [baseUrl]);
+
   // Set input message to the content of the message being edited
   useEffect(() => {
     if (editingMessageIndex !== null && messages[editingMessageIndex]) {
@@ -374,7 +391,7 @@ function ChatPageContent() {
       // Convert messages to API format
       const apiMessages = messageHistory.map(convertMessageForAPI);
 
-      const response = await fetch('https://api.routstr.com/v1/chat/completions', {
+      const response = await fetch(`${baseUrl}v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -476,7 +493,7 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl);
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
       setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); // balances returned in mSats
       const satsSpent = initialBalance - apiBalance;
 
@@ -582,13 +599,13 @@ function ChatPageContent() {
     localStorage.removeItem('saved_conversations');
   };
 
-  const handleTutorialComplete = () => {
+  const handleTutorialComplete = useCallback(() => {
     localStorage.setItem('hasSeenTutorial', 'true');
-  };
+  }, []);
 
-  const handleTutorialClose = () => {
+  const handleTutorialClose = useCallback(() => {
     setIsTutorialOpen(false);
-  };
+  }, []);
 
   const retryMessage = useCallback((index: number) => {
     const newMessages = messages.slice(0, index);
@@ -718,6 +735,8 @@ function ChatPageContent() {
           onClose={() => setIsSettingsOpen(false)}
           mintUrl={mintUrl}
           setMintUrl={setMintUrl}
+          baseUrl={baseUrl}
+          setBaseUrl={setBaseUrl}
           selectedModel={selectedModel}
           handleModelChange={handleModelChange}
           models={models}
@@ -734,6 +753,11 @@ function ChatPageContent() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      <LowBalanceModal
+        isOpen={showLowBalanceModal}
+        onClose={() => setShowLowBalanceModal(false)}
       />
 
       <TutorialOverlay
