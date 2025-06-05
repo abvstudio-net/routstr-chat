@@ -62,7 +62,6 @@ const ApiKeysTab = ({ balance, mintUrl, baseUrl }: ApiKeysTabProps) => {
       const token = await generateApiToken(mintUrl, parseInt(apiKeyAmount));
 
       if (token) {
-        // Call the v1/wallet endpoint to get the actual API key
         const response = await fetch(`${baseUrl}v1/wallet/`, {
           headers: {
             'Authorization': `Bearer ${token}`
