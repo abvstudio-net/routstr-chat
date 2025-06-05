@@ -55,7 +55,7 @@ const WalletTab: React.FC<WalletTabProps> = ({
           <span className="text-sm text-white/70">Available Balance</span>
           <div className="flex flex-col items-end">
             <span className="text-lg font-semibold text-white">{balance} sats</span>
-            <span className="text-sm text-white/69">({balance - getBalanceFromStoredProofs()}+{getBalanceFromStoredProofs()}) sats</span>
+            <span className="text-sm text-white/69">({Number(balance - getBalanceFromStoredProofs()).toFixed(3)}+{getBalanceFromStoredProofs()}) sats</span>
           </div>
         </div>
       </div>

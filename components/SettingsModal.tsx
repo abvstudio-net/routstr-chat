@@ -511,8 +511,14 @@ const SettingsModal = ({
             <button
               className="px-4 py-2 bg-black border border-white/10 text-white rounded-md text-sm hover:bg-white/10 transition-colors cursor-pointer"
               onClick={() => {
-                setMintUrl(tempMintUrl);
-                setBaseUrl(tempBaseUrl);
+                if (baseUrl != tempBaseUrl) {
+                  setBaseUrl(tempBaseUrl);
+                  localStorage.setItem('base_url', tempBaseUrl);
+                }
+                if (mintUrl != tempMintUrl) {
+                  setMintUrl(tempMintUrl);
+                  localStorage.setItem('mint_url', tempMintUrl);
+                }
                 onClose();
               }}
               type="button"

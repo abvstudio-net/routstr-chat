@@ -128,7 +128,7 @@ const ApiKeysTab = ({ balance, mintUrl, baseUrl }: ApiKeysTabProps) => {
 
       <div className="bg-white/5 rounded-lg p-4 border border-white/10">
         <p className="text-sm text-white/70">Current Balance:</p>
-        <p className="text-lg font-medium mb-4">{apiBalance} sats</p>
+        <p className="text-lg font-medium mb-4">{Number(apiBalance).toFixed(3)} sats</p>
 
         <p className="text-sm text-white/70">Your Chat API Key:</p>
         <div className="flex items-center space-x-2 mt-2">
@@ -198,7 +198,7 @@ const ApiKeysTab = ({ balance, mintUrl, baseUrl }: ApiKeysTabProps) => {
           </div>
           {storedApiKeys.map((keyData, index) => (
             <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-sm text-white/70">Balance: {keyData.balance/1000} sats</p>
+              <p className="text-sm text-white/70">Balance: {Number(keyData.balance/1000)} sats</p>
               <div className="flex items-center space-x-2 mt-1">
                 <input
                   type="password" // Always hide stored keys by default
