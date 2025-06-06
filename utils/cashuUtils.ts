@@ -19,7 +19,10 @@ export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{
       throw new Error('No tokens available for balance check');
     }
 
-    const response = await fetch(`${baseUrl}v1/wallet/`, {
+    // Ensure baseUrl ends with a slash
+    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+    const response = await fetch(`${normalizedBaseUrl}v1/wallet/`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
