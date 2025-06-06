@@ -226,23 +226,13 @@ function ChatPageContent() {
 
     setIsLoginModalOpen(false); // Close login modal if authenticated
 
-    const storedMintUrl = localStorage.getItem('mint_url');
-    if (storedMintUrl) {
-      setMintUrl(storedMintUrl);
-    }
-    else {
-      setMintUrl(DEFAULT_MINT_URL)
-    }
-    const storedBaseUrl = localStorage.getItem('base_url');
-    if (storedBaseUrl) {
-      setBaseUrl(storedBaseUrl);
-    }
-    else {
-      setBaseUrl(DEFAULT_BASE_URL)
-    }
+    const currentMintUrl = localStorage.getItem('mint_url')?? DEFAULT_MINT_URL;
+    setMintUrl(currentMintUrl);
+    const currentBaseUrl = localStorage.getItem('base_url')?? DEFAULT_BASE_URL;
+    setBaseUrl(currentBaseUrl);
 
     const loadData = async () => {
-      const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
+      const { apiBalance, proofsBalance } = await fetchBalances(currentMintUrl, currentBaseUrl);
 
       setBalance((apiBalance / 1000) + (proofsBalance / 1000));
       setHotTokenBalance(apiBalance);
