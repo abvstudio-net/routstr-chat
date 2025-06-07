@@ -431,6 +431,17 @@ function ChatPageContent() {
           return makeRequest(false);
         }
 
+        if (response.status === 413) {
+          // refund exsisting balance
+          // fetch min balance needed for request
+          // check if balance is enough
+          // if not find model with max_cost less than balance
+          // show modal with options to add more funds or change model
+          // if balance is enough, create new token with that balance threshold
+          // retry request
+          // if still not enough, throw error
+        }
+
         throw new Error(`API error: ${response.status}`);
       }
 

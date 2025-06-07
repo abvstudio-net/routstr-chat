@@ -222,6 +222,50 @@ export const getOrCreateApiToken = async (
   }
 };
 
+export const refundRemainingBalance = async (mintUrl: string, amount: number): Promise<{ success: boolean; message?: string }> => {
+  try {
+    // Try to get existing token
+    const storedToken = localStorage.getItem("current_cashu_token");
+    if (!storedToken) {
+      return { success: true, message: 'No token to refund' };
+    }
+
+    const baseUrl = localStorage.getItem("current_base_url");
+    if (!baseUrl) {
+      return { success: false, message: 'No base URL configured' };
+    }
+
+    // Ensure baseUrl ends with a slash
+    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+    const response = await fetch(`${normalizedBaseUrl}v1/wallet/refund`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${storedToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Refund request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(data);
+    
+    // Clear the current token since it's been refunded
+    invalidateApiToken();
+
+    return { success: true, message: 'Refund completed successfully' };
+  } catch (error) {
+    console.error("Error refunding balance:", error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Unknown error occurred during refund' 
+    };
+  }
+};
+
 /**
  * Invalidates the current API token
  */
