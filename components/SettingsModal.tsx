@@ -18,7 +18,7 @@ import InvoiceModal from './settings/InvoiceModal';
 import ApiKeysTab from './settings/ApiKeysTab';
 
 // Default token amount for models without max_cost defined
-const DEFAULT_TOKEN_AMOUNT = 12;
+const DEFAULT_TOKEN_AMOUNT = 50;
 
 // Types for Cashu
 interface CashuProof {

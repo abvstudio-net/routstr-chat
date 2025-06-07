@@ -22,7 +22,7 @@ import LowBalanceModal from '@/components/chat/LowBalanceModal';
 import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
 
 // Default token amount for models without max_cost defined
-const DEFAULT_TOKEN_AMOUNT = 12;
+const DEFAULT_TOKEN_AMOUNT = 50;
 
 function ChatPageContent() {
   const { isAuthenticated, logout } = useNostr();
