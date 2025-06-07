@@ -21,6 +21,9 @@ import ModelSelector from '@/components/chat/ModelSelector';
 import LowBalanceModal from '@/components/chat/LowBalanceModal';
 import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
 
+// Default token amount for models without max_cost defined
+const DEFAULT_TOKEN_AMOUNT = 12;
+
 function ChatPageContent() {
   const { isAuthenticated, logout } = useNostr();
   const router = useRouter();
@@ -226,18 +229,22 @@ function ChatPageContent() {
 
     setIsLoginModalOpen(false); // Close login modal if authenticated
 
-    const currentMintUrl = localStorage.getItem('mint_url')?? DEFAULT_MINT_URL;
+    const currentMintUrl = localStorage.getItem('mint_url') ?? DEFAULT_MINT_URL;
     setMintUrl(currentMintUrl);
-    const currentBaseUrl = localStorage.getItem('base_url')?? DEFAULT_BASE_URL;
+    const currentBaseUrl = localStorage.getItem('base_url') ?? DEFAULT_BASE_URL;
     setBaseUrl(currentBaseUrl);
 
     const loadData = async () => {
-      const { apiBalance, proofsBalance } = await fetchBalances(currentMintUrl, currentBaseUrl);
+      // Use selected model's max_cost if available, otherwise use default
+      const tokenAmount = selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT;
+      const { apiBalance, proofsBalance } = await fetchBalances(currentMintUrl, currentBaseUrl, tokenAmount);
 
       setBalance((apiBalance / 1000) + (proofsBalance / 1000));
       setHotTokenBalance(apiBalance);
 
-      if (apiBalance === 0 && proofsBalance !== 0 && (proofsBalance / 1000) < 12) {
+      // Use selected model's max_cost if available for threshold check
+      const minBalanceThreshold = selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT;
+      if (apiBalance === 0 && proofsBalance !== 0 && (proofsBalance / 1000) < minBalanceThreshold) {
         setShowLowBalanceModal(true);
       }
 
@@ -276,7 +283,7 @@ function ChatPageContent() {
 
     loadData();
 
-  }, [isAuthenticated]); // Only depend on isAuthenticated, router, and mintUrl should not trigger this specific effect
+  }, [isAuthenticated, selectedModel]); // Added selectedModel to dependency array
 
   // This useEffect will run when baseUrl changes to fetch models
   useEffect(() => {
@@ -373,7 +380,10 @@ function ChatPageContent() {
     const initialBalance = hotTokenBalance;
 
     const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
-      const token = await getOrCreateApiToken(mintUrl, 12);
+      // Use selected model's max_cost if available, otherwise use default
+      const tokenAmount = selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT;
+
+      const token = await getOrCreateApiToken(mintUrl, tokenAmount);
 
       if (!token) {
         throw new Error('Insufficient balance. Please add more funds to continue.');
@@ -411,7 +421,7 @@ function ChatPageContent() {
           invalidateApiToken();
 
           // Try to create a new token and retry once
-          const newToken = await getOrCreateApiToken(mintUrl, 12);
+          const newToken = await getOrCreateApiToken(mintUrl, tokenAmount);
 
           if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
             throw new Error('Insufficient balance. Please add more funds to continue.');
@@ -488,18 +498,18 @@ function ChatPageContent() {
 
       setStreamingContent('');
 
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+      const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
       setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); // balances returned in mSats
       const satsSpent = initialBalance - apiBalance;
 
       const newTransaction: TransactionHistory = {
         type: 'spent',
-        amount: satsSpent/1000,
+        amount: satsSpent / 1000,
         timestamp: Date.now(),
         status: 'success',
         model: selectedModel?.id,
         message: 'Tokens spent',
-        balance: (apiBalance+proofsBalance)/1000
+        balance: (apiBalance + proofsBalance) / 1000
       }
       localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
       setTransactionHistory(prev => [...prev, newTransaction]);

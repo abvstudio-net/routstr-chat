@@ -47,6 +47,18 @@ const WalletTab: React.FC<WalletTabProps> = ({
   importToken,
   isImporting,
 }) => {
+  // Popular amounts for quick minting
+  const popularAmounts = [100, 500, 1000];
+
+  // Handle quick mint button click
+  const handleQuickMint = async (amount: number) => {
+    setMintAmount(amount.toString());
+    // Small delay to ensure state is updated before creating quote
+    setTimeout(() => {
+      void createMintQuote();
+    }, 0);
+  };
+
   return (
     <div className="space-y-6">
       {/* Balance Display */}
@@ -75,22 +87,43 @@ const WalletTab: React.FC<WalletTabProps> = ({
       {/* Mint Tokens Section */}
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-white/80">Mint New Tokens</h3>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value={mintAmount}
-            onChange={(e) => setMintAmount(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-            placeholder="Amount in sats"
-          />
-          <button
-            onClick={createMintQuote}
-            disabled={isMinting || !mintAmount}
-            className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
-            type="button"
-          >
-            {isMinting ? 'Generating...' : 'Generate Invoice'}
-          </button>
+
+        {/* Quick Mint Buttons */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            {popularAmounts.map((amount) => (
+              <button
+                key={amount}
+                onClick={() => handleQuickMint(amount)}
+                disabled={isMinting}
+                className="flex-1 bg-white/5 border border-white/20 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 hover:border-white/30 transition-colors disabled:opacity-50 cursor-pointer"
+                type="button"
+              >
+                {amount} sats
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Manual Amount Input */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={mintAmount}
+              onChange={(e) => setMintAmount(e.target.value)}
+              className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+              placeholder="Amount in sats"
+            />
+            <button
+              onClick={createMintQuote}
+              disabled={isMinting || !mintAmount}
+              className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
+              type="button"
+            >
+              {isMinting ? 'Generating...' : 'Generate Invoice'}
+            </button>
+          </div>
         </div>
 
         {mintInvoice && (

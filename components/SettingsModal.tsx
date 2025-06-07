@@ -17,6 +17,9 @@ import HistoryTab from './settings/HistoryTab';
 import InvoiceModal from './settings/InvoiceModal';
 import ApiKeysTab from './settings/ApiKeysTab';
 
+// Default token amount for models without max_cost defined
+const DEFAULT_TOKEN_AMOUNT = 12;
+
 // Types for Cashu
 interface CashuProof {
   amount: number;
@@ -114,7 +117,7 @@ const SettingsModal = ({
         await wallet.loadMint();
         if (isMounted) setCashuWallet(wallet);
 
-        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+        const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
         setBalance((apiBalance / 1000) + (proofsBalance / 1000)); //balances returned in mSats
       } catch {
         if (isMounted) setError('Failed to initialize wallet. Please try again.');
@@ -171,7 +174,7 @@ const SettingsModal = ({
             proofs.reduce((total, proof) => total + proof.amount, 0);
 
 
-          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
           setBalance((apiBalance / 1000) + newBalance)
 
           setSuccessMessage('Payment received! Tokens minted successfully.');
@@ -197,7 +200,7 @@ const SettingsModal = ({
           } else if (err?.message?.includes('already issued') ||
             err?.message?.includes('already minted')) {
               
-            const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+            const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
             setBalance((apiBalance / 1000) + (proofsBalance / 1000)); //balances returned in mSats
             setSuccessMessage('Payment already processed! Your balance has been updated.');
             setShowInvoiceModal(false);
@@ -270,7 +273,7 @@ const SettingsModal = ({
 
       setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
 
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
       const newTransaction: TransactionHistory = {
         type: 'import',
         amount: importedAmount,
@@ -339,7 +342,7 @@ const SettingsModal = ({
       setGeneratedToken(token);
       setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
       
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
+      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
       const newTransaction: TransactionHistory = {
         type: 'send',
         amount: amount,

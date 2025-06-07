@@ -5,11 +5,14 @@ import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
 
 /**
  * Gets both wallet + current Token balance from stored proofs and routstr API
+ * @param mintUrl The Cashu mint URL
+ * @param baseUrl The API base URL  
+ * @param tokenAmount Amount in sats for token creation if needed (defaults to 12)
  * @returns The total balance in mSats
  */
-export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{apiBalance:number, proofsBalance:number}> => {
+export const fetchBalances = async (mintUrl: string, baseUrl: string, tokenAmount: number = 12): Promise<{apiBalance:number, proofsBalance:number}> => {
   const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
-    const token = await getOrCreateApiToken(mintUrl, 12);
+    const token = await getOrCreateApiToken(mintUrl, tokenAmount);
 
     if (!token) {
       throw new Error('No token available');
@@ -35,7 +38,7 @@ export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{
         invalidateApiToken();
 
         // Try to create a new token and retry once
-        const newToken = await getOrCreateApiToken(mintUrl, 12);
+        const newToken = await getOrCreateApiToken(mintUrl, tokenAmount);
 
         if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
           throw new Error('No tokens available for balance check');
