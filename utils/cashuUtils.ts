@@ -12,6 +12,7 @@ import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
  */
 export const fetchBalances = async (mintUrl: string, baseUrl: string, tokenAmount: number = 12): Promise<{apiBalance:number, proofsBalance:number}> => {
   const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
+    console.log(tokenAmount);
     const token = await getOrCreateApiToken(mintUrl, tokenAmount);
 
     if (!token) {
@@ -145,6 +146,15 @@ export const generateApiToken = async (
   amount: number
 ): Promise<string | null> => {
   try {
+    console.log('generating outputs:', amount)
+    // Check if amount is a decimal and round up if necessary
+    if (amount % 1 !== 0) {
+      amount = Math.ceil(amount);
+      console.log('rounded amount:', amount);
+    }
+    if (amount === 50) {
+      return null;
+    }
     // Get stored proofs
     const storedProofs = localStorage.getItem("cashu_proofs");
     if (!storedProofs) {
@@ -219,6 +229,64 @@ export const getOrCreateApiToken = async (
   } catch (error) {
     console.error("Error in token management:", error);
     return null;
+  }
+};
+
+export const refundRemainingBalance = async (mintUrl: string, baseUrl: string): Promise<{ success: boolean; message?: string }> => {
+  try {
+    // Try to get existing token
+    const storedToken = localStorage.getItem("current_cashu_token");
+    if (!storedToken) {
+      return { success: true, message: 'No token to refund' };
+    }
+
+    if (!baseUrl) {
+      return { success: false, message: 'No base URL configured' };
+    }
+
+    // Ensure baseUrl ends with a slash
+    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+    const response = await fetch(`${normalizedBaseUrl}v1/wallet/refund`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${storedToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Refund request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(data)
+    
+    if (data.token) {
+      const mint = new CashuMint(mintUrl);
+      const wallet = new CashuWallet(mint);
+      await wallet.loadMint();
+
+      const result = await wallet.receive(data.token);
+      const proofs = Array.isArray(result) ? result : [];
+
+      if (proofs && proofs.length > 0) {
+        const storedProofs = localStorage.getItem('cashu_proofs');
+        const existingProofs = storedProofs ? JSON.parse(storedProofs) : [];
+        localStorage.setItem('cashu_proofs', JSON.stringify([...existingProofs, ...proofs]));
+      }
+    }
+
+    // Clear the current token since it's been refunded
+    invalidateApiToken();
+
+    return { success: true, message: 'Refund completed successfully' };
+  } catch (error) {
+    console.error("Error refunding balance:", error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Unknown error occurred during refund' 
+    };
   }
 };
 

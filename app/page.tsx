@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNostr } from '@/context/NostrContext';
 import { DEFAULT_BASE_URL, DEFAULT_MINT_URL } from '@/lib/utils';
-import { fetchBalances, getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
+import { fetchBalances, getBalanceFromStoredProofs, getOrCreateApiToken, invalidateApiToken, refundRemainingBalance } from '@/utils/cashuUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Loader2,
@@ -174,12 +174,16 @@ function ChatPageContent() {
   const fetchModels = useCallback(async () => {
     try {
       setIsLoadingModels(true);
+      if (!baseUrl) return;
       const response = await fetch(`${baseUrl}`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch models: ${response.status}`);
       }
 
+      if(!response.ok) {
+        console.log(response);
+      }
       const data = await response.json();
 
       if (data && data.models && Array.isArray(data.models)) {
@@ -211,7 +215,8 @@ function ChatPageContent() {
           setSelectedModel(data.models[0]);
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('Error while fetching models', error);
       setModels([]);
     } finally {
       setIsLoadingModels(false);
@@ -232,11 +237,12 @@ function ChatPageContent() {
     const currentMintUrl = localStorage.getItem('mint_url') ?? DEFAULT_MINT_URL;
     setMintUrl(currentMintUrl);
     const currentBaseUrl = localStorage.getItem('base_url') ?? DEFAULT_BASE_URL;
-    setBaseUrl(currentBaseUrl);
+    setBaseUrl(currentBaseUrl.endsWith('/') ? currentBaseUrl : `${currentBaseUrl}/`);
 
     const loadData = async () => {
       // Use selected model's max_cost if available, otherwise use default
       const tokenAmount = selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT;
+      console.log('before', tokenAmount);
       const { apiBalance, proofsBalance } = await fetchBalances(currentMintUrl, currentBaseUrl, tokenAmount);
 
       setBalance((apiBalance / 1000) + (proofsBalance / 1000));
@@ -431,6 +437,20 @@ function ChatPageContent() {
           return makeRequest(false);
         }
 
+        if (response.status === 413) {
+          console.log('HERE"S QWH', response);
+          await refundRemainingBalance(mintUrl, baseUrl)
+          return makeRequest(false);
+          // refund exsisting balance
+          // fetch min balance needed for reques
+          // check if balance is enough
+          // if not find model with max_cost less than balance
+          // show modal with options to add more funds or change model
+          // if balance is enough, create new token with that balance threshold
+          // retry request
+          // if still not enough, throw error
+        }
+
         throw new Error(`API error: ${response.status}`);
       }
 
@@ -501,6 +521,8 @@ function ChatPageContent() {
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl, selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT);
       setBalance(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000)); // balances returned in mSats
       const satsSpent = initialBalance - apiBalance;
+      
+      await refundRemainingBalance(mintUrl, baseUrl);
 
       const newTransaction: TransactionHistory = {
         type: 'spent',
