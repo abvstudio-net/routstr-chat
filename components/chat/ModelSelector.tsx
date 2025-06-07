@@ -37,7 +37,13 @@ export default function ModelSelector({
 
   // Check if a model is available based on balance
   const isModelAvailable = (model: Model) => {
-    return balance >= model.sats_pricing.max_cost;
+    try {
+      return balance >= model.sats_pricing.max_cost;
+    }
+    catch(error){ 
+      console.log(model);
+      console.error(error);
+    }
   };
 
   // Focus search input when drawer opens

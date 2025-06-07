@@ -174,12 +174,16 @@ function ChatPageContent() {
   const fetchModels = useCallback(async () => {
     try {
       setIsLoadingModels(true);
+      if (!baseUrl) return;
       const response = await fetch(`${baseUrl}`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch models: ${response.status}`);
       }
 
+      if(!response.ok) {
+        console.log(response);
+      }
       const data = await response.json();
 
       if (data && data.models && Array.isArray(data.models)) {
@@ -211,7 +215,8 @@ function ChatPageContent() {
           setSelectedModel(data.models[0]);
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('Error while fetching models', error);
       setModels([]);
     } finally {
       setIsLoadingModels(false);
