@@ -12,6 +12,7 @@ import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
  */
 export const fetchBalances = async (mintUrl: string, baseUrl: string, tokenAmount: number = 12): Promise<{apiBalance:number, proofsBalance:number}> => {
   const makeBalanceRequest = async (retryOnInsufficientBalance: boolean = true): Promise<{apiBalance:number, proofsBalance:number}> => {
+    console.log(tokenAmount);
     const token = await getOrCreateApiToken(mintUrl, tokenAmount);
 
     if (!token) {
@@ -145,6 +146,15 @@ export const generateApiToken = async (
   amount: number
 ): Promise<string | null> => {
   try {
+    console.log('generating outputs:', amount)
+    // Check if amount is a decimal and round up if necessary
+    if (amount % 1 !== 0) {
+      amount = Math.ceil(amount);
+      console.log('rounded amount:', amount);
+    }
+    if (amount === 50) {
+      return null;
+    }
     // Get stored proofs
     const storedProofs = localStorage.getItem("cashu_proofs");
     if (!storedProofs) {
@@ -222,7 +232,7 @@ export const getOrCreateApiToken = async (
   }
 };
 
-export const refundRemainingBalance = async (mintUrl: string, amount: number): Promise<{ success: boolean; message?: string }> => {
+export const refundRemainingBalance = async (mintUrl: string, baseUrl: string): Promise<{ success: boolean; message?: string }> => {
   try {
     // Try to get existing token
     const storedToken = localStorage.getItem("current_cashu_token");
@@ -230,7 +240,6 @@ export const refundRemainingBalance = async (mintUrl: string, amount: number): P
       return { success: true, message: 'No token to refund' };
     }
 
-    const baseUrl = localStorage.getItem("current_base_url");
     if (!baseUrl) {
       return { success: false, message: 'No base URL configured' };
     }
@@ -251,8 +260,23 @@ export const refundRemainingBalance = async (mintUrl: string, amount: number): P
     }
 
     const data = await response.json();
-    console.log(data);
+    console.log(data)
     
+    if (data.token) {
+      const mint = new CashuMint(mintUrl);
+      const wallet = new CashuWallet(mint);
+      await wallet.loadMint();
+
+      const result = await wallet.receive(data.token);
+      const proofs = Array.isArray(result) ? result : [];
+
+      if (proofs && proofs.length > 0) {
+        const storedProofs = localStorage.getItem('cashu_proofs');
+        const existingProofs = storedProofs ? JSON.parse(storedProofs) : [];
+        localStorage.setItem('cashu_proofs', JSON.stringify([...existingProofs, ...proofs]));
+      }
+    }
+
     // Clear the current token since it's been refunded
     invalidateApiToken();
 
