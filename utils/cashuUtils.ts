@@ -214,10 +214,10 @@ export const getOrCreateApiToken = async (
   }
 };
 
-export const refundRemainingBalance = async (mintUrl: string, baseUrl: string): Promise<{ success: boolean; message?: string }> => {
+export const refundRemainingBalance = async (mintUrl: string, baseUrl: string, token?: string): Promise<{ success: boolean; message?: string }> => {
   try {
-    // Try to get existing token
-    const storedToken = localStorage.getItem("current_cashu_token");
+    // Use provided token or try to get existing token from localStorage
+    const storedToken = token || localStorage.getItem("current_cashu_token");
     if (!storedToken) {
       return { success: true, message: 'No token to refund' };
     }

@@ -497,6 +497,7 @@ const SettingsModal = ({
           ) : (
             <ApiKeysTab
                 balance={balance}
+                setBalance={setBalance}
                 mintUrl={mintUrl}
                 baseUrl={baseUrl}
             />
