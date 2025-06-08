@@ -17,9 +17,6 @@ import HistoryTab from './settings/HistoryTab';
 import InvoiceModal from './settings/InvoiceModal';
 import ApiKeysTab from './settings/ApiKeysTab';
 
-// Default token amount for models without max_cost defined
-const DEFAULT_TOKEN_AMOUNT = 50;
-
 // Types for Cashu
 interface CashuProof {
   amount: number;
@@ -76,6 +73,7 @@ const SettingsModal = ({
   const { publicKey } = useNostr();
   const [tempMintUrl, setTempMintUrl] = useState(mintUrl);
   const [tempBaseUrl, setTempBaseUrl] = useState(baseUrl);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
@@ -105,6 +103,10 @@ const SettingsModal = ({
       setTempBaseUrl(baseUrl);
     }
   }, [isOpen, mintUrl, baseUrl]);
+
+  useEffect(() => {
+    setHasUnsavedChanges(tempMintUrl !== mintUrl || tempBaseUrl !== baseUrl);
+  }, [tempMintUrl, tempBaseUrl, mintUrl, baseUrl]);
 
   // Initialize wallet when modal opens or mintUrl changes
   useEffect(() => {
@@ -405,14 +407,27 @@ const SettingsModal = ({
     };
   }, [mintInvoice, mintQuote, checkMintQuote]);
 
+  const handleClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const confirmClose = window.confirm(
+        'You have unsaved changes. Are you sure you want to close without saving?'
+      );
+      if (confirmClose) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  }, [hasUnsavedChanges, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={handleClose}>
       <div className="bg-black rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4 border border-white/10" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center p-4 border-b border-white/10">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
-          <button onClick={onClose} className="text-white/70 hover:text-white cursor-pointer">
+          <button onClick={handleClose} className="text-white/70 hover:text-white cursor-pointer">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -507,7 +522,7 @@ const SettingsModal = ({
           <div className="mt-8 flex justify-end space-x-2">
             <button
               className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
-              onClick={onClose}
+              onClick={handleClose}
               type="button"
             >
               Cancel
@@ -523,6 +538,7 @@ const SettingsModal = ({
                   setMintUrl(tempMintUrl);
                   localStorage.setItem('mint_url', tempMintUrl);
                 }
+                setHasUnsavedChanges(false); // Reset unsaved changes after saving
                 onClose();
               }}
               type="button"

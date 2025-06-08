@@ -19,6 +19,7 @@ import ChatMessages from '@/components/chat/ChatMessages';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import { Conversation, Message, MessageContent, TransactionHistory } from '@/types/chat';
+import { toast } from 'sonner';
 
 // Default token amount for models without max_cost defined
 const DEFAULT_TOKEN_AMOUNT = 50;
@@ -216,6 +217,8 @@ function ChatPageContent() {
     } catch (error) {
       console.error('Error while fetching models', error);
       setModels([]);
+      setSelectedModel(null);
+      toast.error('The provider might not be available');
     } finally {
       setIsLoadingModels(false);
     }
@@ -383,11 +386,11 @@ function ChatPageContent() {
       const token = await getOrCreateApiToken(mintUrl, tokenAmount);
 
       if (!token) {
-        throw new Error('Insufficient balance. Please add more funds to continue.');
+        throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
       }
 
       if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
-        throw new Error('Insufficient balance. Please add more funds to continue.');
+        throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
       }
 
       // Convert messages to API format
@@ -421,7 +424,7 @@ function ChatPageContent() {
           const newToken = await getOrCreateApiToken(mintUrl, tokenAmount);
 
           if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-            throw new Error('Insufficient balance. Please add more funds to continue.');
+            throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
           }
 
           // Recursive call with retry flag set to false to prevent infinite loops

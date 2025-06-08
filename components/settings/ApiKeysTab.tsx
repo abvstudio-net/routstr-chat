@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 interface StoredApiKey {
   key: string;
   balance: number;
-  name?: string; // Added optional name field
+  label?: string; // Added optional label field
+  baseUrl?: string; // Added optional baseUrl field
 }
 
 interface ApiKeysTabProps {
@@ -25,7 +26,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
   const [isLoading, setIsLoading] = useState(false); // Added isLoading state
   const [isRefundingKey, setIsRefundingKey] = useState<string | null>(null); // New state for refund loading
   const [isDeletingKey, setIsDeletingKey] = useState<string | null>(null); // New state for delete loading
-  const [newApiKeyName, setNewApiKeyName] = useState(''); // Added state for new API key name
+  const [newApiKeyLabel, setNewApiKeyLabel] = useState(''); // Added state for new API key label
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false); // New state for delete confirmation modal
   const [keyToDeleteConfirmation, setKeyToDeleteConfirmation] = useState<string | null>(null); // Key to delete in confirmation modal
 
@@ -33,9 +34,9 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
     const storedKeys = localStorage.getItem('api_keys');
     if (storedKeys) {
       const parsedKeys: StoredApiKey[] = JSON.parse(storedKeys);
-      // Ensure old keys have a name field, default to 'Unnamed'
-      const keysWithNames = parsedKeys.map(key => ({ ...key, name: key.name || 'Unnamed' }));
-      setStoredApiKeys(keysWithNames);
+      // Ensure old keys have a name and baseUrl field, default to 'Unnamed' and current baseUrl
+      const keysWithNamesAndBaseUrl = parsedKeys.map(key => ({ ...key, label: key.label || 'Unnamed', baseUrl: key.baseUrl || baseUrl }));
+      setStoredApiKeys(keysWithNamesAndBaseUrl);
     }
   }, []);
 
@@ -79,12 +80,12 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
         const newApiKey = data.api_key;
         const newApiKeyBalance = data.balance;
 
-        const newStoredKey: StoredApiKey = { key: newApiKey, balance: parseInt(newApiKeyBalance), name: newApiKeyName || 'Unnamed' }; // Include name
+        const newStoredKey: StoredApiKey = { key: newApiKey, balance: parseInt(newApiKeyBalance), label: newApiKeyLabel || 'Unnamed', baseUrl: baseUrl }; // Include label and baseUrl
         const updatedKeys = [...storedApiKeys, newStoredKey];
         localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
         setStoredApiKeys(updatedKeys);
         setApiKeyAmount('');
-        setNewApiKeyName(''); // Clear name input
+        setNewApiKeyLabel(''); // Clear label input
         setBalance(getBalanceFromStoredProofs())
         toast.success('API Key created and stored successfully!'); // Use toast
       } else {
@@ -103,7 +104,8 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
     const updatedKeys: StoredApiKey[] = [];
     for (const keyData of storedApiKeys) {
       try {
-        const response = await fetch(`${baseUrl}v1/wallet/`, {
+        const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
+        const response = await fetch(`${urlToUse}v1/wallet/`, {
           headers: {
             'Authorization': `Bearer ${keyData.key}`
           }
@@ -144,7 +146,8 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
 
       if (keyDataToDelete) {
         // Attempt to refund the balance
-        const refundResult = await refundRemainingBalance(mintUrl, baseUrl, keyDataToDelete.key);
+        const urlToUse = keyDataToDelete.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
+        const refundResult = await refundRemainingBalance(mintUrl, urlToUse, keyDataToDelete.key);
 
         if (refundResult.success) {
           toast.success(refundResult.message || 'API Key balance refunded successfully!');
@@ -180,9 +183,9 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
         <div className="flex items-center space-x-2 mb-2">
           <input
             type="text"
-            placeholder="API Key Name (optional)"
-            value={newApiKeyName}
-            onChange={(e) => setNewApiKeyName(e.target.value)}
+            placeholder="API Key Label (optional)"
+            value={newApiKeyLabel}
+            onChange={(e) => setNewApiKeyLabel(e.target.value)}
             className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
           />
         </div>
@@ -223,8 +226,11 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
           </div>
           {storedApiKeys.map((keyData, index) => (
             <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-sm text-white/70">Name: {keyData.name || 'Unnamed'}</p> {/* Display name */}
-              <p className="text-sm text-white/70">Balance: {Number(keyData.balance/1000)} sats</p>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-white/70">Label: {keyData.label || 'Unnamed'}</p> {/* Display label */}
+                <p className="text-md text-white">Balance: {Number(keyData.balance/1000)} sats</p>
+              </div>
+              <p className="text-sm text-white/70">Base URL: {keyData.baseUrl || 'Unset'}</p>
               <div className="flex items-center space-x-2 mt-1">
                 <input
                   type="password" // Always hide stored keys by default
@@ -253,7 +259,8 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
                   onClick={async () => {
                     setIsRefundingKey(keyData.key); // Set loading for this specific key
                     try {
-                      const result = await refundRemainingBalance(mintUrl, baseUrl, keyData.key);
+                      const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
+                      const result = await refundRemainingBalance(mintUrl, urlToUse, keyData.key);
                       if (result.success) {
                         toast.success(result.message || 'Refund completed successfully!');
                         refreshApiKeysBalances(); // Refresh balances after successful refund
