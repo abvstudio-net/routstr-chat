@@ -1,5 +1,5 @@
-import React from 'react';
-import { LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogOut, Plus, XCircle } from 'lucide-react';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { Model } from '@/data/models';
 
@@ -32,6 +32,56 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
   models,
   clearConversations,
 }) => {
+  const [baseUrls, setBaseUrls] = useState<string[]>([]);
+  const [newBaseUrlInput, setNewBaseUrlInput] = useState<string>('');
+
+  useEffect(() => {
+    const storedBaseUrls = localStorage.getItem('base_urls_list');
+    let initialBaseUrls: string[] = [];
+
+    if (storedBaseUrls) {
+      initialBaseUrls = JSON.parse(storedBaseUrls);
+    }
+
+    // Ensure tempBaseUrl is always in the list if it's a valid URL
+    if (tempBaseUrl && !initialBaseUrls.includes(tempBaseUrl)) {
+      initialBaseUrls = [tempBaseUrl, ...initialBaseUrls];
+    }
+
+    // If no URLs are stored and tempBaseUrl is also empty, add a default
+    if (initialBaseUrls.length === 0) {
+      initialBaseUrls = ['https://api.routstr.com/'];
+    }
+
+    setBaseUrls(initialBaseUrls);
+  }, []); // Empty dependency array to run only once on mount
+
+  useEffect(() => {
+    if (baseUrls.length !== 0) {
+      localStorage.setItem('base_urls_list', JSON.stringify(baseUrls));
+    }
+  }, [baseUrls]);
+
+  const handleAddBaseUrl = () => {
+    if (newBaseUrlInput.trim() && !baseUrls.includes(newBaseUrlInput.trim())) {
+      setBaseUrls([...baseUrls, newBaseUrlInput.trim()]);
+      setNewBaseUrlInput('');
+    }
+  };
+
+  const handleRemoveBaseUrl = (urlToRemove: string) => {
+    const updatedUrls = baseUrls.filter(url => url !== urlToRemove);
+    setBaseUrls(updatedUrls);
+    // If the removed URL was the currently selected one, select the first available URL or clear it
+    if (tempBaseUrl === urlToRemove) {
+      setTempBaseUrl(updatedUrls.length > 0 ? updatedUrls[0] : '');
+    }
+  };
+
+  const handleRadioChange = (url: string) => {
+    setTempBaseUrl(url);
+  };
+
   return (
     <>
       {/* Account Section */}
@@ -77,14 +127,49 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Base URL */}
       <div className="mb-6">
         <h3 className="text-sm font-medium text-white/80 mb-2">Base URL</h3>
-        <input
-          type="text"
-          className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-          placeholder="https://api.routstr.com/"
-          value={tempBaseUrl}
-          onChange={(e) => setTempBaseUrl(e.target.value)}
-        />
-        <p className="text-xs text-white/50 mt-1">The base URL for the Routstr API</p>
+        <div className="bg-white/5 border border-white/10 rounded-md p-4">
+          <p className="text-sm text-white mb-3">Choose your preferred Routstr API base URL</p>
+          <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+            {baseUrls.map((url, index) => (
+              <div className="flex items-center justify-between" key={index}>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id={`baseUrl-${index}`}
+                    name="baseUrl"
+                    className="mr-2"
+                    checked={tempBaseUrl === url}
+                    onChange={() => handleRadioChange(url)}
+                  />
+                  <label htmlFor={`baseUrl-${index}`} className="text-sm text-white">{url}</label>
+                </div>
+                <button
+                  onClick={() => handleRemoveBaseUrl(url)}
+                  className="text-red-400 hover:text-red-500 transition-colors"
+                  type="button"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+              placeholder="Add new base URL"
+              value={newBaseUrlInput}
+              onChange={(e) => setNewBaseUrlInput(e.target.value)}
+            />
+            <button
+              onClick={handleAddBaseUrl}
+              className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1"
+              type="button"
+            >
+              <Plus className="h-4 w-4" /> Add
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Model Selection */}
