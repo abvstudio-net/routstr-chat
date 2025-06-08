@@ -125,7 +125,7 @@ const ApiKeysTab = ({ balance, mintUrl, baseUrl }: ApiKeysTabProps) => {
     <div className="space-y-4 text-white">
       <h3 className="text-lg font-semibold">API Keys</h3>
 
-      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+      {/* <div className="bg-white/5 rounded-lg p-4 border border-white/10">
         <p className="text-sm text-white/70">Current Balance:</p>
         <p className="text-lg font-medium mb-4">{Number(apiBalance).toFixed(3)} sats</p>
 
@@ -152,7 +152,7 @@ const ApiKeysTab = ({ balance, mintUrl, baseUrl }: ApiKeysTabProps) => {
             <Copy className="h-5 w-5 text-white/70" />
           </button>
         </div>
-      </div>
+      </div> */}
 
       <div>
         <p className="text-sm text-white/70">Available in Wallet:</p>
