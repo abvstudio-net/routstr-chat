@@ -11,7 +11,7 @@ import { TransactionHistory } from '@/types/chat';
 import { fetchBalances, getBalanceFromStoredProofs } from '@/utils/cashuUtils';
 
 // Import new components
-import SettingsTab from './settings/SettingsTab';
+import GeneralTab from './settings/GeneralTab';
 import WalletTab from './settings/WalletTab';
 import HistoryTab from './settings/HistoryTab';
 import InvoiceModal from './settings/InvoiceModal';
@@ -71,9 +71,6 @@ const SettingsModal = ({
   setTransactionHistory
 }: SettingsModalProps) => {
   const { publicKey } = useNostr();
-  const [tempMintUrl, setTempMintUrl] = useState(mintUrl);
-  const [tempBaseUrl, setTempBaseUrl] = useState(baseUrl);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
@@ -96,17 +93,17 @@ const SettingsModal = ({
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Reset tempMintUrl when modal opens or mintUrl changes
-  useEffect(() => {
-    if (isOpen) {
-      setTempMintUrl(mintUrl);
-      setTempBaseUrl(baseUrl);
-    }
-  }, [isOpen, mintUrl, baseUrl]);
+  // Handle auto-saving mint URL changes
+  const handleMintUrlChange = useCallback((url: string) => {
+    setMintUrl(url);
+    localStorage.setItem('mint_url', url);
+  }, [setMintUrl]);
 
-  useEffect(() => {
-    setHasUnsavedChanges(tempMintUrl !== mintUrl || tempBaseUrl !== baseUrl);
-  }, [tempMintUrl, tempBaseUrl, mintUrl, baseUrl]);
+  // Handle auto-saving base URL changes
+  const handleBaseUrlChange = useCallback((url: string) => {
+    setBaseUrl(url);
+    localStorage.setItem('base_url', url);
+  }, [setBaseUrl]);
 
   // Initialize wallet when modal opens or mintUrl changes
   useEffect(() => {
@@ -407,27 +404,14 @@ const SettingsModal = ({
     };
   }, [mintInvoice, mintQuote, checkMintQuote]);
 
-  const handleClose = useCallback(() => {
-    if (hasUnsavedChanges) {
-      const confirmClose = window.confirm(
-        'You have unsaved changes. Are you sure you want to close without saving?'
-      );
-      if (confirmClose) {
-        onClose();
-      }
-    } else {
-      onClose();
-    }
-  }, [hasUnsavedChanges, onClose]);
-
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={handleClose}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="bg-black rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4 border border-white/10" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center p-4 border-b border-white/10">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
-          <button onClick={handleClose} className="text-white/70 hover:text-white cursor-pointer">
+          <button onClick={onClose} className="text-white/70 hover:text-white cursor-pointer">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -439,7 +423,7 @@ const SettingsModal = ({
             onClick={() => setActiveTab('settings')}
             type="button"
           >
-            Settings
+            General
           </button>
           <button
             className={`px-4 py-2 text-sm font-medium ${activeTab === 'wallet' ? 'text-white border-b-2 border-white' : 'text-white/50 hover:text-white'} cursor-pointer`}
@@ -466,19 +450,18 @@ const SettingsModal = ({
 
         <div className="p-4">
           {activeTab === 'settings' ? (
-            <SettingsTab
+            <GeneralTab
                 publicKey={publicKey}
                 logout={logout}
                 router={router}
                 onClose={onClose}
-                tempMintUrl={tempMintUrl}
-                setTempMintUrl={setTempMintUrl}
-                tempBaseUrl={tempBaseUrl}
-                setTempBaseUrl={setTempBaseUrl}
+                mintUrl={mintUrl}
+                setMintUrl={handleMintUrlChange}
+                baseUrl={baseUrl}
+                setBaseUrl={handleBaseUrlChange}
                 selectedModel={selectedModel}
                 handleModelChange={handleModelChange}
                 models={models}
-                clearConversations={clearConversations}
             />
           ) : activeTab === 'wallet' ? (
             <WalletTab
@@ -507,6 +490,7 @@ const SettingsModal = ({
             <HistoryTab
                 transactionHistory={transactionHistory}
                 setTransactionHistory={setTransactionHistory}
+                clearConversations={clearConversations}
                 onClose={onClose}
             />
           ) : (
@@ -517,35 +501,6 @@ const SettingsModal = ({
                 baseUrl={baseUrl}
             />
           )}
-
-          {/* Action Buttons */}
-          <div className="mt-8 flex justify-end space-x-2">
-            <button
-              className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
-              onClick={handleClose}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="px-4 py-2 bg-black border border-white/10 text-white rounded-md text-sm hover:bg-white/10 transition-colors cursor-pointer"
-              onClick={() => {
-                if (baseUrl != tempBaseUrl) {
-                  setBaseUrl(tempBaseUrl);
-                  localStorage.setItem('base_url', tempBaseUrl);
-                }
-                if (mintUrl != tempMintUrl) {
-                  setMintUrl(tempMintUrl);
-                  localStorage.setItem('mint_url', tempMintUrl);
-                }
-                setHasUnsavedChanges(false); // Reset unsaved changes after saving
-                onClose();
-              }}
-              type="button"
-            >
-              Save Changes
-            </button>
-          </div>
         </div>
       </div>
 

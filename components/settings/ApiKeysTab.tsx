@@ -205,7 +205,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl }: ApiKeysTabProps) 
           </button>
         </div>
         <button
-          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 bg-white/10 border border-white/10 text-white rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
           onClick={createApiKey}
           disabled={isLoading} // Disable button when loading
         >
