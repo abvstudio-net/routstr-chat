@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { ChevronDown, Loader2, Search } from 'lucide-react';
+import { ChevronDown, Loader2, Search, Star } from 'lucide-react';
 import { Model } from '@/types/chat';
 import { getModelNameWithoutProvider } from '@/data/models';
 
@@ -13,6 +13,7 @@ interface ModelSelectorProps {
   filteredModels: Model[];
   handleModelChange: (modelId: string) => void;
   balance: number;
+  favoriteModels: string[];
 }
 
 export default function ModelSelector({
@@ -25,6 +26,7 @@ export default function ModelSelector({
   filteredModels: models,
   handleModelChange,
   balance,
+  favoriteModels,
 }: ModelSelectorProps) {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +35,15 @@ export default function ModelSelector({
   // Filter models based on search query
   const filteredModels = models.filter(model => 
     getModelNameWithoutProvider(model.name).toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Separate favorite and non-favorite models
+  const favoriteModelsList = filteredModels.filter(model => 
+    favoriteModels.includes(model.id)
+  );
+  
+  const regularModelsList = filteredModels.filter(model => 
+    !favoriteModels.includes(model.id)
   );
 
   // Check if a model is available based on balance
@@ -87,6 +98,53 @@ export default function ModelSelector({
     }
   };
 
+  // Render a model item
+  const renderModelItem = (model: Model, isFavorite = false) => {
+    const isAvailable = isModelAvailable(model);
+    return (
+      <div
+        key={model.id}
+        className={`p-2 text-sm rounded-md transition-colors ${
+          !isAvailable 
+            ? 'opacity-40 cursor-not-allowed' 
+            : selectedModel?.id === model.id
+            ? isFavorite 
+              ? 'bg-gradient-to-r from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30' 
+              : 'bg-white/10 cursor-pointer'
+            : 'hover:bg-white/5 cursor-pointer'
+        }`}
+        onClick={() => {
+          if (isAvailable) {
+            handleModelChange(model.id);
+            setIsModelDrawerOpen(false);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2">
+          {isFavorite && (
+            <Star className="h-3 w-3 text-yellow-400 fill-current flex-shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className={`font-medium truncate ${isFavorite ? 'text-yellow-100' : ''}`}>
+              {getModelNameWithoutProvider(model.name)}
+            </div>
+            <div className="text-xs text-white/50">
+              {model.sats_pricing.completion.toFixed(4)} sats
+              {!isAvailable && model.sats_pricing.max_cost > 0 && (
+                <span className="ml-2 text-yellow-400 font-medium">• Min: {model.sats_pricing.max_cost.toFixed(0)} sats</span>
+              )}
+            </div>
+          </div>
+          {selectedModel?.id === model.id && (
+            <div className={`text-xs font-medium ${isFavorite ? 'text-yellow-300' : 'text-green-400'}`}>
+              ✓
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="relative">
       <button
@@ -94,14 +152,19 @@ export default function ModelSelector({
         className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10"
         data-tutorial="model-selector"
       >
-        <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
+        <div className="flex items-center gap-1.5">
+          {selectedModel && favoriteModels.includes(selectedModel.id) && (
+            <Star className="h-3 w-3 text-yellow-400 fill-current" />
+          )}
+          <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
+        </div>
         <ChevronDown className="h-4 w-4 text-white/70" />
       </button>
 
       {isModelDrawerOpen && isAuthenticated && (
         <div
           ref={modelDrawerRef}
-          className="absolute top-full left-1/2 transform -translate-x-1/2 w-64 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-60 overflow-hidden z-50"
+          className="absolute top-full left-1/2 transform -translate-x-1/2 w-72 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-80 overflow-hidden z-50"
         >
           {/* Search bar */}
           <div className="sticky top-0 p-2 bg-black/90 backdrop-blur-sm border-b border-white/10">
@@ -134,38 +197,41 @@ export default function ModelSelector({
               <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
             </div>
           ) : (
-            <div className="p-1 overflow-y-auto max-h-48">
-              {filteredModels.length > 0 ? (
-                filteredModels.map((model) => {
-                  const isAvailable = isModelAvailable(model);
-                  return (
-                    <div
-                      key={model.id}
-                      className={`p-2 text-sm rounded-md ${
-                        !isAvailable 
-                          ? 'opacity-40 cursor-not-allowed' 
-                          : selectedModel?.id === model.id
-                          ? 'bg-white/10 cursor-pointer'
-                          : 'hover:bg-white/5 cursor-pointer'
-                      }`}
-                      onClick={() => {
-                        if (isAvailable) {
-                          handleModelChange(model.id);
-                          setIsModelDrawerOpen(false);
-                        }
-                      }}
-                    >
-                      <div className="font-medium">{getModelNameWithoutProvider(model.name)}</div>
-                      <div className="text-xs text-white/50">
-                        {model.sats_pricing.completion.toFixed(4)} sats
-                        {!isAvailable && model.sats_pricing.max_cost > 0 && (
-                          <span className="ml-2 text-yellow-400 font-medium">• Min: {model.sats_pricing.max_cost.toFixed(0)} sats</span>
-                        )}
-                      </div>
+            <div className="overflow-y-auto max-h-64">
+              {/* Favorite Models Section */}
+              {favoriteModelsList.length > 0 && (
+                <div className="p-1">
+                  <div className="px-2 py-1 text-xs font-medium text-yellow-400 flex items-center gap-1.5">
+                    <Star className="h-3 w-3 fill-current" />
+                    Favorites
+                  </div>
+                  <div className="space-y-1">
+                    {favoriteModelsList.map((model) => renderModelItem(model, true))}
+                  </div>
+                </div>
+              )}
+
+              {/* Separator */}
+              {favoriteModelsList.length > 0 && regularModelsList.length > 0 && (
+                <div className="border-t border-white/10 my-1" />
+              )}
+
+              {/* Regular Models Section */}
+              {regularModelsList.length > 0 && (
+                <div className="p-1">
+                  {favoriteModelsList.length > 0 && (
+                    <div className="px-2 py-1 text-xs font-medium text-white/60">
+                      All Models
                     </div>
-                  );
-                })
-              ) : (
+                  )}
+                  <div className="space-y-1">
+                    {regularModelsList.map((model) => renderModelItem(model, false))}
+                  </div>
+                </div>
+              )}
+
+              {/* No results */}
+              {filteredModels.length === 0 && (
                 <div className="p-2 text-sm text-white/50 text-center">No models found</div>
               )}
             </div>

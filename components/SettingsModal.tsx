@@ -49,7 +49,9 @@ interface SettingsModalProps {
   logout?: () => void;
   router?: AppRouterInstance;
   transactionHistory: TransactionHistory[];
-  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void
+  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void;
+  favoriteModels: string[];
+  toggleFavoriteModel: (modelId: string) => void;
 }
 
 const SettingsModal = ({
@@ -68,7 +70,9 @@ const SettingsModal = ({
   logout,
   router,
   transactionHistory, 
-  setTransactionHistory
+  setTransactionHistory,
+  favoriteModels,
+  toggleFavoriteModel
 }: SettingsModalProps) => {
   const { publicKey } = useNostr();
   const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
@@ -462,6 +466,8 @@ const SettingsModal = ({
                 selectedModel={selectedModel}
                 handleModelChange={handleModelChange}
                 models={models}
+                favoriteModels={favoriteModels}
+                toggleFavoriteModel={toggleFavoriteModel}
             />
           ) : activeTab === 'wallet' ? (
             <WalletTab

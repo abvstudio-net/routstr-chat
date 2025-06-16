@@ -60,6 +60,7 @@ function ChatPageContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState<TransactionHistory[]>([]);
   const [hotTokenBalance, setHotTokenBalance] = useState<number>(0);
+  const [favoriteModels, setFavoriteModels] = useState<string[]>([]);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -106,6 +107,16 @@ function ChatPageContent() {
     };
   };
 
+  // Toggle favorite model
+  const toggleFavoriteModel = useCallback((modelId: string) => {
+    setFavoriteModels(prev => {
+      const updated = prev.includes(modelId)
+        ? prev.filter(id => id !== modelId)
+        : [...prev, modelId];
+      localStorage.setItem('favorite_models', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   // Close model drawer when clicking outside
   useEffect(() => {
@@ -262,6 +273,21 @@ function ChatPageContent() {
         }
       } else {
         setTransactionHistory([]);
+      }
+
+      // Load favorite models from localStorage
+      const savedFavoriteModels = localStorage.getItem('favorite_models');
+      if (savedFavoriteModels) {
+        try {
+          const parsedFavoriteModels = JSON.parse(savedFavoriteModels);
+          if (Array.isArray(parsedFavoriteModels)) {
+            setFavoriteModels(parsedFavoriteModels);
+          } else {
+            setFavoriteModels([]);
+          }
+        } catch {
+          setFavoriteModels([]);
+        }
       }
 
       const savedConversationsData = localStorage.getItem('saved_conversations');
@@ -702,6 +728,7 @@ function ChatPageContent() {
               filteredModels={filteredModels}
               handleModelChange={handleModelChange}
               balance={balance}
+              favoriteModels={favoriteModels}
             />
 
             {/* Balance/Sign in button in top right */}
@@ -768,6 +795,8 @@ function ChatPageContent() {
           router={router}
           transactionHistory={transactionHistory}
           setTransactionHistory={setTransactionHistory}
+          favoriteModels={favoriteModels}
+          toggleFavoriteModel={toggleFavoriteModel}
         />
       )}
 
