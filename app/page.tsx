@@ -648,8 +648,6 @@ function ChatPageContent() {
       let satsSpent;
 
       const result = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
-      console.log('rdlogs: ', result);
-      console.log('rdlogs: ', initialBalance);
       if (result.success) {
         if (usingNip60 && result.refundedAmount !== undefined) {
           satsSpent = Math.ceil(tokenAmount) - result.refundedAmount;
@@ -661,7 +659,7 @@ function ChatPageContent() {
         }
       } else {
         console.error("Refund failed:", result.message);
-        satsSpent = tokenAmount;
+        satsSpent = Math.ceil(tokenAmount);
       }
 
       const newTransaction: TransactionHistory = {
