@@ -53,7 +53,7 @@ interface SettingsModalProps {
   transactionHistory: TransactionHistory[];
   setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void;
   favoriteModels: string[];
-  toggleFavoriteModel: (modelId: string) => void;;
+  toggleFavoriteModel: (modelId: string) => void;
   usingNip60: boolean;
   setUsingNip60: (usingNip60: boolean) => void;
 }

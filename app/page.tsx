@@ -221,15 +221,6 @@ function ChatPageContent() {
       return updated;
     });
   }, []);
-  const { wallet, isLoading: isWalletLoading } = useCashuWallet();
-
-  // Log wallet data when it loads
-  useEffect(() => {
-    if (wallet) {
-      console.log("Wallet loaded in Groups page:", wallet);
-    }
-  }, [wallet]);
-
 
   // Close model drawer when clicking outside
   useEffect(() => {
