@@ -252,7 +252,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
 
         if (refundResult.success) {
           toast.success(refundResult.message || 'API Key balance refunded successfully!');
-          setBalance(balance-(refundResult.refundedAmount??0))
+          setBalance(balance+(refundResult.refundedAmount??0))
         } else {
           toast.error(refundResult.message || 'Failed to refund API Key balance. Deleting key anyway.');
         }

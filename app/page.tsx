@@ -548,7 +548,7 @@ function ChatPageContent() {
       });
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+        if ((response.status === 401 || response.status === 403) && retryOnInsufficientBalance) {
           invalidateApiToken();
 
           // Try to create a new token and retry once
@@ -573,8 +573,9 @@ function ChatPageContent() {
           return makeRequest(false);
         }
  
-        if (response.status === 413) {
+        if (response.status === 413 && retryOnInsufficientBalance) {
           await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+          console.log(retryOnInsufficientBalance);
           return makeRequest(false);
         }
 
@@ -674,8 +675,28 @@ function ChatPageContent() {
       localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
       setTransactionHistory(prev => [...prev, newTransaction]);
     } catch (error) {
+      console.log('rdlogs: ', error);
+      const storedToken = localStorage.getItem("current_cashu_token");
+      if (storedToken) {
+        try {
+          const proofs = await receiveToken(storedToken);
+        } catch (receiveError) {
+          if (receiveError instanceof Error && receiveError.message.includes('Token already spent')) {
+            // Do nothing, as per instruction
+            invalidateApiToken();
+          } else {
+            console.error("Error receiving token:", receiveError);
+          }
+        }
+      }
+
       // Only add error to chat, don't use unused error state
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
+      let errorMessage = 'Failed to process your request';
+      if (error instanceof TypeError && error.message.includes('NetworkError when attempting to fetch resource.')) {
+        errorMessage = 'Your provider is down. Please switch the provider in settings.';
+      } else {
+        errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
+      }
 
       setMessages(prev => [...prev, createTextMessage('system', errorMessage)]);
     } finally {
