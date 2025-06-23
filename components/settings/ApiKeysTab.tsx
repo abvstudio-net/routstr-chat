@@ -428,37 +428,12 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
       )}
 
       <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-        <p className="text-sm text-white/70 mb-2">Create New API Key:</p>
-        <div className="flex items-center space-x-2 mb-2">
-          <input
-            type="text"
-            placeholder="API Key Label (optional)"
-            value={newApiKeyLabel}
-            onChange={(e) => setNewApiKeyLabel(e.target.value)}
-            className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-          />
-        </div>
-        <div className="flex items-center space-x-2 mb-4">
-          <input
-            type="number"
-            placeholder="Amount"
-            value={apiKeyAmount}
-            onChange={(e) => setApiKeyAmount(e.target.value)}
-            className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-          />
-          <button
-            onClick={() => setApiKeyAmount(balance.toString())}
-            className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
-          >
-            Max
-          </button>
-        </div>
         <button
           className="px-4 py-2 bg-white/10 border border-white/10 text-white rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
           onClick={createApiKey}
           disabled={isLoading || isSyncingApiKeys} // Disable button when loading or syncing
         >
-          {isLoading ? 'Creating...' : 'Create API Key'} {/* Change button text when loading */}
+          {isLoading ? 'Creating...' : 'Create New API Key'} {/* Change button text when loading */}
         </button>
       </div>
 
@@ -566,6 +541,30 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
                 <p className="text-sm text-white/70 mb-4">
                   Note: Your API keys will be stored {cloudSyncEnabled ? 'in the cloud (Nostr) and also cached locally.' : 'only locally. If you clear your local storage, your keys and thus the BALANCE attached to them will be LOST.'}
                 </p>
+                <div className="flex items-center space-x-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="API Key Label (optional)"
+                    value={newApiKeyLabel}
+                    onChange={(e) => setNewApiKeyLabel(e.target.value)}
+                    className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 mb-4">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={apiKeyAmount}
+                    onChange={(e) => setApiKeyAmount(e.target.value)}
+                    className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                  />
+                  <button
+                    onClick={() => setApiKeyAmount(balance.toString())}
+                    className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
+                  >
+                    Max
+                  </button>
+                </div>
                 {baseUrls.length > 1 && (
                   <div className="mb-4">
                     <p className="text-sm text-white/70 mb-2">Select Base URL for this API Key:</p>
