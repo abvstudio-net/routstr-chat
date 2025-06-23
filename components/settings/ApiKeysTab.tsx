@@ -23,9 +23,10 @@ interface ApiKeysTabProps {
   mintUrl: string;
   baseUrl: string;
   usingNip60: boolean;
+  baseUrls: string[]; // Add baseUrls to props
 }
 
-const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKeysTabProps) => {
+const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrls }: ApiKeysTabProps) => {
   const { user } = useCurrentUser();
   const {
     syncedApiKeys,
@@ -49,6 +50,16 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
   const [newApiKeyLabel, setNewApiKeyLabel] = useState(''); // Added state for new API key label
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false); // New state for delete confirmation modal
   const [keyToDeleteConfirmation, setKeyToDeleteConfirmation] = useState<string | null>(null); // Key to delete in confirmation modal
+  const [isTopUpLoading, setIsTopUpLoading] = useState<string | null>(null); // New state for topup loading
+  const [showTopUpModal, setShowTopUpModal] = useState(false); // New state for topup modal
+  const [topUpAmount, setTopUpAmount] = useState(''); // New state for topup amount
+  const [keyToTopUp, setKeyToTopUp] = useState<StoredApiKey | null>(null); // Key to topup
+  const [selectedNewApiKeyBaseUrl, setSelectedNewApiKeyBaseUrl] = useState<string>(baseUrl); // New state for base URL during API key creation
+
+  // Effect to update selectedNewApiKeyBaseUrl if baseUrl prop changes
+  useEffect(() => {
+    setSelectedNewApiKeyBaseUrl(baseUrl);
+  }, [baseUrl]);
 
   // Effect to manage API keys based on cloud sync setting
   useEffect(() => {
@@ -143,6 +154,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
           toast.error('No active mint selected');
           return;
         }
+        console.log("tryuing my best");
         token = await create60CashuToken(
           cashuStore.activeMintUrl,
           sendToken,
@@ -157,7 +169,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
         return;
       }
 
-      const response = await fetch(`${baseUrl}v1/wallet/info`, {
+      const response = await fetch(`${selectedNewApiKeyBaseUrl}v1/wallet/info`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -171,7 +183,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
       const newApiKey = data.api_key;
       const newApiKeyBalance = data.balance;
 
-      const newStoredKey: StoredApiKey = { key: newApiKey, balance: parseInt(newApiKeyBalance), label: newApiKeyLabel || 'Unnamed', baseUrl: baseUrl, isInvalid: false }; // Include label, baseUrl, and isInvalid
+      const newStoredKey: StoredApiKey = { key: newApiKey, balance: parseInt(newApiKeyBalance), label: newApiKeyLabel || 'Unnamed', baseUrl: selectedNewApiKeyBaseUrl, isInvalid: false }; // Include label, baseUrl, and isInvalid
       const updatedKeys = [...storedApiKeys, newStoredKey];
 
       if (cloudSyncEnabled) {
@@ -224,11 +236,14 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
       }
     }
     // Update local storage if not cloud syncing, otherwise the hook will handle it
-    if (!cloudSyncEnabled) {
-      localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
-    }
     setStoredApiKeys(updatedKeys);
-    toast.success('API Key balances refreshed!');
+    if (cloudSyncEnabled) {
+      await createOrUpdateApiKeys(updatedKeys); // Sync updated keys to cloud
+      toast.success('API Key balances refreshed and synced to cloud!');
+    } else {
+      localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
+      toast.success('API Key balances refreshed!');
+    }
   };
 
   const handleDeleteApiKey = (keyToDelete: string) => {
@@ -275,6 +290,79 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
     } finally {
       setIsDeletingKey(null); // Reset loading
       setKeyToDeleteConfirmation(null); // Clear the key to delete
+    }
+  };
+
+  const handleTopUp = (keyData: StoredApiKey) => {
+    setKeyToTopUp(keyData);
+    setShowTopUpModal(true);
+  };
+
+  const confirmTopUp = async () => {
+    if (!keyToTopUp || !topUpAmount || parseInt(topUpAmount) <= 0) {
+      toast.error('Please enter a valid amount for top up.');
+      return;
+    }
+
+    setIsTopUpLoading(keyToTopUp.key);
+    setShowTopUpModal(false);
+    
+    try {
+      let cashuToken: string | null | { hasTokens: false } | undefined;
+      
+      // Create cashu token based on the wallet type
+      if (usingNip60) {
+        if (!cashuStore.activeMintUrl) {
+          toast.error('No active mint selected');
+          return;
+        }
+        cashuToken = await create60CashuToken(
+          cashuStore.activeMintUrl,
+          sendToken,
+          parseInt(topUpAmount)
+        );
+      } else {
+        cashuToken = await generateApiToken(mintUrl, parseInt(topUpAmount));
+      }
+
+      if (!cashuToken) {
+        toast.error('Failed to generate Cashu token for top up.');
+        return;
+      }
+
+      // Use the key-specific baseUrl or fallback to global baseUrl
+      const urlToUse = keyToTopUp.baseUrl || baseUrl;
+      
+      // Make the topup request to the backend
+      const response = await fetch(`${urlToUse}v1/wallet/topup?cashu_token=${encodeURIComponent(cashuToken)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToTopUp.key}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Top up failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      toast.success(`Successfully topped up ${topUpAmount} sats!`);
+      
+      // Update the local balance
+      setBalance(balance - parseInt(topUpAmount));
+      
+      // Refresh the API key balances to show the updated balance
+      await refreshApiKeysBalances();
+      
+    } catch (error) {
+      console.error('Error during top up:', error);
+      toast.error(`Top up failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsTopUpLoading(null);
+      setTopUpAmount('');
+      setKeyToTopUp(null);
     }
   };
  
@@ -416,9 +504,10 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
               <div className="flex justify-end space-x-2 mt-2">
                 <button
                   className="px-3 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 transition-colors"
-                  onClick={() => toast.info('Top Up functionality coming soon!')} // Placeholder
+                  onClick={() => handleTopUp(keyData)}
+                  disabled={isTopUpLoading === keyData.key || keyData.isInvalid}
                 >
-                  Top Up
+                  {isTopUpLoading === keyData.key ? 'Topping Up...' : 'Top Up'}
                 </button>
                 <button
                   className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700 transition-colors"
@@ -477,6 +566,26 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
                 <p className="text-sm text-white/70 mb-4">
                   Note: Your API keys will be stored {cloudSyncEnabled ? 'in the cloud (Nostr) and also cached locally.' : 'only locally. If you clear your local storage, your keys and thus the BALANCE attached to them will be LOST.'}
                 </p>
+                {baseUrls.length > 1 && (
+                  <div className="mb-4">
+                    <p className="text-sm text-white/70 mb-2">Select Base URL for this API Key:</p>
+                    <div className="max-h-32 overflow-y-auto space-y-2">
+                      {baseUrls.map((url: string, index: number) => (
+                        <div className="flex items-center" key={index}>
+                          <input
+                            type="radio"
+                            id={`newApiKeyBaseUrl-${index}`}
+                            name="newApiKeyBaseUrl"
+                            className="mr-2 accent-gray-500"
+                            checked={selectedNewApiKeyBaseUrl === url}
+                            onChange={() => setSelectedNewApiKeyBaseUrl(url)}
+                          />
+                          <label htmlFor={`newApiKeyBaseUrl-${index}`} className="text-sm text-white">{url}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end space-x-2">
                   <button
                     className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
@@ -537,6 +646,55 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60 }: ApiKe
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showTopUpModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="bg-black rounded-lg p-6 max-w-md w-full border border-white/10">
+            <h4 className="text-lg font-semibold text-white mb-4">Top Up API Key</h4>
+            <p className="text-sm text-white/70 mb-4">
+              Top up "{keyToTopUp?.label || 'Unnamed'}" API key with additional sats.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm text-white/70 mb-2">Amount (sats):</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                />
+                <button
+                  onClick={() => setTopUpAmount(balance.toString())}
+                  className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
+                >
+                  Max
+                </button>
+              </div>
+              <p className="text-xs text-white/50 mt-1">Available: {balance} sats</p>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                onClick={() => {
+                  setShowTopUpModal(false);
+                  setTopUpAmount('');
+                  setKeyToTopUp(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors"
+                onClick={confirmTopUp}
+                disabled={!topUpAmount || parseInt(topUpAmount) <= 0 || parseInt(topUpAmount) > balance}
+              >
+                Confirm Top Up
+              </button>
+            </div>
           </div>
         </div>
       )}

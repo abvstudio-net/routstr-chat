@@ -38,6 +38,7 @@ interface MintQuoteResponse {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialActiveTab?: 'settings' | 'wallet' | 'history' | 'api-keys';
   mintUrl: string;
   setMintUrl: (url: string) => void;
   baseUrl: string;
@@ -61,6 +62,7 @@ interface SettingsModalProps {
 const SettingsModal = ({
   isOpen,
   onClose,
+  initialActiveTab,
   mintUrl,
   setMintUrl,
   baseUrl,
@@ -81,10 +83,33 @@ const SettingsModal = ({
   setUsingNip60
 }: SettingsModalProps) => {
   const { user } = useCurrentUser();
-  const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>(initialActiveTab || 'settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
   const [mintQuote, setMintQuote] = useState<MintQuoteResponse | null>(null);
+  const [baseUrls, setBaseUrls] = useState<string[]>([]); // State to hold base URLs
+
+  // Effect to load base URLs from localStorage
+  useEffect(() => {
+    const storedBaseUrls = localStorage.getItem('base_urls_list');
+    let initialBaseUrls: string[] = [];
+
+    if (storedBaseUrls) {
+      initialBaseUrls = JSON.parse(storedBaseUrls);
+    }
+
+    // Ensure baseUrl is always in the list if it's a valid URL
+    if (baseUrl && !initialBaseUrls.includes(baseUrl)) {
+      initialBaseUrls = [baseUrl, ...initialBaseUrls];
+    }
+
+    // If no URLs are stored and baseUrl is also empty, add a default
+    if (initialBaseUrls.length === 0) {
+      initialBaseUrls = ['https://api.routstr.com/'];
+    }
+
+    setBaseUrls(initialBaseUrls);
+  }, [baseUrl]); // Re-run if baseUrl prop changes
 
   const [isMinting, setIsMinting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -491,6 +516,7 @@ const SettingsModal = ({
                 mintUrl={mintUrl}
                 baseUrl={baseUrl}
                 usingNip60={usingNip60}
+                baseUrls={baseUrls} // Pass baseUrls to ApiKeysTab
             />
           ) : activeTab === 'wallet' ? (
             <UnifiedWallet

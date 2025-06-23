@@ -56,6 +56,7 @@ function ChatPageContent() {
   const [editingContent, setEditingContent] = useState('');
   const [authChecked, setAuthChecked] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [initialSettingsTab, setInitialSettingsTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
   const [mintUrl, setMintUrl] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [textareaHeight, setTextareaHeight] = useState(48);
@@ -831,6 +832,7 @@ function ChatPageContent() {
         loadConversation={loadConversation}
         deleteConversation={deleteConversation}
         setIsSettingsOpen={setIsSettingsOpen}
+        setInitialSettingsTab={setInitialSettingsTab}
         balance={balance}
       />
 
@@ -920,6 +922,7 @@ function ChatPageContent() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          initialActiveTab={initialSettingsTab}
           mintUrl={mintUrl}
           setMintUrl={setMintUrl}
           baseUrl={baseUrl}

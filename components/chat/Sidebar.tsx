@@ -1,4 +1,4 @@
-import { ChevronDown, MessageSquare, PlusCircle, Settings, Trash2, X } from 'lucide-react';
+import { ChevronDown, MessageSquare, PlusCircle, Settings, Trash2, X, Key } from 'lucide-react';
 import { Conversation } from '@/types/chat';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ interface SidebarProps {
   loadConversation: (id: string) => void;
   deleteConversation: (id: string, e: React.MouseEvent) => void;
   setIsSettingsOpen: (isOpen: boolean) => void;
+  setInitialSettingsTab: (tab: 'settings' | 'wallet' | 'history' | 'api-keys') => void;
   balance: number;
 }
 
@@ -30,6 +31,7 @@ export default function Sidebar({
   loadConversation,
   deleteConversation,
   setIsSettingsOpen,
+  setInitialSettingsTab,
   balance
 }: SidebarProps) {
   if (!isAuthenticated) return null;
@@ -116,10 +118,27 @@ export default function Sidebar({
 
         {/* Bottom Controls */}
         <div className="p-4 mt-auto">
+          {/* API Keys Button */}
+          <div className="mb-2"> {/* Added margin-bottom for spacing */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(true);
+                setInitialSettingsTab('api-keys');
+              }}
+              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer w-full"
+            >
+              <Key className="h-4 w-4" />
+              <span>API Keys</span>
+            </button>
+          </div>
+
           {/* Settings Button */}
           <div className="flex items-center justify-between">
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={() => {
+                setIsSettingsOpen(true);
+                setInitialSettingsTab('settings');
+              }}
               className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
               data-tutorial="settings-button"
             >
