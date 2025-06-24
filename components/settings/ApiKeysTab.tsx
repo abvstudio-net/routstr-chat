@@ -136,10 +136,6 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
   };
 
   const createApiKey = async () => {
-    if (!apiKeyAmount || parseInt(apiKeyAmount) <= 0) {
-      alert('Please enter a valid amount for the API key.');
-      return;
-    }
 
     setShowConfirmation(true);
   };
@@ -148,6 +144,11 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
     setIsLoading(true); // Set loading to true
     try {
       let token: string | null | { hasTokens: false } | undefined;
+
+      if (!apiKeyAmount || parseInt(apiKeyAmount) <= 0) {
+        alert('Please enter a valid amount for the API key.');
+        return;
+      }
       
       if (usingNip60) {
         if (!cashuStore.activeMintUrl) {
