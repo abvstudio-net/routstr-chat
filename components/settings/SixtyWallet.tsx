@@ -59,7 +59,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const [showMigrationBanner, setShowMigrationBanner] = useState(false);
 
   // Handle lightning invoice creation
-  const handleCreateInvoice = async () => {
+  const handleCreateInvoice = async (quickMintAmount?: number) => {
     if (!cashuStore.activeMintUrl) {
       setError(
         "No active mint selected. Please select a mint in your wallet settings."
@@ -67,7 +67,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       return;
     }
 
-    if (!receiveAmount || isNaN(parseInt(receiveAmount))) {
+    const amount = quickMintAmount !== undefined ? quickMintAmount : parseInt(receiveAmount);
+
+    if (isNaN(amount) || amount <= 0) {
+      console.log('rdlogs: ', receiveAmount);
+      console.log('rdlogs: ', isNaN(parseInt(receiveAmount)));
       setError("Please enter a valid amount");
       return;
     }
@@ -76,7 +80,6 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setIsProcessing(true);
       setError(null);
 
-      const amount = parseInt(receiveAmount);
       const invoiceData = await createLightningInvoice(
         cashuStore.activeMintUrl,
         amount
@@ -124,7 +127,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   // Handle quick mint button click
   const handleQuickMint = async (amount: number) => {
     setReceiveAmount(amount.toString());
-    await handleCreateInvoice();
+    await handleCreateInvoice(amount);
   };
 
   // Poll for payment status
@@ -737,7 +740,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       placeholder="Amount in sats"
                     />
                     <button
-                      onClick={handleCreateInvoice}
+                      onClick={() => handleCreateInvoice()}
                       disabled={isProcessing || !receiveAmount || !cashuStore.activeMintUrl}
                       className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                       type="button"

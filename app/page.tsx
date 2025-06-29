@@ -549,35 +549,55 @@ function ChatPageContent() {
       });
 
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && retryOnInsufficientBalance) {
-          invalidateApiToken();
+        if (response.status === 401 || response.status === 403) {
+          const storedToken = localStorage.getItem("current_cashu_token");
+          let shouldAttemptUnifiedRefund = true;
 
-          // Try to create a new token and retry once
-          const newToken = usingNip60
-            ? await getOrCreate60ApiToken(mintUrl, tokenAmount)
-            : await getOrCreateApiToken(mintUrl, tokenAmount);
-
-          if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-            throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+          if (storedToken) {
+            try {
+              await receiveToken(storedToken);
+              shouldAttemptUnifiedRefund = false; // If receiveToken succeeds, no need for unifiedRefund
+            } catch (receiveError) {
+              if (receiveError instanceof Error && receiveError.message.includes('Token already spent')) {
+                // Token already spent, unifiedRefund might still be useful for other proofs
+                shouldAttemptUnifiedRefund = true;
+              } else {
+                console.error("Error receiving token:", receiveError);
+                shouldAttemptUnifiedRefund = true; // If receiveToken fails for other reasons, try unifiedRefund
+              }
+            }
           }
 
-          // Recursive call with retry flag set to false to prevent infinite loops
-          return makeRequest(false);
-        }
+          if (shouldAttemptUnifiedRefund) {
+            await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+          }
+          invalidateApiToken();
+          if (retryOnInsufficientBalance) {
+            // Try to create a new token and retry once
+            const newToken = usingNip60
+              ? await getOrCreate60ApiToken(mintUrl, tokenAmount)
+              : await getOrCreateApiToken(mintUrl, tokenAmount);
 
-        // Handle insufficient balance (402)
-        if (response.status === 402 && retryOnInsufficientBalance) {
+            if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
+              throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+            }
+
+            // Recursive call with retry flag set to false to prevent infinite loops
+            return makeRequest(false);
+          }
+        } else if (response.status === 402) {
+          // Handle insufficient balance (402)
           // Invalidate current token since it's out of balance
           invalidateApiToken();
-
-          // Recursive call with retry flag set to false to prevent infinite loops
-          return makeRequest(false);
-        }
- 
-        if (response.status === 413 && retryOnInsufficientBalance) {
+          if (retryOnInsufficientBalance) {
+            // Recursive call with retry flag set to false to prevent infinite loops
+            return makeRequest(false);
+          }
+        } else if (response.status === 413) {
           await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
-          console.log(retryOnInsufficientBalance);
-          return makeRequest(false);
+          if (retryOnInsufficientBalance) {
+            return makeRequest(false);
+          }
         }
 
         throw new Error(`API error: ${response.status}`);
@@ -677,19 +697,6 @@ function ChatPageContent() {
       setTransactionHistory(prev => [...prev, newTransaction]);
     } catch (error) {
       console.log('rdlogs: ', error);
-      const storedToken = localStorage.getItem("current_cashu_token");
-      if (storedToken) {
-        try {
-          const proofs = await receiveToken(storedToken);
-        } catch (receiveError) {
-          if (receiveError instanceof Error && receiveError.message.includes('Token already spent')) {
-            // Do nothing, as per instruction
-            invalidateApiToken();
-          } else {
-            console.error("Error receiving token:", receiveError);
-          }
-        }
-      }
 
       // Only add error to chat, don't use unused error state
       let errorMessage = 'Failed to process your request';

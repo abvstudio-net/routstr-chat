@@ -45,7 +45,6 @@ export function useCashuWallet() {
         if (events.length === 0) {
           return null;
         }
-        console.log('rdlogs: ', events);
 
         const event = events[0];
 
@@ -263,8 +262,6 @@ export function useCashuWallet() {
       // get all event IDs of proofsToRemove 
       const eventIdsToRemoveUnfiltered = proofsToRemove.map(proof => cashuStore.getProofEventId(proof));
       const eventIdsToRemove = [...new Set(eventIdsToRemoveUnfiltered.filter(id => id !== undefined) as string[])];
-      console.log('rdlogs: ', eventIdsToRemoveUnfiltered);
-      console.log('rdlogs: ', eventIdsToRemove);
 
       // get all proofs with eventIdsToRemove
       const allProofsWithEventIds = eventIdsToRemove.map(id => cashuStore.getProofsByEventId(id)).flat();
@@ -284,7 +281,6 @@ export function useCashuWallet() {
           proofs: newProofs,
           del: eventIdsToRemove
         }
-        console.log('rdlogs: ', newToken);
 
         // encrypt token event
         const newTokenEventContent = await user.signer.nip44.encrypt(
