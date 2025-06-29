@@ -654,7 +654,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       </button>
                     </div>
                     <span className={cn("text-sm font-medium", isActive ? "text-white" : "text-white/70")}>
-                      {formatBalance(mintBalance)} sats
+                      {formatBalance(mintBalance)}
                     </span>
                   </div>
                 );
