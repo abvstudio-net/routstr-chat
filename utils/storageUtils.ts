@@ -23,9 +23,26 @@ export const getStorageItem = <T>(key: string, defaultValue: T): T => {
   try {
     const item = localStorage.getItem(key);
     if (item === null) return defaultValue;
-    return JSON.parse(item);
+    
+    // Try to parse as JSON first
+    try {
+      return JSON.parse(item);
+    } catch (parseError) {
+      // If JSON parsing fails, check if it's a string type and return the raw value
+      if (typeof defaultValue === 'string') {
+        return item as T;
+      }
+      // For non-string types, throw the original parse error
+      throw parseError;
+    }
   } catch (error) {
     console.error(`Error retrieving item with key "${key}":`, error);
+    // Clear the corrupted item from storage
+    try {
+      localStorage.removeItem(key);
+    } catch (removeError) {
+      console.error(`Error removing corrupted item with key "${key}":`, removeError);
+    }
     return defaultValue;
   }
 };
@@ -65,6 +82,44 @@ export const clearAllStorage = (): void => {
   } catch (error) {
     console.error('Error clearing localStorage:', error);
   }
+};
+
+/**
+ * Migrate and fix corrupted storage items
+ * This function checks for common storage keys and ensures they're properly JSON formatted
+ */
+export const migrateStorageItems = (): void => {
+  const keysToMigrate = [
+    { key: 'base_url', defaultValue: 'https://api.routstr.com/' },
+    { key: 'mint_url', defaultValue: 'https://mint.minibits.cash/Bitcoin' },
+    { key: 'lastUsedModel', defaultValue: null },
+    { key: 'usingNip60', defaultValue: 'true' }
+  ];
+
+  keysToMigrate.forEach(({ key, defaultValue }) => {
+    try {
+      const item = localStorage.getItem(key);
+      if (item !== null) {
+        try {
+          // Try to parse the item
+          JSON.parse(item);
+          // If parsing succeeds, the item is already properly formatted
+        } catch (parseError) {
+          // If parsing fails, re-save the item with proper JSON formatting
+          console.log(`Migrating storage item "${key}" from raw value to JSON format`);
+          if (typeof defaultValue === 'string') {
+            setStorageItem(key, item); // Re-save the raw string value as JSON
+          } else {
+            setStorageItem(key, defaultValue); // Use default value if type mismatch
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error migrating storage item "${key}":`, error);
+      // If there's any error, just set the default value
+      setStorageItem(key, defaultValue);
+    }
+  });
 };
 
 // Specific storage utilities for the chat app

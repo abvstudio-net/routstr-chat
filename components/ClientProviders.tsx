@@ -1,9 +1,10 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 // import { NostrProvider } from '@/context/NostrContext';
 import NostrProvider from '@/components/NostrProvider'
 import dynamic from 'next/dynamic';
+import { migrateStorageItems } from '@/utils/storageUtils';
 
 const DynamicNostrLoginProvider = dynamic(
   () => import('@nostrify/react/login').then((mod) => mod.NostrLoginProvider),
@@ -29,6 +30,11 @@ const queryClient = new QueryClient({
 
 
 export default function ClientProviders({ children }: { children: ReactNode }) {
+  // Run storage migration on app startup
+  useEffect(() => {
+    migrateStorageItems();
+  }, []);
+
   return (
     <DynamicNostrLoginProvider storageKey='nostr:login'>
       <NostrProvider relays={defaultRelays}>
@@ -38,4 +44,4 @@ export default function ClientProviders({ children }: { children: ReactNode }) {
       </NostrProvider>
     </DynamicNostrLoginProvider>
   );
-} 
+}
