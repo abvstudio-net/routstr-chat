@@ -18,6 +18,7 @@ import InvoiceModal from './settings/InvoiceModal';
 import ApiKeysTab from './settings/ApiKeysTab';
 import UnifiedWallet from './settings/UnifiedWallet';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useNostrLogin } from '@nostrify/react/login';
 
 // Types for Cashu
 interface CashuProof {
@@ -83,6 +84,7 @@ const SettingsModal = ({
   setUsingNip60
 }: SettingsModalProps) => {
   const { user } = useCurrentUser();
+  const {logins} = useNostrLogin();
   const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>(initialActiveTab || 'settings');
   const [mintAmount, setMintAmount] = useState('64');
   const [mintInvoice, setMintInvoice] = useState('');
@@ -489,6 +491,8 @@ const SettingsModal = ({
           {activeTab === 'settings' ? (
             <GeneralTab
                 publicKey={user?.pubkey}
+                nsecData={logins[0].data}
+                loginType={user?.method}
                 logout={logout}
                 router={router}
                 onClose={onClose}

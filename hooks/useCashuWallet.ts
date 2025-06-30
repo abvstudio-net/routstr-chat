@@ -225,7 +225,6 @@ export function useCashuWallet() {
           }
 
           const decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
-          console.log('rdlogs:', decrypted);
           const tokenData = JSON.parse(decrypted) as CashuToken;
 
           nip60TokenEvents.push({

@@ -26,6 +26,7 @@ import { useCashuToken } from '@/hooks/useCashuToken';
 import { getEncodedTokenV4 } from '@cashu/cashu-ts';
 import React from 'react';
 import { calculateBalance } from '@/lib/cashu';
+import { useCreateCashuWallet } from '@/hooks/useCreateCashuWallet';
 
 // Default token amount for models without max_cost defined
 const DEFAULT_TOKEN_AMOUNT = 50;
@@ -37,6 +38,7 @@ function ChatPageContent() {
     const login = logins[0];
     if (login) {
       removeLogin(login.id);
+      localStorage.clear();
     }
   }, [logins, removeLogin]);
   const router = useRouter();
@@ -49,6 +51,7 @@ function ChatPageContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [balance, setBalance] = useState(0);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
@@ -87,37 +90,69 @@ function ChatPageContent() {
   // Responsive design
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { wallet, isLoading: isWalletLoading } = useCashuWallet();
+  const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken, cleanSpentProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
 
   // Log wallet data when it loads
  useEffect(() => {
-    if (wallet) {
+    if (logins.length > 0){
+      if (wallet) {
 
-      if (mintUrl && wallet.mints?.includes(mintUrl)) {
-        cashuStore.setActiveMintUrl(mintUrl);
-      } else if (wallet.mints?.includes(DEFAULT_MINT_URL)) {
-        cashuStore.setActiveMintUrl(DEFAULT_MINT_URL);
+        if (mintUrl && wallet.mints?.includes(mintUrl)) {
+          cashuStore.setActiveMintUrl(mintUrl);
+        } else if (wallet.mints?.includes(DEFAULT_MINT_URL)) {
+          cashuStore.setActiveMintUrl(DEFAULT_MINT_URL);
+        }
+      }
+
+      if (!isWalletLoading) {
+        if (wallet){
+          console.log('rdlogs: Wallet found: ', wallet);
+        }
+        else {
+          console.log('rdlogs: Creating new wallet');
+          handleCreateWallet();
+        }
       }
     }
-  }, [wallet, mintUrl, DEFAULT_MINT_URL]);
+  }, [wallet, mintUrl, DEFAULT_MINT_URL, isWalletLoading, logins]);
 
 
   const mintBalances = React.useMemo(() => {
     if (!cashuStore.proofs) return {};
     return calculateBalance(cashuStore.proofs);
-  }, [cashuStore.proofs]);
+  }, [cashuStore.proofs, cashuStore.mints]);
 
   useEffect(() => {
-    const totalBalance = Object.values(mintBalances).reduce(
-      (sum, balance) => sum + balance,
-      0
-    );
-    if (usingNip60) {
-      setBalance(totalBalance);
-    }
-  }, [mintBalances, usingNip60]);
-  
+    const fetchAndSetBalances = async () => {
+      if (usingNip60) {
+        if (isWalletLoading) {
+          setIsBalanceLoading(true);
+          setBalance(0); // Display 0 while loading, UI will show "loading"
+        } else {
+          setIsBalanceLoading(false);
+          const totalBalance = Object.values(mintBalances).reduce(
+            (sum, balance) => sum + balance,
+            0
+          );
+          setBalance(totalBalance);
+        }
+      } else { // !usingNip60
+        if (mintUrl && baseUrl) {
+          setIsBalanceLoading(true);
+          const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
+          setBalance((apiBalance / 1000) + (proofsBalance / 1000));
+          setIsBalanceLoading(false);
+        } else {
+          setIsBalanceLoading(false);
+          setBalance(0); // Default to 0 if not using Nip60 and no mintUrl/baseUrl
+        }
+      }
+    };
+    fetchAndSetBalances();
+  }, [mintBalances, usingNip60, mintUrl, baseUrl, isWalletLoading]);
+ 
   // Close model drawer when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -409,17 +444,6 @@ function ChatPageContent() {
     loadData();
 
   }, [isAuthenticated, selectedModel]);
-
-  // Fetch balances when usingNip60, mintUrl, or baseUrl changes
-  useEffect(() => {
-    const fetchAndSetBalances = async () => {
-      if (!usingNip60 && mintUrl && baseUrl) {
-        const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
-        setBalance((apiBalance / 1000) + (proofsBalance / 1000));
-      }
-    };
-    fetchAndSetBalances();
-  }, [usingNip60, mintUrl, baseUrl]);
 
   // This useEffect will run when baseUrl changes to fetch models
   useEffect(() => {
@@ -881,7 +905,7 @@ function ChatPageContent() {
 
             {/* Balance/Sign in button in top right */}
             <div className="absolute right-4 text-xs text-white/50">
-              {isAuthenticated ? `${balance} sats` : (
+              {isAuthenticated ? ( isBalanceLoading ? 'loading' : `${balance} sats` ) : (
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
                   className="px-3 py-1.5 rounded-full bg-white text-black hover:bg-gray-200 transition-colors text-xs"
@@ -961,7 +985,7 @@ function ChatPageContent() {
       />
 
       <TutorialOverlay
-        isOpen={isTutorialOpen}
+        isOpen={false}
         onComplete={handleTutorialComplete}
         onClose={handleTutorialClose}
       />
