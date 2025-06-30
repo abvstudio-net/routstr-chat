@@ -72,11 +72,11 @@ export default function TutorialOverlay({ isOpen, onClose, onComplete }: Tutoria
     if (typeof window !== 'undefined') {
       const skipped = localStorage.getItem(TUTORIAL_STORAGE_KEY);
       if (skipped === 'true') {
-        onClose();
         setShouldShow(false);
+        onClose();
       }
     }
-  }, [onClose]);
+  }, []); // Remove onClose from dependency array since we only want this to run once on mount
 
   useEffect(() => {
     if (!isOpen) return;
