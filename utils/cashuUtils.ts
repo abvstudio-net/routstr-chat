@@ -1,11 +1,6 @@
 import { Event } from "nostr-tools";
 import { GiftWrap, wrapCashuToken, unwrapCashuToken } from "./nip60Utils";
-import { CashuMint, CashuWallet, getEncodedTokenV4 } from "@cashu/cashu-ts";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useCashuWallet } from "@/hooks/useCashuWallet";
-import { useCreateCashuWallet } from "@/hooks/useCreateCashuWallet";
-import { useCashuStore } from "@/stores/cashuStore";
-import { useCashuToken } from "@/hooks/useCashuToken";
+import { CashuMint, CashuWallet, getEncodedTokenV4, getDecodedToken } from "@cashu/cashu-ts";
 
 
 /**
@@ -35,7 +30,7 @@ export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{
         if (response.status === 402) {
           // Invalidate current token since it's out of balance
           invalidateApiToken();
-          console.warn('API token invalidated due to insufficient balance.');
+          console.warn('rdlogs: API token invalidated due to insufficient balance.');
         } else {
           console.error(`Failed to fetch wallet balance: ${response.status} ${response.statusText}`);
         }
@@ -331,6 +326,12 @@ export const create60CashuToken = async (
         C: p.C || "",
       })),
     });
+    
+    // Clean up pending proofs after successful token creation
+    if ((proofs as any).pendingProofsKey) {
+      localStorage.removeItem((proofs as any).pendingProofsKey);
+    }
+    
     return token;
   } catch (error) {
     console.error("Error generating token:", error);
@@ -361,7 +362,9 @@ export const unifiedRefund = async (
       const refundedToken = await fetchRefundToken(baseUrl, storedToken);
       const proofs = await receiveTokenFn(refundedToken);
       const totalAmount = proofs.reduce((sum: number, p: any) => sum + p.amount, 0);
-      invalidateApiToken();
+      if (!apiKey) {
+        invalidateApiToken();
+      }
       
       return {
         success: true,
@@ -376,4 +379,22 @@ export const unifiedRefund = async (
   } else {
     return await refundRemainingBalance(mintUrl, baseUrl, apiKey);
   }
+};
+
+export const getPendingCashuTokenAmount = (): number => {
+  const token = localStorage.getItem('current_cashu_token');
+  if (token) {
+    try {
+      const decodedToken = getDecodedToken(token);
+      let totalAmount = 0;
+      decodedToken.proofs.forEach((proof: { amount: number; }) => {
+        totalAmount += proof.amount;
+      });
+      return totalAmount;
+    } catch (error) {
+      console.error('Error decoding cashu token from localStorage:', error);
+      return 0;
+    }
+  }
+  return 0;
 };

@@ -515,12 +515,11 @@ const SettingsModal = ({
             />
           ) : activeTab === 'api-keys' ? (
             <ApiKeysTab
-                balance={balance}
-                setBalance={setBalance}
                 mintUrl={mintUrl}
                 baseUrl={baseUrl}
                 usingNip60={usingNip60}
                 baseUrls={baseUrls} // Pass baseUrls to ApiKeysTab
+                setActiveTab={setActiveTab} // Pass setActiveTab to ApiKeysTab
             />
           ) : activeTab === 'wallet' ? (
             <UnifiedWallet

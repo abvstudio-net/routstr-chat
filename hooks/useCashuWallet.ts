@@ -1,6 +1,8 @@
 import { useNostr } from '@/hooks/useNostr';
+import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_MINT_URL } from '@/lib/utils';
 import { CASHU_EVENT_KINDS, CashuWalletStruct, CashuToken, activateMint, updateMintKeys, defaultMints } from '@/lib/cashu';
 import { NostrEvent, getPublicKey } from 'nostr-tools';
 import { useCashuStore, Nip60TokenEvent } from '@/stores/cashuStore';
@@ -93,13 +95,15 @@ export function useCashuWallet() {
 
         cashuStore.setPrivkey(walletData.privkey);
 
-        // if no active mint is set, set the first mint as active
-        if (!cashuStore.getActiveMintUrl()) {
-          cashuStore.setActiveMintUrl(walletData.mints[0]);
+        const currentActiveMintUrl = cashuStore.getActiveMintUrl();
+        // Only set active mint URL if it's not already set or if current one is not in wallet mints
+        if (!currentActiveMintUrl || !walletData.mints?.includes(currentActiveMintUrl)) {
+          if (walletData.mints?.includes(DEFAULT_MINT_URL)) {
+            cashuStore.setActiveMintUrl(DEFAULT_MINT_URL);
+          } else if (walletData.mints && walletData.mints.length > 0) {
+            cashuStore.setActiveMintUrl(walletData.mints[0]);
+          }
         }
-
-        // log wallet data
-        console.log('walletData', walletData);
 
         // trigger getNip60TokensQuery refetch without awaiting to avoid circular dependency
         getNip60TokensQuery.refetch();
@@ -224,7 +228,15 @@ export function useCashuWallet() {
             throw new Error('NIP-44 encryption not supported by your signer');
           }
 
-          const decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
+          let decrypted: string;
+          try {
+            decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('invalid MAC')) {
+              toast.error('Nostr Extention: invalid MAC. Please switch to your previously connected account on the extension OR sign out and login. .');
+            }
+            throw error;
+          }
           const tokenData = JSON.parse(decrypted) as CashuToken;
 
           nip60TokenEvents.push({

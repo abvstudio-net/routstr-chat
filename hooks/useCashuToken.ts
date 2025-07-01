@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuWallet } from '@/hooks/useCashuWallet';
 import { useCashuHistory } from '@/hooks/useCashuHistory';
-import { CashuMint, CashuWallet, Proof, getEncodedTokenV4, getDecodedToken, CheckStateEnum } from '@cashu/cashu-ts';
+import { CashuMint, CashuWallet, Proof, getDecodedToken, CheckStateEnum } from '@cashu/cashu-ts';
 import { CashuProof, CashuToken } from '@/lib/cashu';
 import { hashToCurve } from "@cashu/crypto/modules/common";
 import { useNutzapStore } from '@/stores/nutzapStore';
@@ -15,6 +15,49 @@ export function useCashuToken() {
 
   const { createHistory } = useCashuHistory();
   const nutzapStore = useNutzapStore();
+
+  /**
+   * Recover any pending proofs that were interrupted during token creation
+   * This should be called on app startup
+   */
+  const recoverPendingProofs = async () => {
+    try {
+      const keys = Object.keys(localStorage).filter(key => key.startsWith('pending_send_proofs_'));
+      
+      for (const key of keys) {
+        try {
+          const pendingData = JSON.parse(localStorage.getItem(key) || '{}');
+          const { mintUrl, proofsToSend, timestamp } = pendingData;
+          
+          // Only recover proofs that are less than 1 hour old to avoid stale data
+          if (Date.now() - timestamp < 60 * 60 * 1000 && mintUrl && proofsToSend) {
+            console.log('rdlogs: Recovering pending proofs:', key);
+            
+            // Add the proofs back to the wallet
+            await updateProofs({
+              mintUrl,
+              proofsToAdd: proofsToSend,
+              proofsToRemove: []
+            });
+          }
+          
+          // Clean up the pending entry regardless
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.error('Error recovering pending proofs for key:', key, error);
+          // Clean up corrupted entries
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      console.error('Error during pending proofs recovery:', error);
+    }
+  };
+
+  // Recover pending proofs on hook initialization
+  useEffect(() => {
+    recoverPendingProofs();
+  }, []);
 
   /**
    * Generate a send token
@@ -47,6 +90,19 @@ export function useCashuToken() {
         // Perform coin selection
         const { keep: proofsToKeep, send: proofsToSend } = await wallet.send(amount, proofs, { pubkey: p2pkPubkey, privkey: cashuStore.privkey });
 
+        // Store proofs temporarily before updating wallet state
+        const pendingProofsKey = `pending_send_proofs_${Date.now()}`;
+        localStorage.setItem(pendingProofsKey, JSON.stringify({
+          mintUrl,
+          proofsToSend: proofsToSend.map(p => ({
+            id: p.id || '',
+            amount: p.amount,
+            secret: p.secret || '',
+            C: p.C || ''
+          })),
+          timestamp: Date.now()
+        }));
+
         // Create new token for the proofs we're keeping
         if (proofsToKeep.length > 0) {
           const keepTokenData: CashuToken = {
@@ -68,6 +124,10 @@ export function useCashuToken() {
             amount: amount.toString(),
           });
         }
+        
+        // Store the pending proofs key with the returned proofs for cleanup
+        (proofsToSend as any).pendingProofsKey = pendingProofsKey;
+        
         return proofsToSend;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -91,6 +151,19 @@ export function useCashuToken() {
           // Retry the send operation with fresh proofs
           const { keep: proofsToKeep, send: proofsToSend } = await wallet.send(amount, proofs, { pubkey: p2pkPubkey, privkey: cashuStore.privkey });
 
+          // Store proofs temporarily before updating wallet state (retry case)
+          const pendingProofsKey = `pending_send_proofs_${Date.now()}`;
+          localStorage.setItem(pendingProofsKey, JSON.stringify({
+            mintUrl,
+            proofsToSend: proofsToSend.map(p => ({
+              id: p.id || '',
+              amount: p.amount,
+              secret: p.secret || '',
+              C: p.C || ''
+            })),
+            timestamp: Date.now()
+          }));
+
           // Create new token for the proofs we're keeping
           if (proofsToKeep.length > 0) {
             const keepTokenData: CashuToken = {
@@ -112,6 +185,10 @@ export function useCashuToken() {
               amount: amount.toString(),
             });
           }
+          
+          // Store the pending proofs key with the returned proofs for cleanup
+          (proofsToSend as any).pendingProofsKey = pendingProofsKey;
+          
           return proofsToSend;
         }
         
@@ -234,10 +311,23 @@ export function useCashuToken() {
     return spentProofs;
   }
 
+  /**
+   * Clean up pending proofs after successful token creation
+   * @param pendingProofsKey The key used to store pending proofs
+   */
+  const cleanupPendingProofs = (pendingProofsKey: string) => {
+    try {
+      localStorage.removeItem(pendingProofsKey);
+    } catch (error) {
+      console.error('Error cleaning up pending proofs:', error);
+    }
+  };
+
   return {
     sendToken,
     receiveToken,
     cleanSpentProofs,
+    cleanupPendingProofs,
     isLoading,
     error
   };

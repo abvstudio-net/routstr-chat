@@ -4,12 +4,14 @@ import { createTextMessage, createMultimodalMessage } from '@/utils/messageUtils
 import { fetchAIResponse } from '@/utils/apiUtils';
 import { loadTransactionHistory, saveTransactionHistory, loadUsingNip60, saveUsingNip60 } from '@/utils/storageUtils';
 import { calculateBalance } from '@/lib/cashu';
-import { getBalanceFromStoredProofs } from '@/utils/cashuUtils';
+import { getBalanceFromStoredProofs, getPendingCashuTokenAmount } from '@/utils/cashuUtils';
 import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuWallet } from '@/hooks/useCashuWallet';
 import { useCashuToken } from '@/hooks/useCashuToken';
 import { DEFAULT_MINT_URL } from '@/lib/utils';
 import React from 'react';
+import { useAuth } from '@/context/AuthProvider';
+import { useCreateCashuWallet } from '@/hooks/useCreateCashuWallet';
 
 export interface UseChatActionsReturn {
   inputMessage: string;
@@ -73,6 +75,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const [balance, setBalance] = useState(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [pendingCashuAmountState, setPendingCashuAmountState] = useState(0);
   const [transactionHistory, setTransactionHistoryState] = useState<TransactionHistory[]>([]);
   const [hotTokenBalance, setHotTokenBalance] = useState<number>(0);
   const [usingNip60, setUsingNip60State] = useState(() => loadUsingNip60());
@@ -83,6 +86,8 @@ export const useChatActions = (): UseChatActionsReturn => {
   const { wallet, isLoading: isWalletLoading } = useCashuWallet();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken } = useCashuToken();
+  const { logins } = useAuth();
+  const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
 
   // Load transaction history on mount
   useEffect(() => {
@@ -109,16 +114,61 @@ export const useChatActions = (): UseChatActionsReturn => {
             (sum, balance) => sum + balance,
             0
           );
-          setBalance(totalBalance);
+          setBalance(totalBalance + pendingCashuAmountState);
         }
       } else {
         // Legacy wallet balance calculation would go here
         setIsBalanceLoading(false);
-        setBalance(getBalanceFromStoredProofs());
+        setBalance(getBalanceFromStoredProofs() + pendingCashuAmountState);
       }
     };
     fetchAndSetBalances();
-  }, [mintBalances, usingNip60, isWalletLoading]);
+  }, [mintBalances, usingNip60, isWalletLoading, pendingCashuAmountState]);
+
+  // Effect to listen for changes in localStorage for 'current_cashu_token'
+  useEffect(() => {
+    const updatePendingAmount = () => {
+      setPendingCashuAmountState(getPendingCashuTokenAmount());
+    };
+
+    // Initial update
+    updatePendingAmount();
+
+    // Listen for storage events
+    window.addEventListener('storage', updatePendingAmount);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('storage', updatePendingAmount);
+    };
+  }, []);
+
+  // Set active mint URL based on wallet and current mint URL
+  useEffect(() => {
+    if (logins.length > 0) {
+      if (wallet) {
+        const currentActiveMintUrl = cashuStore.getActiveMintUrl();
+        
+        // Only set active mint URL if it's not already set or if current one is not in wallet mints
+        if (!currentActiveMintUrl || !wallet.mints?.includes(currentActiveMintUrl)) {
+          if (wallet.mints?.includes(DEFAULT_MINT_URL)) {
+            cashuStore.setActiveMintUrl(DEFAULT_MINT_URL);
+          } else if (wallet.mints && wallet.mints.length > 0) {
+            cashuStore.setActiveMintUrl(wallet.mints[0]);
+          }
+        }
+      }
+
+      if (!isWalletLoading) {
+        if (wallet) {
+          console.log('rdlogs: Wallet found: ', wallet);
+        } else {
+          console.log('rdlogs: Creating new wallet');
+          handleCreateWallet();
+        }
+      }
+    }
+  }, [wallet, isWalletLoading, logins, handleCreateWallet]);
 
   // Scroll to bottom when messages or streaming content changes
   useEffect(() => {
@@ -158,17 +208,21 @@ export const useChatActions = (): UseChatActionsReturn => {
 
     if (!inputMessage.trim() && uploadedImages.length === 0) return;
 
-    if (!activeConversationId) {
-      createNewConversation();
-    }
-
     // Create user message with text and images
     const userMessage = uploadedImages.length > 0
       ? createMultimodalMessage('user', inputMessage, uploadedImages)
       : createTextMessage('user', inputMessage);
 
     const updatedMessages = [...messages, userMessage];
+    
+    // Update messages to show the user message right away
     setMessages(updatedMessages);
+
+    // Create new conversation if needed AFTER setting messages
+    // This prevents the conversation creation from clearing the messages
+    if (!activeConversationId) {
+      createNewConversation();
+    }
 
     setInputMessage('');
     setUploadedImages([]);
@@ -242,19 +296,21 @@ export const useChatActions = (): UseChatActionsReturn => {
         onMessagesUpdate: setMessages,
         onBalanceUpdate: setBalance,
         onTransactionUpdate: (transaction) => {
-          setTransactionHistoryState(prev => {
-            const updated = [...prev, transaction];
-            saveTransactionHistory(updated);
-            return updated;
-          });
+          const updated = [...transactionHistory, transaction];
+          setTransactionHistoryState(updated);
+          saveTransactionHistory(updated);
+          return updated;
         },
-        transactionHistory
+        transactionHistory,
+        onTokenCreated: setPendingCashuAmountState,
       });
+      setPendingCashuAmountState(getPendingCashuTokenAmount());
+ 
     } finally {
       setIsLoading(false);
       setStreamingContent('');
     }
-  }, [usingNip60, balance, sendToken, receiveToken, cashuStore.activeMintUrl, transactionHistory]);
+  }, [usingNip60, balance, sendToken, receiveToken, cashuStore.activeMintUrl, transactionHistory, setPendingCashuAmountState]);
 
   return {
     inputMessage,

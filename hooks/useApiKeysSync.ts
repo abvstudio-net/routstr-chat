@@ -1,4 +1,5 @@
 import { useNostr } from '@/hooks/useNostr';
+import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KINDS } from '@/lib/nostr-kinds';
@@ -140,6 +141,9 @@ export function useApiKeysSync() {
 
         return cloudApiKeys;
       } catch (error) {
+        if (error instanceof Error && error.message.includes('invalid MAC')) {
+          toast.error('Nostr Extention: invalid MAC. Please switch to your previously connected account on the extension OR sign out and login. .');
+        }
         console.error('Failed to decrypt API key data:', error);
         return [];
       }

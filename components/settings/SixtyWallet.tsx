@@ -200,7 +200,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
   const cashuStore = useCashuStore();
-  const { sendToken, receiveToken, cleanSpentProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
+  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
   const transactionHistoryStore = useTransactionHistoryStore();
 
   const [error, setError] = useState<string | null>(null);
@@ -308,6 +308,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           C: p.C || "",
         })),
       });
+
+      // Clean up pending proofs after successful token creation
+      if ((proofs as any).pendingProofsKey) {
+        cleanupPendingProofs((proofs as any).pendingProofsKey);
+      }
 
       setGeneratedToken(token as string);
       setSuccessMessage(`Token generated for ${formatBalance(amountValue)}`);

@@ -1,4 +1,5 @@
 import { useNostr } from '@/hooks/useNostr';
+import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CASHU_EVENT_KINDS, SpendingHistoryEntry } from '@/lib/cashu';
@@ -112,8 +113,16 @@ export function useCashuHistory() {
 
       for (const event of events) {
         try {
-          // Decrypt content
-          const decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
+          let decrypted: string;
+          try {
+            // Decrypt content
+            decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('invalid MAC')) {
+              toast.error('Nostr Extention: invalid MAC. Please switch to your previously connected account on the extension OR sign out and login. .');
+            }
+            throw error;
+          }
           const contentData = JSON.parse(decrypted) as Array<string[]>;
 
           // Extract data from content

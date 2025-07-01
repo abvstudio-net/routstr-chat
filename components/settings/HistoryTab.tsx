@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { TransactionHistory } from '@/types/chat';
+import { getDecodedToken } from '@cashu/cashu-ts';
+import { getPendingCashuTokenAmount } from '../../utils/cashuUtils';
 
 interface HistoryTabProps {
   transactionHistory: TransactionHistory[];
@@ -14,10 +16,27 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   clearConversations,
   onClose,
 }) => {
+  const [pendingCashuAmount, setPendingCashuAmount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const checkPendingCashuToken = () => {
+      const amount = getPendingCashuTokenAmount();
+      setPendingCashuAmount(amount > 0 ? amount : null);
+    };
+
+    checkPendingCashuToken();
+    window.addEventListener('storage', checkPendingCashuToken);
+    return () => {
+      window.removeEventListener('storage', checkPendingCashuToken);
+    };
+  }, []);
+
   const handleClearTransactions = () => {
     if (window.confirm('Are you sure you want to clear all transaction history? This cannot be undone.')) {
       setTransactionHistory([]);
       localStorage.removeItem('transaction_history');
+      localStorage.removeItem('current_cashu_token'); // Also clear pending token
+      setPendingCashuAmount(null); // Clear pending amount state
       onClose();
     }
   };
@@ -39,6 +58,20 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
         </div>
         
         <div className="bg-white/5 border border-white/10 rounded-md">
+          {pendingCashuAmount !== null && (
+            <div className="flex items-center justify-between p-4 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                <div>
+                  <div className="text-sm font-medium text-white">Pending</div>
+                  <div className="text-xs text-white/50">Awaiting confirmation</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-mono text-white">+{pendingCashuAmount} sats</div>
+              </div>
+            </div>
+          )}
           {transactionHistory.length === 0 ? (
             <div className="p-4 text-center text-white/50 text-sm">
               No transactions yet

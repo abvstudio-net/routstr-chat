@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Copy, Eye, EyeOff, Info } from 'lucide-react';
 import { getBalanceFromStoredProofs, refundRemainingBalance, create60CashuToken, generateApiToken, unifiedRefund } from '@/utils/cashuUtils';
 import { toast } from 'sonner';
@@ -8,6 +8,7 @@ import { useApiKeysSync } from '@/hooks/useApiKeysSync'; // Import the new hook
 import { useCurrentUser } from '@/hooks/useCurrentUser'; // For checking user login
 import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuToken } from '@/hooks/useCashuToken';
+import { calculateBalance } from '@/lib/cashu';
 
 export interface StoredApiKey {
   key: string;
@@ -18,15 +19,14 @@ export interface StoredApiKey {
 }
 
 interface ApiKeysTabProps {
-  balance: number;
-  setBalance: (balance: number | ((prevBalance: number) => number)) => void;
   mintUrl: string;
   baseUrl: string;
   usingNip60: boolean;
   baseUrls: string[]; // Add baseUrls to props
+  setActiveTab: (tab: 'settings' | 'wallet' | 'history' | 'api-keys') => void; // New prop
 }
 
-const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrls }: ApiKeysTabProps) => {
+const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: ApiKeysTabProps) => {
   const { user } = useCurrentUser();
   const {
     syncedApiKeys,
@@ -39,6 +39,21 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
   } = useApiKeysSync();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken } = useCashuToken();
+
+  const [localMintBalance, setLocalMintBalance] = useState(0);
+
+  const mintBalances = useMemo(() => {
+    if (!cashuStore.proofs) return {};
+    return calculateBalance(cashuStore.proofs);
+  }, [cashuStore.proofs]);
+
+  useEffect(() => {
+    if (cashuStore.activeMintUrl && mintBalances[cashuStore.activeMintUrl]) {
+      setLocalMintBalance(mintBalances[cashuStore.activeMintUrl]);
+    } else {
+      setLocalMintBalance(0);
+    }
+  }, [mintBalances, cashuStore.activeMintUrl]);
 
   const [showTooltip, setShowTooltip] = useState(false); // New state for tooltip visibility
   const [apiKeyAmount, setApiKeyAmount] = useState('');
@@ -198,7 +213,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
       setStoredApiKeys(updatedKeys);
       setApiKeyAmount('');
       setNewApiKeyLabel(''); // Clear label input
-      setBalance(balance - parseInt(apiKeyAmount));
+      setLocalMintBalance(prev => prev - parseInt(apiKeyAmount));
     } catch (error) {
       console.error('Error creating API key:', error);
       toast.error(`Error creating API key: ${error instanceof Error ? error.message : String(error)}`); // Use toast
@@ -268,7 +283,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
 
         if (refundResult.success) {
           toast.success(refundResult.message || 'API Key balance refunded successfully!');
-          setBalance(balance+(refundResult.refundedAmount??0))
+          setLocalMintBalance(prev => prev + (refundResult.refundedAmount ?? 0));
         } else {
           toast.error(refundResult.message || 'Failed to refund API Key balance. Deleting key anyway.');
         }
@@ -352,7 +367,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
       toast.success(`Successfully topped up ${topUpAmount} sats!`);
       
       // Update the local balance
-      setBalance(balance - parseInt(topUpAmount));
+      setLocalMintBalance(prev => prev - parseInt(topUpAmount));
       
       // Refresh the API key balances to show the updated balance
       await refreshApiKeysBalances();
@@ -414,8 +429,30 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
       )}
 
       <div>
-        <p className="text-sm text-white/70">Available in Wallet:</p>
-        <p className="text-lg font-medium">{balance} sats</p>
+        <p className="text-sm text-white/70">Available Balance:</p>
+        <p className="text-lg font-medium">
+          {localMintBalance} sats
+          {cashuStore.activeMintUrl && (
+            <span className="text-xs text-white/50 ml-2">
+              ({cashuStore.activeMintUrl.replace(/^https?:\/\//, '')})
+              <button
+                onClick={() => setActiveTab('wallet')}
+                className="ml-2 text-blue-400 hover:text-blue-300 text-xs font-medium"
+                type="button"
+              >
+                Switch
+              </button>
+            </span>
+          )}
+        </p>
+        {cashuStore.proofs && Object.keys(mintBalances).length > 1 && (
+          // Only display total balance if it's different from the current mint balance
+          localMintBalance !== Object.values(mintBalances).reduce((sum, balance) => sum + balance, 0) && (
+            <p className="text-sm text-white/70 mt-2">
+              Total Balance: {Object.values(mintBalances).reduce((sum, balance) => sum + balance, 0)} sats
+            </p>
+          )
+        )}
       </div>
 
       {(isLoadingApiKeys || isSyncingApiKeys) && (
@@ -560,7 +597,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
                     className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
                   />
                   <button
-                    onClick={() => setApiKeyAmount(balance.toString())}
+                    onClick={() => setApiKeyAmount(localMintBalance.toString())}
                     className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
                   >
                     Max
@@ -668,13 +705,13 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
                   className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
                 />
                 <button
-                  onClick={() => setTopUpAmount(balance.toString())}
+                  onClick={() => setTopUpAmount(localMintBalance.toString())}
                   className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
                 >
                   Max
                 </button>
               </div>
-              <p className="text-xs text-white/50 mt-1">Available: {balance} sats</p>
+              <p className="text-xs text-white/50 mt-1">Available: {localMintBalance} sats</p>
             </div>
             <div className="flex justify-end space-x-2">
               <button
@@ -690,7 +727,7 @@ const ApiKeysTab = ({ balance, setBalance, mintUrl, baseUrl, usingNip60, baseUrl
               <button
                 className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors"
                 onClick={confirmTopUp}
-                disabled={!topUpAmount || parseInt(topUpAmount) <= 0 || parseInt(topUpAmount) > balance}
+                disabled={!topUpAmount || parseInt(topUpAmount) <= 0 || parseInt(topUpAmount) > localMintBalance}
               >
                 Confirm Top Up
               </button>

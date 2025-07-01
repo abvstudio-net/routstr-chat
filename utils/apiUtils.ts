@@ -18,6 +18,7 @@ export interface FetchAIResponseParams {
   onBalanceUpdate: (balance: number) => void;
   onTransactionUpdate: (transaction: TransactionHistory) => void;
   transactionHistory: TransactionHistory[];
+  onTokenCreated: (amount: number) => void;
 }
 
 /**
@@ -40,7 +41,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     onMessagesUpdate,
     onBalanceUpdate,
     onTransactionUpdate,
-    transactionHistory
+    transactionHistory,
+    onTokenCreated
   } = params;
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
@@ -54,6 +56,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       sendToken,
       activeMintUrl
     );
+    
+    if (token) {
+      let roundedTokenAmount = tokenAmount;
+      if (roundedTokenAmount % 1 !== 0) {
+        roundedTokenAmount = Math.ceil(roundedTokenAmount);
+      }
+      onTokenCreated(roundedTokenAmount);
+    }
 
     if (!token) {
       throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
@@ -108,6 +118,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     if (accumulatedContent) {
       onMessagesUpdate([...messageHistory, createTextMessage('assistant', accumulatedContent)]);
     }
+    onStreamingUpdate('');
 
     // Handle refund and balance update
     await handlePostResponseRefund({
