@@ -93,9 +93,12 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   };
 
   const handleAddBaseUrl = () => {
-    if (newBaseUrlInput.trim() && !baseUrls.includes(newBaseUrlInput.trim())) {
-      setBaseUrls([...baseUrls, newBaseUrlInput.trim()]);
+    const trimmedUrl = newBaseUrlInput.trim();
+    if (trimmedUrl && !baseUrls.includes(trimmedUrl)) {
+      const formattedNewBaseUrl = trimmedUrl.endsWith('/') ? trimmedUrl : `${trimmedUrl}/`;
+      setBaseUrls([...baseUrls, formattedNewBaseUrl]);
       setNewBaseUrlInput('');
+      setBaseUrl(formattedNewBaseUrl);
     }
   };
 

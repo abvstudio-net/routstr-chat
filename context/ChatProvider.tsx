@@ -40,10 +40,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   
   const conversationState = useConversationState();
-  const apiState = useApiState(isAuthenticated);
+  const chatActions = useChatActions(); // Move chatActions declaration before apiState
+  const apiState = useApiState(isAuthenticated, chatActions.balance);
   const uiState = useUiState(isAuthenticated);
   const modelState = useModelState();
-  const chatActions = useChatActions();
 
   const contextValue: ChatContextType = {
     ...conversationState,

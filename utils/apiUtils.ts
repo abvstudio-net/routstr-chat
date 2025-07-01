@@ -315,6 +315,9 @@ async function handlePostResponseRefund(params: {
     }
   } else {
     console.error("Refund failed:", result.message);
+    if (result.message && result.message.includes("Balance too small to refund")) {
+      clearCurrentApiToken();
+    }
     satsSpent = Math.ceil(tokenAmount);
   }
 

@@ -52,6 +52,9 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isGeneratingSendToken, setIsGeneratingSendToken] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [customMintUrl, setCustomMintUrl] = useState('');
+  const [isAddingMint, setIsAddingMint] = useState(false);
+  const [showAddMintInput, setShowAddMintInput] = useState(false);
   
   // Migration state
   const [localWalletBalance, setLocalWalletBalance] = useState(0);
@@ -200,7 +203,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
   const cashuStore = useCashuStore();
-  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
+  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError, addMintIfNotExists } = useCashuToken();
   const transactionHistoryStore = useTransactionHistoryStore();
 
   const [error, setError] = useState<string | null>(null);
@@ -248,6 +251,28 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     const interval = setInterval(checkLocalBalance, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleAddCustomMint = async () => {
+    if (!customMintUrl.trim()) {
+      setError("Please enter a valid mint URL.");
+      return;
+    }
+
+    try {
+      setIsAddingMint(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      await addMintIfNotExists(customMintUrl);
+      setCustomMintUrl('');
+      setSuccessMessage(`Mint "${cleanMintUrl(customMintUrl)}" added and set as active.`);
+    } catch (error) {
+      console.error("Error adding custom mint:", error);
+      setError(`Failed to add mint: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsAddingMint(false);
+    }
+  };
 
   const cleanMintUrl = (mintUrl: string) => {
     try {
@@ -630,7 +655,16 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         </div>
         {wallet.mints && wallet.mints.length > 0 && (
           <div className="mt-4 pt-4 border-t border-white/10">
-            <h3 className="text-sm font-medium text-white/80 mb-2">Select Mint</h3>
+            <div className="flex items-center mb-2">
+              <h3 className="text-sm font-medium text-white/80 mr-2">Select Mint</h3>
+              <button
+                onClick={() => setShowAddMintInput(!showAddMintInput)}
+                className="text-xs text-blue-300 hover:text-blue-200 cursor-pointer"
+                type="button"
+              >
+                {showAddMintInput ? 'Cancel Add' : '(Add New Mint)'}
+              </button>
+            </div>
             <div className="space-y-2">
               {wallet.mints.map((mint) => {
                 const mintBalance = mintBalances[mint] || 0;
@@ -665,6 +699,28 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                 );
               })}
             </div>
+            {showAddMintInput && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <h3 className="text-sm font-medium text-white/80 mb-2">Add Custom Mint</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customMintUrl}
+                    onChange={(e) => setCustomMintUrl(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+                    placeholder="Enter new mint URL"
+                  />
+                  <button
+                    onClick={handleAddCustomMint}
+                    disabled={isAddingMint || !customMintUrl.trim()}
+                    className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
+                    type="button"
+                  >
+                    {isAddingMint ? 'Adding...' : 'Add Mint'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

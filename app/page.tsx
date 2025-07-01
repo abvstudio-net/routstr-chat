@@ -8,9 +8,11 @@ import ChatContainer from '@/components/chat/ChatContainer';
 import SettingsModal from '@/components/SettingsModal';
 import LoginModal from '@/components/LoginModal';
 import TutorialOverlay from '@/components/TutorialOverlay';
+import DepositModal from '@/components/DepositModal';
 import { useAuth } from '@/context/AuthProvider';
 import { useChat } from '@/context/ChatProvider';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 function ChatPageContent() {
   const router = useRouter();
@@ -48,8 +50,19 @@ function ChatPageContent() {
     // Chat State
     clearConversations,
     usingNip60,
-    setUsingNip60
+    setUsingNip60,
+    isBalanceLoading,
   } = useChat();
+
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isBalanceLoading && balance === 0 && isAuthenticated && !isSettingsOpen) {
+      setIsDepositModalOpen(true);
+    } else {
+      setIsDepositModalOpen(false);
+    }
+  }, [balance, isBalanceLoading, isAuthenticated]);
 
   if (!authChecked) {
     return (
@@ -98,10 +111,19 @@ function ChatPageContent() {
         onLogin={() => setIsLoginModalOpen(false)}
       />
 
-      <TutorialOverlay
+      {false && (<TutorialOverlay
         isOpen={isTutorialOpen}
         onComplete={handleTutorialComplete}
         onClose={handleTutorialClose}
+      />)}
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={isDepositModalOpen}
+        onClose={() => setIsDepositModalOpen(false)}
+        mintUrl={mintUrl}
+        balance={balance}
+        setBalance={setBalance}
       />
     </div>
   );

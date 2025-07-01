@@ -16,7 +16,7 @@ export interface UseApiStateReturn {
   setIsLoadingModels: (loading: boolean) => void;
   setMintUrl: (url: string) => void;
   setBaseUrl: (url: string) => void;
-  fetchModels: () => Promise<void>;
+  fetchModels: (balance: number) => Promise<void>; // Modified to accept balance
   handleModelChange: (modelId: string) => void;
 }
 
@@ -25,7 +25,7 @@ export interface UseApiStateReturn {
  * Handles API endpoint configuration, model fetching and caching,
  * model selection state, and API error handling
  */
-export const useApiState = (isAuthenticated: boolean): UseApiStateReturn => {
+export const useApiState = (isAuthenticated: boolean, balance: number): UseApiStateReturn => {
   const searchParams = useSearchParams();
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
@@ -45,7 +45,7 @@ export const useApiState = (isAuthenticated: boolean): UseApiStateReturn => {
   }, [isAuthenticated]);
 
   // Fetch available models from API and handle URL model selection
-  const fetchModels = useCallback(async () => {
+  const fetchModels = useCallback(async (currentBalance: number) => {
     try {
       setIsLoadingModels(true);
       if (!baseUrl) return;
@@ -60,31 +60,35 @@ export const useApiState = (isAuthenticated: boolean): UseApiStateReturn => {
 
       if (data && data.models && Array.isArray(data.models)) {
         setModels(data.models);
+        let modelToSelect: Model | null = null;
 
         // Get model ID from URL if present
         const urlModelId = searchParams.get('model');
-
         if (urlModelId) {
-          // Find the model from the URL parameter
-          const urlModel = data.models.find((m: Model) => m.id === urlModelId);
-          if (urlModel) {
-            setSelectedModel(urlModel);
-            saveLastUsedModel(urlModelId);
-            return;
+          modelToSelect = data.models.find((m: Model) => m.id === urlModelId) || null;
+        }
+
+        // If no URL model or model not found, try last used
+        if (!modelToSelect) {
+          const lastUsedModelId = loadLastUsedModel();
+          if (lastUsedModelId) {
+            modelToSelect = data.models.find((m: Model) => m.id === lastUsedModelId) || null;
           }
         }
 
-        // If no URL model or model not found, use last used or first available
-        const lastUsedModelId = loadLastUsedModel();
-        if (lastUsedModelId) {
-          const lastModel = data.models.find((m: Model) => m.id === lastUsedModelId);
-          if (lastModel) {
-            setSelectedModel(lastModel);
-          } else if (data.models.length > 0) {
-            setSelectedModel(data.models[0]);
+        // If no URL model or last used model, select the first compatible model
+        if (!modelToSelect) {
+          const compatibleModels = data.models.filter((m: Model) =>
+            m.sats_pricing && currentBalance >= m.sats_pricing.max_cost
+          );
+          if (compatibleModels.length > 0) {
+            modelToSelect = compatibleModels[0];
           }
-        } else if (data.models.length > 0) {
-          setSelectedModel(data.models[0]);
+        }
+        
+        setSelectedModel(modelToSelect);
+        if (modelToSelect) {
+          saveLastUsedModel(modelToSelect.id);
         }
       }
     } catch (error) {
@@ -97,12 +101,12 @@ export const useApiState = (isAuthenticated: boolean): UseApiStateReturn => {
     }
   }, [searchParams, baseUrl]);
 
-  // Fetch models when baseUrl changes and user is authenticated
+  // Fetch models when baseUrl or balance changes and user is authenticated
   useEffect(() => {
     if (isAuthenticated && baseUrl) {
-      fetchModels();
+      fetchModels(balance);
     }
-  }, [baseUrl, fetchModels, isAuthenticated]);
+  }, [baseUrl, fetchModels, isAuthenticated, balance]);
 
   const handleModelChange = useCallback((modelId: string) => {
     const model = models.find((m: Model) => m.id === modelId);

@@ -328,6 +328,7 @@ export function useCashuToken() {
     receiveToken,
     cleanSpentProofs,
     cleanupPendingProofs,
+    addMintIfNotExists,
     isLoading,
     error
   };
