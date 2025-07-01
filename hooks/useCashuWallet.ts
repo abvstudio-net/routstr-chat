@@ -86,12 +86,17 @@ export function useCashuWallet() {
 
         // fetch the mint info and keysets for each mint
         await Promise.all(walletData.mints.map(async (mint) => {
-          const { mintInfo, keysets } = await activateMint(mint);
-          cashuStore.addMint(mint);
-          cashuStore.setMintInfo(mint, mintInfo);
-          cashuStore.setKeysets(mint, keysets);
-          const { keys } = await updateMintKeys(mint, keysets);
-          cashuStore.setKeys(mint, keys);
+          try {
+            const { mintInfo, keysets } = await activateMint(mint);
+            cashuStore.addMint(mint);
+            cashuStore.setMintInfo(mint, mintInfo);
+            cashuStore.setKeysets(mint, keysets);
+            const { keys } = await updateMintKeys(mint, keysets);
+            cashuStore.setKeys(mint, keys);
+          } catch (error) {
+            console.error(`Failed to activate or update mint ${mint}:`, error);
+            // Skip this mint and continue with others
+          }
         }));
 
         cashuStore.setPrivkey(walletData.privkey);
