@@ -146,10 +146,16 @@ export default function Sidebar({
               <span>Settings</span>
             </button>
             {!isMobile && (
-              <div className="bg-white/5 rounded-md py-2 px-3 h-[36px] flex items-center">
+              <button
+                onClick={() => {
+                  setIsSettingsOpen(true);
+                  setInitialSettingsTab('wallet');
+                }}
+                className="bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] flex items-center cursor-pointer transition-colors"
+              >
                 <span className="text-sm font-medium">{balance}</span>
                 <span className="text-xs text-white/70 ml-1">sats</span>
-              </div>
+              </button>
             )}
           </div>
         </div>

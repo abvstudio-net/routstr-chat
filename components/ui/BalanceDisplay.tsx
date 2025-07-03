@@ -9,7 +9,12 @@ import { useAuth } from '@/context/AuthProvider';
  * Handles balance formatting and display, loading states,
  * sign-in prompt for unauthenticated users, and balance refresh handling
  */
-const BalanceDisplay: React.FC = () => {
+interface BalanceDisplayProps {
+  setIsSettingsOpen: (isOpen: boolean) => void;
+  setInitialSettingsTab: (tab: 'settings' | 'wallet' | 'history' | 'api-keys') => void;
+}
+
+const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setInitialSettingsTab }) => {
   const { isAuthenticated } = useAuth();
   const { balance, isBalanceLoading, setIsLoginModalOpen } = useChat();
 
@@ -25,9 +30,15 @@ const BalanceDisplay: React.FC = () => {
   }
 
   return (
-    <div className="text-xs text-white/50">
+    <button
+      onClick={() => {
+        setIsSettingsOpen(true);
+        setInitialSettingsTab('wallet');
+      }}
+      className="px-3 py-1.5 rounded-md bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors text-xs flex items-center justify-center border border-white/10"
+    >
       {isBalanceLoading ? 'loading' : `${balance} sats`}
-    </div>
+    </button>
   );
 };
 

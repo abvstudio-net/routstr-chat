@@ -213,7 +213,6 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       setStoredApiKeys(updatedKeys);
       setApiKeyAmount('');
       setNewApiKeyLabel(''); // Clear label input
-      setLocalMintBalance(prev => prev - parseInt(apiKeyAmount));
     } catch (error) {
       console.error('Error creating API key:', error);
       toast.error(`Error creating API key: ${error instanceof Error ? error.message : String(error)}`); // Use toast
@@ -226,8 +225,8 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const refreshApiKeysBalances = async () => {
     const updatedKeys: StoredApiKey[] = [];
     for (const keyData of storedApiKeys) {
+      const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
       try {
-        const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
         const response = await fetch(`${urlToUse}v1/wallet/info`, {
           headers: {
             'Authorization': `Bearer ${keyData.key}`
@@ -248,7 +247,13 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         updatedKeys.push({ ...keyData, balance: data.balance, isInvalid: false }); // Set isInvalid to false on successful refresh
       } catch (error) {
         console.error(`Error refreshing balance for key ${keyData.key}:`, error);
-        updatedKeys.push(keyData); // Keep old data if error occurs
+        if (error instanceof TypeError) {
+          toast.error(`Base URL ${urlToUse} is not responding. Skipping key ${keyData.key}.`);
+          updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid if base URL is not responding
+        } else {
+          toast.error(`Error refreshing balance for key ${keyData.key}: ${error instanceof Error ? error.message : String(error)}`);
+          updatedKeys.push(keyData); // Keep old data if other error occurs
+        }
       }
     }
     // Update local storage if not cloud syncing, otherwise the hook will handle it
@@ -283,7 +288,6 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
 
         if (refundResult.success) {
           toast.success(refundResult.message || 'API Key balance refunded successfully!');
-          setLocalMintBalance(prev => prev + (refundResult.refundedAmount ?? 0));
         } else {
           toast.error(refundResult.message || 'Failed to refund API Key balance. Deleting key anyway.');
         }
@@ -323,6 +327,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     setIsTopUpLoading(keyToTopUp.key);
     setShowTopUpModal(false);
     
+    const urlToUse = keyToTopUp.baseUrl || baseUrl; // Moved here
     try {
       let cashuToken: string | null | { hasTokens: false } | undefined;
       
@@ -347,8 +352,6 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       }
 
       // Use the key-specific baseUrl or fallback to global baseUrl
-      const urlToUse = keyToTopUp.baseUrl || baseUrl;
-      
       // Make the topup request to the backend
       const response = await fetch(`${urlToUse}v1/wallet/topup?cashu_token=${encodeURIComponent(cashuToken)}`, {
         method: 'POST',
@@ -366,15 +369,16 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       const data = await response.json();
       toast.success(`Successfully topped up ${topUpAmount} sats!`);
       
-      // Update the local balance
-      setLocalMintBalance(prev => prev - parseInt(topUpAmount));
-      
       // Refresh the API key balances to show the updated balance
       await refreshApiKeysBalances();
       
     } catch (error) {
       console.error('Error during top up:', error);
-      toast.error(`Top up failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof TypeError) {
+        toast.error(`Base URL ${urlToUse} is not responding. Top up failed.`);
+      } else {
+        toast.error(`Top up failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     } finally {
       setIsTopUpLoading(null);
       setTopUpAmount('');
@@ -491,7 +495,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
               <div className="flex justify-between items-center">
                 <p className="text-sm text-white/70">Label: {keyData.label || 'Unnamed'}</p> {/* Display label */}
                 <p className="text-md text-white">
-                  Balance: {keyData.isInvalid ? 'Invalid' : (keyData.balance !== null ? `${Number(keyData.balance / 1000)} sats` : 'N/A')}
+                  Balance: {keyData.isInvalid ? 'Invalid' : (keyData.balance !== null ? `${(keyData.balance / 1000).toFixed(2)} sats` : 'N/A')}
                   {keyData.isInvalid && (
                     <span className="ml-2 px-2 py-1 bg-red-600 text-white text-xs font-semibold rounded-full">Invalid</span>
                   )}

@@ -85,7 +85,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   // Cashu wallet hooks
   const { wallet, isLoading: isWalletLoading } = useCashuWallet();
   const cashuStore = useCashuStore();
-  const { sendToken, receiveToken } = useCashuToken();
+  const { sendToken, receiveToken, cleanSpentProofs } = useCashuToken();
   const { logins } = useAuth();
   const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
 
@@ -162,6 +162,10 @@ export const useChatActions = (): UseChatActionsReturn => {
       if (!isWalletLoading) {
         if (wallet) {
           console.log('rdlogs: Wallet found: ', wallet);
+          // Call cleanSpentProofs for each mint in the wallet
+          wallet.mints?.forEach(mint => {
+            cleanSpentProofs(mint);
+          });
         } else {
           console.log('rdlogs: Creating new wallet');
           handleCreateWallet();

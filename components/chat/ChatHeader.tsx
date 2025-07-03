@@ -31,7 +31,11 @@ const ChatHeader: React.FC = () => {
     setIsLoginModalOpen,
     
     // Balance
-    balance
+    balance,
+
+    // Settings
+    setIsSettingsOpen,
+    setInitialSettingsTab
   } = useChat();
 
   return (
@@ -73,7 +77,10 @@ const ChatHeader: React.FC = () => {
 
         {/* Balance Display */}
         <div className="absolute right-4">
-          <BalanceDisplay />
+          <BalanceDisplay
+            setIsSettingsOpen={setIsSettingsOpen}
+            setInitialSettingsTab={setInitialSettingsTab}
+          />
         </div>
       </div>
     </div>
