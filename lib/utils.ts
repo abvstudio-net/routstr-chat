@@ -6,5 +6,5 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
-export const DEFAULT_BASE_URL = 'https://api.routstr.com/';
+export const DEFAULT_BASE_URL = 'https://ai.redsh1ft.com/';
 export const DEFAULT_MINT_URL = 'https://mint.minibits.cash/Bitcoin';
