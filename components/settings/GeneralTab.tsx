@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, Plus, XCircle, ChevronDown, ChevronUp, Search, Star, Eye, Copy } from 'lucide-react';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { Model } from '@/data/models';
+import { loadBaseUrlsList, saveBaseUrlsList } from '@/utils/storageUtils';
 
 interface GeneralTabProps {
   publicKey: string | undefined;
@@ -53,31 +54,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   };
 
   useEffect(() => {
-    const storedBaseUrls = localStorage.getItem('base_urls_list');
-    let initialBaseUrls: string[] = [];
-
-    if (storedBaseUrls) {
-      initialBaseUrls = JSON.parse(storedBaseUrls);
-    }
-
-    // Ensure baseUrl is always in the list if it's a valid URL
-    if (baseUrl && !initialBaseUrls.includes(baseUrl)) {
-      initialBaseUrls = [baseUrl, ...initialBaseUrls];
-    }
-
-    // If no URLs are stored and baseUrl is also empty, add a default
-    if (initialBaseUrls.length === 0) {
-      initialBaseUrls = ['https://api.routstr.com/'];
-    }
-
-    setBaseUrls(initialBaseUrls);
+    setBaseUrls(loadBaseUrlsList());
   }, []); // Empty dependency array to run only once on mount
-
-  useEffect(() => {
-    if (baseUrls.length !== 0) {
-      localStorage.setItem('base_urls_list', JSON.stringify(baseUrls));
-    }
-  }, [baseUrls]);
 
   useEffect(() => {
     if (localStorage.getItem('nsec_storing_skipped') === 'true') {
@@ -96,7 +74,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
     const trimmedUrl = newBaseUrlInput.trim();
     if (trimmedUrl && !baseUrls.includes(trimmedUrl)) {
       const formattedNewBaseUrl = trimmedUrl.endsWith('/') ? trimmedUrl : `${trimmedUrl}/`;
-      setBaseUrls([...baseUrls, formattedNewBaseUrl]);
+      const updatedBaseUrls = [...baseUrls, formattedNewBaseUrl];
+      setBaseUrls(updatedBaseUrls);
+      saveBaseUrlsList(updatedBaseUrls); // Save to storage
       setNewBaseUrlInput('');
       setBaseUrl(formattedNewBaseUrl);
     }
@@ -105,14 +85,19 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   const handleRemoveBaseUrl = (urlToRemove: string) => {
     const updatedUrls = baseUrls.filter(url => url !== urlToRemove);
     setBaseUrls(updatedUrls);
+    saveBaseUrlsList(updatedUrls); // Save to storage
     // If the removed URL was the currently selected one, select the first available URL or clear it
-    if (baseUrl === urlToRemove) {
-      setBaseUrl(updatedUrls.length > 0 ? updatedUrls[0] : '');
+    if (normalizeUrl(baseUrl) === normalizeUrl(urlToRemove)) {
+      const newBaseUrl = updatedUrls.length > 0 ? normalizeUrl(updatedUrls[0]) : '';
+      setBaseUrl(newBaseUrl);
     }
   };
 
+  const normalizeUrl = (url: string) => url.endsWith('/') ? url : `${url}/`;
+
   const handleRadioChange = (url: string) => {
-    setBaseUrl(url);
+    const normalizedUrl = normalizeUrl(url);
+    setBaseUrl(normalizedUrl);
   };
 
   // Filter models based on search query
@@ -181,7 +166,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
                     id={`baseUrl-${index}`}
                     name="baseUrl"
                     className="mr-2 accent-gray-500"
-                    checked={baseUrl === url}
+                    checked={normalizeUrl(baseUrl) === normalizeUrl(url)}
                     onChange={() => handleRadioChange(url)}
                   />
                   <label htmlFor={`baseUrl-${index}`} className="text-sm text-white">{url}</label>
@@ -203,6 +188,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
               placeholder="Add new base URL"
               value={newBaseUrlInput}
               onChange={(e) => setNewBaseUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddBaseUrl();
+                }
+              }}
             />
             <button
               onClick={handleAddBaseUrl}

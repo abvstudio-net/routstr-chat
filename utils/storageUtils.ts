@@ -1,4 +1,6 @@
 import { TransactionHistory } from '@/types/chat';
+import { DEFAULT_BASE_URLS } from '../lib/utils';
+import { useCashuStore } from '../stores/cashuStore';
 
 /**
  * Generic localStorage helper with error handling
@@ -74,13 +76,15 @@ export const hasStorageItem = (key: string): boolean => {
 };
 
 /**
- * Clear all localStorage items (use with caution)
+ * Clear all localStorage items and Cashu store (use with caution)
  */
 export const clearAllStorage = (): void => {
   try {
     localStorage.clear();
+    // Also clear the Cashu store
+    useCashuStore.getState().clearStore();
   } catch (error) {
-    console.error('Error clearing localStorage:', error);
+    console.error('Error clearing storage:', error);
   }
 };
 
@@ -195,7 +199,7 @@ export const saveMintUrl = (mintUrl: string): void => {
  * @returns Stored or default base URL (normalized with trailing slash)
  */
 export const loadBaseUrl = (defaultBaseUrl: string): string => {
-  const baseUrl = getStorageItem<string>('base_url', defaultBaseUrl);
+  const baseUrl = getStorageItem<string>('base_url', DEFAULT_BASE_URLS[0]); // Use first default if not set
   return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 };
 
@@ -205,6 +209,42 @@ export const loadBaseUrl = (defaultBaseUrl: string): string => {
  */
 export const saveBaseUrl = (baseUrl: string): void => {
   setStorageItem('base_url', baseUrl);
+};
+
+/**
+ * Load and manage the list of base URLs from localStorage.
+ * Ensures default URLs are present and handles initialization.
+ * @returns Array of base URLs
+ */
+export const loadBaseUrlsList = (): string[] => {
+  let storedBaseUrls = getStorageItem<string[]>(STORAGE_KEYS.BASE_URLS_LIST, []);
+
+  // If no URLs are stored, initialize with default URLs
+  if (storedBaseUrls.length === 0) {
+    storedBaseUrls = [...DEFAULT_BASE_URLS];
+    setStorageItem(STORAGE_KEYS.BASE_URLS_LIST, storedBaseUrls);
+  } else {
+    // Ensure all default URLs are present in the stored list
+    let updated = false;
+    DEFAULT_BASE_URLS.forEach(defaultUrl => {
+      if (!storedBaseUrls.includes(defaultUrl)) {
+        storedBaseUrls.push(defaultUrl);
+        updated = true;
+      }
+    });
+    if (updated) {
+      setStorageItem(STORAGE_KEYS.BASE_URLS_LIST, storedBaseUrls);
+    }
+  }
+  return storedBaseUrls;
+};
+
+/**
+ * Save the list of base URLs to localStorage
+ * @param baseUrls Array of base URLs to save
+ */
+export const saveBaseUrlsList = (baseUrls: string[]): void => {
+  setStorageItem(STORAGE_KEYS.BASE_URLS_LIST, baseUrls);
 };
 
 /**
@@ -249,6 +289,7 @@ export const STORAGE_KEYS = {
   LAST_USED_MODEL: 'lastUsedModel',
   MINT_URL: 'mint_url',
   BASE_URL: 'base_url',
+  BASE_URLS_LIST: 'base_urls_list', // Add new key
   USING_NIP60: 'usingNip60',
   TUTORIAL_SEEN: 'hasSeenTutorial',
   CURRENT_CASHU_TOKEN: 'current_cashu_token',

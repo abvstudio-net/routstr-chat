@@ -82,7 +82,8 @@ export const useConversationState = (): UseConversationStateReturn => {
       setActiveConversationId(newConversation.id);
       // Only clear messages if there are no messages currently
       // This prevents clearing messages when creating a conversation mid-send
-      setMessages(prevMessages => prevMessages.length === 0 ? [] : prevMessages);
+      // setMessages(prevMessages => prevMessages.length === 0 ? [] : prevMessages);
+      setMessages([]);
       return updatedConversations;
     });
   }, []);

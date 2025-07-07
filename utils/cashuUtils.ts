@@ -371,6 +371,7 @@ export const unifiedRefund = async (
         refundedAmount: totalAmount
       };
     } catch (error) {
+      console.log('rdlogs: REFUND ERROR:', error);
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Refund failed'

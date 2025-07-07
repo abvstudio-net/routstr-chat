@@ -136,12 +136,6 @@ const SettingsModal = ({
     localStorage.setItem('mint_url', url);
   }, [setMintUrl]);
 
-  // Handle auto-saving base URL changes
-  const handleBaseUrlChange = useCallback((url: string) => {
-    setBaseUrl(url);
-    localStorage.setItem('base_url', url);
-  }, [setBaseUrl]);
-
   // Initialize wallet when modal opens or mintUrl changes
   useEffect(() => {
     let isMounted = true;
@@ -499,7 +493,7 @@ const SettingsModal = ({
                 mintUrl={mintUrl}
                 setMintUrl={handleMintUrlChange}
                 baseUrl={baseUrl}
-                setBaseUrl={handleBaseUrlChange}
+                setBaseUrl={setBaseUrl}
                 selectedModel={selectedModel}
                 handleModelChange={handleModelChange}
                 models={models}
