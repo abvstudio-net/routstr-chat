@@ -2,6 +2,7 @@ import { Message, TransactionHistory } from '@/types/chat';
 import { convertMessageForAPI, createTextMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
 import { fetchBalances, getBalanceFromStoredProofs, unifiedRefund } from '@/utils/cashuUtils';
+import { getLocalCashuToken } from './storageUtils';
 
 export interface FetchAIResponseParams {
   messageHistory: Message[];
@@ -53,6 +54,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       usingNip60,
       mintUrl,
       tokenAmount,
+      baseUrl, // Add baseUrl here
       sendToken,
       activeMintUrl
     );
@@ -170,7 +172,7 @@ async function handleApiError(
   } = params;
 
   if (response.status === 401 || response.status === 403) {
-    const storedToken = localStorage.getItem("current_cashu_token");
+    const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
 
     if (storedToken) {
@@ -191,13 +193,14 @@ async function handleApiError(
       await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
     }
     
-    clearCurrentApiToken();
+    clearCurrentApiToken(baseUrl); // Pass baseUrl here
     
     if (retryOnInsufficientBalance) {
       const newToken = await getTokenForRequest(
         usingNip60,
         mintUrl,
         tokenAmount,
+        baseUrl, // Add baseUrl here
         sendToken,
         activeMintUrl
       );
@@ -207,7 +210,7 @@ async function handleApiError(
       }
     }
   } else if (response.status === 402) {
-    clearCurrentApiToken();
+    clearCurrentApiToken(baseUrl); // Pass baseUrl here
   } else if (response.status === 413) {
     await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   }
@@ -316,7 +319,7 @@ async function handlePostResponseRefund(params: {
   } else {
     console.error("Refund failed:", result.message);
     if (result.message && result.message.includes("Balance too small to refund")) {
-      clearCurrentApiToken();
+      clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
     satsSpent = Math.ceil(tokenAmount);
   }

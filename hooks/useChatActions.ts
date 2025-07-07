@@ -4,7 +4,7 @@ import { createTextMessage, createMultimodalMessage } from '@/utils/messageUtils
 import { fetchAIResponse } from '@/utils/apiUtils';
 import { loadTransactionHistory, saveTransactionHistory, loadUsingNip60, saveUsingNip60 } from '@/utils/storageUtils';
 import { calculateBalance } from '@/lib/cashu';
-import { getBalanceFromStoredProofs, getPendingCashuTokenAmount } from '@/utils/cashuUtils';
+import { getBalanceFromStoredProofs, getPendingCashuTokenAmount } from '@/utils/cashuUtils'; // Removed getPendingCashuTokenAmount import
 import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuWallet } from '@/hooks/useCashuWallet';
 import { useCashuToken } from '@/hooks/useCashuToken';
@@ -35,7 +35,7 @@ export interface UseChatActionsReturn {
     messages: Message[],
     setMessages: (messages: Message[]) => void,
     activeConversationId: string | null,
-    createNewConversation: () => void,
+    createNewConversation: (initialMessages?: Message[]) => void,
     selectedModel: any,
     baseUrl: string,
     mintUrl: string,
@@ -115,6 +115,7 @@ export const useChatActions = (): UseChatActionsReturn => {
             0
           );
           setBalance(totalBalance + pendingCashuAmountState);
+          console.log('rdlogs: ', pendingCashuAmountState)
         }
       } else {
         // Legacy wallet balance calculation would go here
@@ -128,6 +129,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   // Effect to listen for changes in localStorage for 'current_cashu_token'
   useEffect(() => {
     const updatePendingAmount = () => {
+      console.log('rdlogs: pendigl', getPendingCashuTokenAmount())
       setPendingCashuAmountState(getPendingCashuTokenAmount());
     };
 
@@ -141,7 +143,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     return () => {
       window.removeEventListener('storage', updatePendingAmount);
     };
-  }, []);
+  }, [pendingCashuAmountState]);
 
   // Set active mint URL based on wallet and current mint URL
   useEffect(() => {
@@ -198,7 +200,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     messages: Message[],
     setMessages: (messages: Message[]) => void,
     activeConversationId: string | null,
-    createNewConversation: () => void,
+    createNewConversation: (initialMessages?: Message[]) => void,
     selectedModel: any,
     baseUrl: string,
     mintUrl: string,
@@ -219,13 +221,13 @@ export const useChatActions = (): UseChatActionsReturn => {
 
     const updatedMessages = [...messages, userMessage];
     
-    // Update messages to show the user message right away
-    setMessages(updatedMessages);
-
-    // Create new conversation if needed AFTER setting messages
-    // This prevents the conversation creation from clearing the messages
+    // Create new conversation if needed with the updated messages
+    // This ensures the conversation starts with the user message
     if (!activeConversationId) {
-      createNewConversation();
+      createNewConversation(updatedMessages);
+    } else {
+      // Update messages to show the user message right away for existing conversations
+      setMessages(updatedMessages);
     }
 
     setInputMessage('');

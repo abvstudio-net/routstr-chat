@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Model } from '@/data/models';
 import { DEFAULT_BASE_URLS, DEFAULT_MINT_URL } from '@/lib/utils';
-import { loadMintUrl, saveMintUrl, loadBaseUrl, saveBaseUrl, loadLastUsedModel, saveLastUsedModel, loadBaseUrlsList, saveBaseUrlsList } from '@/utils/storageUtils';
+import { loadMintUrl, saveMintUrl, loadBaseUrl, saveBaseUrl, loadLastUsedModel, saveLastUsedModel, loadBaseUrlsList, saveBaseUrlsList, migrateCurrentCashuToken } from '@/utils/storageUtils';
 import { toast } from 'sonner';
 
 export interface UseApiStateReturn {
@@ -52,6 +52,13 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
       setCurrentBaseUrlIndex(initialIndex !== -1 ? initialIndex : 0);
     }
   }, [isAuthenticated]);
+
+  // Migrate old cashu token format on load
+  useEffect(() => {
+    if (baseUrl) {
+      migrateCurrentCashuToken(baseUrl);
+    }
+  }, [baseUrl]);
 
   // Fetch available models from API and handle URL model selection
   const fetchModels = useCallback(async (currentBalance: number, attempt: number = 0) => {

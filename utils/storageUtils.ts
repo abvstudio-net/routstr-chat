@@ -3,6 +3,14 @@ import { DEFAULT_BASE_URLS } from '../lib/utils';
 import { useCashuStore } from '../stores/cashuStore';
 
 /**
+ * Interface for a stored Cashu token entry
+ */
+export interface CashuTokenEntry {
+  token: string;
+  baseUrl: string;
+}
+
+/**
  * Generic localStorage helper with error handling
  * @param key Storage key
  * @param value Value to store (will be JSON stringified)
@@ -292,7 +300,74 @@ export const STORAGE_KEYS = {
   BASE_URLS_LIST: 'base_urls_list', // Add new key
   USING_NIP60: 'usingNip60',
   TUTORIAL_SEEN: 'hasSeenTutorial',
-  CURRENT_CASHU_TOKEN: 'current_cashu_token',
+  LOCAL_CASHU_TOKENS: 'local_cashu_tokens', // New key for structured tokens
   CASHU_PROOFS: 'cashu_proofs',
   WRAPPED_CASHU_TOKENS: 'wrapped_cashu_tokens'
 } as const;
+
+/**
+ * Retrieves all stored Cashu tokens.
+ * @returns An array of CashuTokenEntry objects.
+ */
+export const getLocalCashuTokens = (): CashuTokenEntry[] => {
+  return getStorageItem<CashuTokenEntry[]>(STORAGE_KEYS.LOCAL_CASHU_TOKENS, []);
+};
+
+/**
+ * Stores or updates a Cashu token for a specific base URL.
+ * If a token for the given base URL already exists, it will be updated.
+ * Otherwise, a new entry will be added.
+ * @param baseUrl The base URL associated with the token.
+ * @param token The Cashu token string.
+ */
+export const setLocalCashuToken = (baseUrl: string, token: string): void => {
+  const tokens = getLocalCashuTokens();
+  const existingIndex = tokens.findIndex(entry => entry.baseUrl === baseUrl);
+
+  if (existingIndex !== -1) {
+    tokens[existingIndex] = { baseUrl, token };
+  } else {
+    tokens.push({ baseUrl, token });
+  }
+  setStorageItem(STORAGE_KEYS.LOCAL_CASHU_TOKENS, tokens);
+};
+
+/**
+ * Retrieves a Cashu token for a specific base URL.
+ * @param baseUrl The base URL to retrieve the token for.
+ * @returns The Cashu token string, or null if not found.
+ */
+export const getLocalCashuToken = (baseUrl: string): string | null => {
+  const tokens = getLocalCashuTokens();
+  const entry = tokens.find(entry => entry.baseUrl === baseUrl);
+  return entry ? entry.token : null;
+};
+
+/**
+ * Removes a Cashu token for a specific base URL.
+ * @param baseUrl The base URL of the token to remove.
+ */
+export const removeLocalCashuToken = (baseUrl: string): void => {
+  const tokens = getLocalCashuTokens();
+  const updatedTokens = tokens.filter(entry => entry.baseUrl !== baseUrl);
+  setStorageItem(STORAGE_KEYS.LOCAL_CASHU_TOKENS, updatedTokens);
+};
+
+/**
+ * Migrates the old 'current_cashu_token' to the new 'local_cashu_tokens' format.
+ * This function should be called once to ensure backward compatibility.
+ * @param baseUrl The base URL to associate with the migrated token.
+ */
+export const migrateCurrentCashuToken = (baseUrl: string): void => {
+  try {
+    const currentToken = localStorage.getItem('current_cashu_token');
+    if (currentToken) {
+      console.log('Migrating current_cashu_token to local_cashu_tokens format...');
+      setLocalCashuToken(baseUrl, currentToken);
+      localStorage.removeItem('current_cashu_token');
+      console.log('Migration complete: current_cashu_token moved to local_cashu_tokens.');
+    }
+  } catch (error) {
+    console.error('Error migrating current_cashu_token:', error);
+  }
+};

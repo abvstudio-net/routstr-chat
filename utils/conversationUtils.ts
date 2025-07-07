@@ -79,9 +79,13 @@ export const loadConversationsFromStorage = (): Conversation[] => {
 /**
  * Creates a new conversation
  * @param existingConversations Current conversations array
+ * @param initialMessages Optional initial messages for the conversation
  * @returns Object with new conversation and updated conversations array
  */
-export const createNewConversation = (existingConversations: Conversation[]): {
+export const createNewConversation = (
+  existingConversations: Conversation[],
+  initialMessages: Message[] = []
+): {
   newConversation: Conversation;
   updatedConversations: Conversation[];
 } => {
@@ -89,7 +93,7 @@ export const createNewConversation = (existingConversations: Conversation[]): {
   const newConversation: Conversation = {
     id: newId,
     title: `Conversation ${existingConversations.length + 1}`,
-    messages: []
+    messages: initialMessages
   };
 
   const updatedConversations = [...existingConversations, newConversation];

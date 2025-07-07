@@ -47,7 +47,6 @@ export function useCashuWallet() {
         if (events.length === 0) {
           return null;
         }
-        console.log('rdlogs: eveths', events);
 
         const event = events[0];
 

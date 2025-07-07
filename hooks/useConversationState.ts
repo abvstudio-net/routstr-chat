@@ -21,7 +21,7 @@ export interface UseConversationStateReturn {
   setMessages: (messages: Message[]) => void;
   setEditingMessageIndex: (index: number | null) => void;
   setEditingContent: (content: string) => void;
-  createNewConversationHandler: () => void;
+  createNewConversationHandler: (initialMessages?: Message[]) => void;
   loadConversation: (conversationId: string) => void;
   deleteConversation: (conversationId: string, e: React.MouseEvent) => void;
   clearConversations: () => void;
@@ -76,14 +76,12 @@ export const useConversationState = (): UseConversationStateReturn => {
     }
   }, [editingMessageIndex, messages]);
 
-  const createNewConversationHandler = useCallback(() => {
+  const createNewConversationHandler = useCallback((initialMessages: Message[] = []) => {
     setConversations(prevConversations => {
-      const { newConversation, updatedConversations } = createNewConversation(prevConversations);
+      const { newConversation, updatedConversations } = createNewConversation(prevConversations, initialMessages);
       setActiveConversationId(newConversation.id);
-      // Only clear messages if there are no messages currently
-      // This prevents clearing messages when creating a conversation mid-send
-      // setMessages(prevMessages => prevMessages.length === 0 ? [] : prevMessages);
-      setMessages([]);
+      // Set messages to the initial messages (empty array if none provided)
+      setMessages(initialMessages);
       return updatedConversations;
     });
   }, []);

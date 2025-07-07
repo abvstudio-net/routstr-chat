@@ -1,4 +1,5 @@
-import { create60CashuToken, getOrCreateApiToken, invalidateApiToken } from '@/utils/cashuUtils';
+import { create60CashuToken, getOrCreateApiToken } from '@/utils/cashuUtils';
+import { getLocalCashuToken, setLocalCashuToken, removeLocalCashuToken } from '@/utils/storageUtils';
 
 // Default token amount for models without max_cost defined
 export const DEFAULT_TOKEN_AMOUNT = 50;
@@ -15,11 +16,12 @@ export const getOrCreate60ApiToken = async (
   mintUrl: string,
   amount: number,
   sendToken: (mintUrl: string, amount: number) => Promise<any[]>,
-  activeMintUrl: string | null
+  activeMintUrl: string | null,
+  baseUrl: string // Add baseUrl parameter
 ): Promise<string | null | { hasTokens: false }> => {
   try {
-    // Try to get existing token
-    const storedToken = localStorage.getItem("current_cashu_token");
+    // Try to get existing token for the given baseUrl
+    const storedToken = getLocalCashuToken(baseUrl);
     if (storedToken) {
       return storedToken;
     }
@@ -32,7 +34,7 @@ export const getOrCreate60ApiToken = async (
     
     const newToken = await create60CashuToken(activeMintUrl, sendToken, amount);
     if (newToken) {
-      localStorage.setItem("current_cashu_token", newToken);
+      setLocalCashuToken(baseUrl, newToken); // Use baseUrl here
       return newToken;
     }
 
@@ -56,6 +58,7 @@ export const getTokenForRequest = async (
   usingNip60: boolean,
   mintUrl: string,
   amount: number,
+  baseUrl: string, // Move baseUrl to be a required parameter before optional ones
   sendToken?: (mintUrl: string, amount: number) => Promise<any[]>,
   activeMintUrl?: string | null
 ): Promise<string | null | { hasTokens: false }> => {
@@ -64,17 +67,18 @@ export const getTokenForRequest = async (
       console.error("Missing required parameters for NIP-60 token creation");
       return null;
     }
-    return await getOrCreate60ApiToken(mintUrl, amount, sendToken, activeMintUrl);
+    return await getOrCreate60ApiToken(mintUrl, amount, sendToken, activeMintUrl, baseUrl); // Pass baseUrl
   } else {
-    return await getOrCreateApiToken(mintUrl, amount);
+    return await getOrCreateApiToken(mintUrl, amount, baseUrl); // Pass baseUrl
   }
 };
 
 /**
- * Invalidates the current API token stored in localStorage
+ * Invalidates the current API token stored in localStorage for a given base URL
+ * @param baseUrl The base URL of the token to invalidate
  */
-export const clearCurrentApiToken = (): void => {
-  invalidateApiToken();
+export const clearCurrentApiToken = (baseUrl: string): void => {
+  removeLocalCashuToken(baseUrl);
 };
 
 /**

@@ -1,6 +1,7 @@
 import { Event } from "nostr-tools";
 import { GiftWrap, wrapCashuToken, unwrapCashuToken } from "./nip60Utils";
 import { CashuMint, CashuWallet, getEncodedTokenV4, getDecodedToken } from "@cashu/cashu-ts";
+import { getLocalCashuToken, setLocalCashuToken, removeLocalCashuToken, getLocalCashuTokens, CashuTokenEntry } from '@/utils/storageUtils';
 
 
 /**
@@ -17,7 +18,7 @@ export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{
   let proofsBalance = 0;
 
   try {
-    const token = localStorage.getItem("current_cashu_token");
+    const token = getLocalCashuToken(baseUrl); // Use getLocalCashuToken
 
     if (token) {
       const response = await fetch(`${baseUrl}v1/wallet/info`, {
@@ -29,7 +30,7 @@ export const fetchBalances = async (mintUrl: string, baseUrl: string): Promise<{
       if (!response.ok) {
         if (response.status === 402) {
           // Invalidate current token since it's out of balance
-          invalidateApiToken();
+          invalidateApiToken(baseUrl); // Pass baseUrl
           console.warn('rdlogs: API token invalidated due to insufficient balance.');
         } else {
           console.error(`Failed to fetch wallet balance: ${response.status} ${response.statusText}`);
@@ -183,11 +184,12 @@ export const generateApiToken = async (
  */
 export const getOrCreateApiToken = async (
   mintUrl: string,
-  amount: number
+  amount: number,
+  baseUrl: string // Add baseUrl parameter
 ): Promise<string | null | { hasTokens: false }> => {
   try {
-    // Try to get existing token
-    const storedToken = localStorage.getItem("current_cashu_token");
+    // Try to get existing token for the given baseUrl
+    const storedToken = getLocalCashuToken(baseUrl);
     if (storedToken) {
       return storedToken;
     }
@@ -200,9 +202,8 @@ export const getOrCreateApiToken = async (
 
     // Generate new token if none exists
     const newToken = await generateApiToken(mintUrl, amount);
-    // const newToken = await create60CashuToken(amount); 
     if (newToken) {
-      localStorage.setItem("current_cashu_token", newToken);
+      setLocalCashuToken(baseUrl, newToken); // Use setLocalCashuToken
       return newToken;
     }
 
@@ -231,7 +232,7 @@ export const fetchRefundToken = async (baseUrl: string, storedToken: string): Pr
   if (!response.ok) {
     const errorData = await response.json();
     if (response.status === 400 && errorData?.detail === "No balance to refund") {
-      invalidateApiToken();
+      invalidateApiToken(baseUrl); // Pass baseUrl here
       throw new Error('No balance to refund'); // Indicate this specific case
     }
     throw new Error(`Refund request failed with status ${response.status}: ${errorData?.detail || response.statusText}`);
@@ -258,7 +259,7 @@ export const storeCashuToken = async (mintUrl: string, token: string): Promise<v
 
 export const refundRemainingBalance = async (mintUrl: string, baseUrl: string, apiKey?: string): Promise<{ success: boolean; message?: string }> => {
   try {
-    const storedToken = apiKey || localStorage.getItem("current_cashu_token");
+    const storedToken = apiKey || getLocalCashuToken(baseUrl); // Use getLocalCashuToken
     if (!storedToken) {
       return { success: true, message: 'No apiKey to refund' };
     }
@@ -268,7 +269,7 @@ export const refundRemainingBalance = async (mintUrl: string, baseUrl: string, a
       if (token) {
         await storeCashuToken(mintUrl, token);
       }
-      invalidateApiToken();
+      invalidateApiToken(baseUrl); // Pass baseUrl
       return { success: true, message: 'Refund completed successfully' };
     } catch (error) {
       if (error instanceof Error && error.message === 'No balance to refund') {
@@ -288,8 +289,8 @@ export const refundRemainingBalance = async (mintUrl: string, baseUrl: string, a
 /**
  * Invalidates the current API token
  */
-export const invalidateApiToken = () => {
-  localStorage.removeItem("current_cashu_token");
+export const invalidateApiToken = (baseUrl: string) => { // Add baseUrl parameter
+  removeLocalCashuToken(baseUrl); // Use removeLocalCashuToken
 };
 
 
@@ -353,7 +354,7 @@ export const unifiedRefund = async (
   apiKey?: string
 ): Promise<UnifiedRefundResult> => {
   if (usingNip60) {
-    const storedToken = apiKey || localStorage.getItem("current_cashu_token");
+    const storedToken = apiKey || getLocalCashuToken(baseUrl); // Use getLocalCashuToken
     if (!storedToken) {
       return { success: true, message: 'No API key to refund' };
     }
@@ -363,7 +364,7 @@ export const unifiedRefund = async (
       const proofs = await receiveTokenFn(refundedToken);
       const totalAmount = proofs.reduce((sum: number, p: any) => sum + p.amount, 0);
       if (!apiKey) {
-        invalidateApiToken();
+        invalidateApiToken(baseUrl); // Pass baseUrl
       }
       
       return {
@@ -383,19 +384,18 @@ export const unifiedRefund = async (
 };
 
 export const getPendingCashuTokenAmount = (): number => {
-  const token = localStorage.getItem('current_cashu_token');
-  if (token) {
+  const allTokens = getLocalCashuTokens(); // Get all stored tokens
+  let totalPendingAmount = 0;
+
+  allTokens.forEach((tokenEntry: CashuTokenEntry) => {
     try {
-      const decodedToken = getDecodedToken(token);
-      let totalAmount = 0;
+      const decodedToken = getDecodedToken(tokenEntry.token);
       decodedToken.proofs.forEach((proof: { amount: number; }) => {
-        totalAmount += proof.amount;
+        totalPendingAmount += proof.amount;
       });
-      return totalAmount;
     } catch (error) {
-      console.error('Error decoding cashu token from localStorage:', error);
-      return 0;
+      console.error(`Error decoding cashu token for baseUrl ${tokenEntry.baseUrl}:`, error);
     }
-  }
-  return 0;
+  });
+  return totalPendingAmount;
 };
