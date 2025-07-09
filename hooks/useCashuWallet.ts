@@ -2,6 +2,7 @@ import { useNostr } from '@/hooks/useNostr';
 import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { DEFAULT_MINT_URL } from '@/lib/utils';
 import { CASHU_EVENT_KINDS, CashuWalletStruct, CashuToken, activateMint, updateMintKeys, defaultMints } from '@/lib/cashu';
 import { NostrEvent, getPublicKey } from 'nostr-tools';
@@ -22,6 +23,7 @@ export function useCashuWallet() {
   const queryClient = useQueryClient();
   const cashuStore = useCashuStore();
   const { createNutzapInfo } = useNutzaps();
+  const [showQueryTimeoutModal, setShowQueryTimeoutModal] = useState(false);
 
   // Fetch wallet information (kind 17375)
   const walletQuery = useQuery<{ id: string; wallet: CashuWalletStruct; createdAt: number; } | null, Error, { id: string; wallet: CashuWalletStruct; createdAt: number; } | null, any[]>(
@@ -119,6 +121,9 @@ export function useCashuWallet() {
         };
       } catch (error) {
         console.error('walletQuery: Error in queryFn', error);
+        if (error instanceof Error && error.message === 'Query timeout') {
+          setShowQueryTimeoutModal(true);
+        }
         return null;
       }
     },
@@ -216,7 +221,7 @@ export function useCashuWallet() {
       const queryPromise = nostr.query([filter], { signal });
       
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout')), 10000);
+        setTimeout(() => reject(new Error('Query timeout')), 15000);
       });
       
       const events = await Promise.race([queryPromise, timeoutPromise]);
@@ -261,6 +266,9 @@ export function useCashuWallet() {
       return nip60TokenEvents;
       } catch (error) {
         console.error('getNip60TokensQuery: Error in queryFn', error);
+        if (error instanceof Error && error.message === 'Query timeout') {
+          setShowQueryTimeoutModal(true);
+        }
         return [];
       }
     },
@@ -366,5 +374,7 @@ export function useCashuWallet() {
     isLoading: walletQuery.isLoading || getNip60TokensQuery.isLoading,
     createWallet: createWalletMutation.mutate,
     updateProofs: updateProofsMutation.mutateAsync,
+    showQueryTimeoutModal,
+    setShowQueryTimeoutModal,
   };
 }

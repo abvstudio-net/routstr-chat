@@ -9,10 +9,12 @@ import SettingsModal from '@/components/SettingsModal';
 import LoginModal from '@/components/LoginModal';
 import TutorialOverlay from '@/components/TutorialOverlay';
 import DepositModal from '@/components/DepositModal';
+import { QueryTimeoutModal } from '@/components/QueryTimeoutModal';
 import { useAuth } from '@/context/AuthProvider';
 import { useChat } from '@/context/ChatProvider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useCashuWallet } from '@/hooks/useCashuWallet';
 
 function ChatPageContent() {
   const router = useRouter();
@@ -55,6 +57,7 @@ function ChatPageContent() {
   } = useChat();
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const { showQueryTimeoutModal, setShowQueryTimeoutModal } = useCashuWallet();
 
   useEffect(() => {
     if (!isBalanceLoading && balance === 0 && isAuthenticated && !isSettingsOpen) {
@@ -124,6 +127,11 @@ function ChatPageContent() {
         mintUrl={mintUrl}
         balance={balance}
         setBalance={setBalance}
+      />
+
+      <QueryTimeoutModal
+        isOpen={showQueryTimeoutModal}
+        onClose={() => setShowQueryTimeoutModal(false)}
       />
     </div>
   );

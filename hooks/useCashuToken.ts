@@ -286,6 +286,7 @@ export function useCashuToken() {
   const cleanSpentProofs = async (mintUrl: string) => {
     setIsLoading(true);
     setError(null);
+    console.log('rdlogs: sp', mintUrl);
 
     try {
       const mint = new CashuMint(mintUrl);
