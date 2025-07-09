@@ -3,7 +3,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import { useLoginActions } from '@/hooks/useLoginActions';
-import { useProfileSync } from '@/hooks/useProfileSync';
 import { Shield, Upload } from 'lucide-react';
 
 interface LoginModalProps {
@@ -30,7 +29,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
   const [showSaveLaterConfirmation, setShowSaveLaterConfirmation] = useState(false);
 
   const loginActions = useLoginActions();
-  const { syncProfile } = useProfileSync();
 
   useEffect(() => {
     if (activeTab === 'signup' && !generatedNsec) {
@@ -46,9 +44,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
         throw new Error('Nostr extension not found. Please install a NIP-07 extension.');
       }
       const loginInfo = await loginActions.extension();
-      
-      // Sync profile after successful login
-      await syncProfile(loginInfo.pubkey);
       
       onLogin();
       onClose();
@@ -67,9 +62,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
     try {
       const loginInfo = loginActions.nsec(nsec);
       
-      // Sync profile after successful login
-      await syncProfile(loginInfo.pubkey);
-      
       onLogin();
       onClose();
     } catch (error) {
@@ -86,9 +78,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
 
     try {
       const loginInfo = await loginActions.bunker(bunkerUri);
-      
-      // Sync profile after successful login
-      await syncProfile(loginInfo.pubkey);
       
       onLogin();
       onClose();
@@ -163,7 +152,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
     if (generatedNsec) {
       try {
         const loginInfo = loginActions.nsec(generatedNsec);
-        await syncProfile(loginInfo.pubkey);
         onLogin();
         onClose();
       } catch (error) {

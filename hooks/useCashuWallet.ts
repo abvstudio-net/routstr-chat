@@ -256,6 +256,7 @@ export function useCashuWallet() {
           console.error('Failed to decrypt token data:', error);
         }
       }
+      console.log('rdlogs: ', nip60TokenEvents);
 
       return nip60TokenEvents;
       } catch (error) {

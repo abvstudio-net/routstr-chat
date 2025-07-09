@@ -287,28 +287,37 @@ export function useCashuToken() {
     setIsLoading(true);
     setError(null);
 
-    const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    try {
+      const mint = new CashuMint(mintUrl);
+      const wallet = new CashuWallet(mint);
 
-    await wallet.loadMint();
+      await wallet.loadMint();
 
-    const proofs = await cashuStore.getMintProofs(mintUrl);
+      const proofs = await cashuStore.getMintProofs(mintUrl);
+      console.log('rdlogs: sp', proofs.length);
 
-    const proofStates = await wallet.checkProofsStates(proofs);
-    const spentProofsStates = proofStates.filter(
-      (p) => p.state == CheckStateEnum.SPENT
-    );
-    const enc = new TextEncoder();
-    const spentProofs = proofs.filter((p) =>
-      spentProofsStates.find(
-        (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
-      )
-    );
-    console.log('sp', spentProofs);
+      const proofStates = await wallet.checkProofsStates(proofs);
+      const spentProofsStates = proofStates.filter(
+        (p) => p.state == CheckStateEnum.SPENT
+      );
+      const enc = new TextEncoder();
+      const spentProofs = proofs.filter((p) =>
+        spentProofsStates.find(
+          (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
+        )
+      );
+      console.log('rdlogs: sp', spentProofs);
 
-    await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
+      await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 
-    return spentProofs;
+      return spentProofs;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setError(`Failed to clean spent proofs: ${message}`);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   /**

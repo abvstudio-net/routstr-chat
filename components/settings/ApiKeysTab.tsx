@@ -48,12 +48,14 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   }, [cashuStore.proofs]);
 
   useEffect(() => {
-    if (cashuStore.activeMintUrl && mintBalances[cashuStore.activeMintUrl]) {
+    if (!usingNip60) {
+      setLocalMintBalance(getBalanceFromStoredProofs());
+    } else if (cashuStore.activeMintUrl && mintBalances[cashuStore.activeMintUrl]) {
       setLocalMintBalance(mintBalances[cashuStore.activeMintUrl]);
     } else {
       setLocalMintBalance(0);
     }
-  }, [mintBalances, cashuStore.activeMintUrl]);
+  }, [mintBalances, cashuStore.activeMintUrl, usingNip60]);
 
   const [showTooltip, setShowTooltip] = useState(false); // New state for tooltip visibility
   const [apiKeyAmount, setApiKeyAmount] = useState('');
@@ -436,7 +438,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         <p className="text-sm text-white/70">Available Balance:</p>
         <p className="text-lg font-medium">
           {localMintBalance} sats
-          {cashuStore.activeMintUrl && (
+          {usingNip60 && cashuStore.activeMintUrl && (
             <span className="text-xs text-white/50 ml-2">
               ({cashuStore.activeMintUrl.replace(/^https?:\/\//, '')})
               <button
@@ -449,7 +451,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             </span>
           )}
         </p>
-        {cashuStore.proofs && Object.keys(mintBalances).length > 1 && (
+        {usingNip60 && cashuStore.proofs && Object.keys(mintBalances).length > 1 && (
           // Only display total balance if it's different from the current mint balance
           localMintBalance !== Object.values(mintBalances).reduce((sum, balance) => sum + balance, 0) && (
             <p className="text-sm text-white/70 mt-2">
