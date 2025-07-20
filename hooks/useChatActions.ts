@@ -115,7 +115,6 @@ export const useChatActions = (): UseChatActionsReturn => {
             0
           );
           setBalance(totalBalance + pendingCashuAmountState);
-          console.log('rdlogs: ', pendingCashuAmountState)
         }
       } else {
         // Legacy wallet balance calculation would go here

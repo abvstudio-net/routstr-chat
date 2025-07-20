@@ -1,7 +1,7 @@
 import { Message, TransactionHistory } from '@/types/chat';
 import { convertMessageForAPI, createTextMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
-import { fetchBalances, getBalanceFromStoredProofs, unifiedRefund } from '@/utils/cashuUtils';
+import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
 
 export interface FetchAIResponseParams {
@@ -92,6 +92,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     });
 
     if (!response.ok) {
+      console.error("rdlogs:rdlogs:inside make request", response)
       await handleApiError(response, {
         mintUrl,
         baseUrl,
@@ -101,7 +102,9 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
         selectedModel,
         sendToken,
         activeMintUrl,
-        retryOnInsufficientBalance
+        retryOnInsufficientBalance,
+        messageHistory,
+        onMessagesUpdate
       });
     }
 
@@ -115,11 +118,21 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       throw new Error('Response body is not available');
     }
 
-    const accumulatedContent = await processStreamingResponse(response, onStreamingUpdate);
+    const streamingResult = await processStreamingResponse(response, onStreamingUpdate);
 
-    if (accumulatedContent) {
-      onMessagesUpdate([...messageHistory, createTextMessage('assistant', accumulatedContent)]);
+    if (streamingResult.content) {
+      onMessagesUpdate([...messageHistory, createTextMessage('assistant', streamingResult.content)]);
     }
+
+    let estimatedCosts;
+    // Log usage statistics if available
+    if (streamingResult.usage) {
+      if ( streamingResult.usage.completion_tokens !== undefined && streamingResult.usage.prompt_tokens !== undefined) {
+        estimatedCosts = selectedModel?.sats_pricing.completion * streamingResult.usage.completion_tokens + selectedModel?.sats_pricing.prompt * streamingResult.usage.prompt_tokens
+        console.error("Estimated costs: ", estimatedCosts);
+      }
+    }
+
     onStreamingUpdate('');
 
     // Handle refund and balance update
@@ -133,8 +146,11 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       selectedModel,
       onBalanceUpdate,
       onTransactionUpdate,
-      transactionHistory
+      transactionHistory,
+      messageHistory,
+      onMessagesUpdate
     });
+    console.error("rdlogs:rdlogs: respon 23242342", response)
 
   } catch (error) {
     console.log('API Error: ', error);
@@ -157,6 +173,8 @@ async function handleApiError(
     sendToken?: (mintUrl: string, amount: number) => Promise<any[]>;
     activeMintUrl?: string | null;
     retryOnInsufficientBalance: boolean;
+    messageHistory: Message[];
+    onMessagesUpdate: (messages: Message[]) => void;
   }
 ): Promise<void> {
   const {
@@ -168,10 +186,13 @@ async function handleApiError(
     selectedModel,
     sendToken,
     activeMintUrl,
-    retryOnInsufficientBalance
+    retryOnInsufficientBalance,
+    messageHistory,
+    onMessagesUpdate
   } = params;
 
   if (response.status === 401 || response.status === 403) {
+    handleApiResponseError(response.statusText + ". Trying to get a refund. ", messageHistory, onMessagesUpdate);
     const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
 
@@ -190,7 +211,10 @@ async function handleApiError(
     }
 
     if (shouldAttemptUnifiedRefund) {
-      await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+      const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+      if (!refundStatus.success){
+        handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
+      }
     }
     
     clearCurrentApiToken(baseUrl); // Pass baseUrl here
@@ -209,10 +233,21 @@ async function handleApiError(
         throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
       }
     }
-  } else if (response.status === 402) {
+  } 
+  else if (response.status === 402) {
     clearCurrentApiToken(baseUrl); // Pass baseUrl here
-  } else if (response.status === 413) {
-    await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+  } 
+  else if (response.status === 413) {
+    const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+    if (!refundStatus.success){
+      handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
+    }
+  }
+  else if (response.status === 500) {
+    console.error("rdlogs:rdlogs:internal errror finassld");
+  }
+  else {
+    console.error("rdlogs:rdlogs:smh else else ", response);
   }
 
   if (!retryOnInsufficientBalance) {
@@ -223,13 +258,27 @@ async function handleApiError(
 /**
  * Processes streaming response from the API
  */
+interface StreamingResult {
+  content: string;
+  usage?: {
+    total_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+  model?: string;
+  finish_reason?: string;
+}
+
 async function processStreamingResponse(
   response: Response,
   onStreamingUpdate: (content: string) => void
-): Promise<string> {
+): Promise<StreamingResult> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let accumulatedContent = '';
+  let usage: StreamingResult['usage'];
+  let model: string | undefined;
+  let finish_reason: string | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -254,6 +303,7 @@ async function processStreamingResponse(
           try {
             const parsedData = JSON.parse(jsonData);
 
+            // Handle content delta
             if (parsedData.choices &&
               parsedData.choices[0] &&
               parsedData.choices[0].delta &&
@@ -262,6 +312,27 @@ async function processStreamingResponse(
               const newContent = parsedData.choices[0].delta.content;
               accumulatedContent += newContent;
               onStreamingUpdate(accumulatedContent);
+            }
+
+            // Handle usage statistics (usually in the final chunk)
+            if (parsedData.usage) {
+              usage = {
+                total_tokens: parsedData.usage.total_tokens,
+                prompt_tokens: parsedData.usage.prompt_tokens,
+                completion_tokens: parsedData.usage.completion_tokens
+              };
+            }
+
+            // Handle model information
+            if (parsedData.model) {
+              model = parsedData.model;
+            }
+
+            // Handle finish reason
+            if (parsedData.choices &&
+              parsedData.choices[0] &&
+              parsedData.choices[0].finish_reason) {
+              finish_reason = parsedData.choices[0].finish_reason;
             }
           } catch {
             // Swallow parse errors for streaming chunks
@@ -273,7 +344,12 @@ async function processStreamingResponse(
     }
   }
 
-  return accumulatedContent;
+  return {
+    content: accumulatedContent,
+    usage,
+    model,
+    finish_reason
+  };
 }
 
 /**
@@ -290,6 +366,8 @@ async function handlePostResponseRefund(params: {
   onBalanceUpdate: (balance: number) => void;
   onTransactionUpdate: (transaction: TransactionHistory) => void;
   transactionHistory: TransactionHistory[];
+  messageHistory: Message[];
+  onMessagesUpdate: (messages: Message[]) => void;
 }): Promise<void> {
   const {
     mintUrl,
@@ -301,15 +379,17 @@ async function handlePostResponseRefund(params: {
     selectedModel,
     onBalanceUpdate,
     onTransactionUpdate,
-    transactionHistory
+    transactionHistory,
+    messageHistory,
+    onMessagesUpdate
   } = params;
 
   let satsSpent: number;
 
-  const result = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
-  if (result.success) {
-    if (usingNip60 && result.refundedAmount !== undefined) {
-      satsSpent = Math.ceil(tokenAmount) - result.refundedAmount;
+  const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+  if (refundStatus.success) {
+    if (usingNip60 && refundStatus.refundedAmount !== undefined) {
+      satsSpent = Math.ceil(tokenAmount) - refundStatus.refundedAmount;
       onBalanceUpdate(initialBalance - satsSpent);
     } else {
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
@@ -317,9 +397,12 @@ async function handlePostResponseRefund(params: {
       satsSpent = initialBalance - getBalanceFromStoredProofs();
     }
   } else {
-    console.error("Refund failed:", result.message);
-    if (result.message && result.message.includes("Balance too small to refund")) {
+    console.error("Refund failed:", refundStatus.message);
+    if (refundStatus.message && refundStatus.message.includes("Balance too small to refund")) {
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    }
+    else {
+      handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
     }
     satsSpent = Math.ceil(tokenAmount);
   }
@@ -351,7 +434,7 @@ function handleApiResponseError(
   if (error instanceof TypeError && error.message.includes('NetworkError when attempting to fetch resource.')) {
     errorMessage = 'Your provider is down. Please switch the provider in settings.';
   } else {
-    errorMessage = error instanceof Error ? error.message : 'Failed to process your request';
+    errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : 'Failed to process your request');
   }
 
   onMessagesUpdate([...messageHistory, createTextMessage('system', errorMessage)]);

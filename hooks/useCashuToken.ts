@@ -295,7 +295,6 @@ export function useCashuToken() {
       await wallet.loadMint();
 
       const proofs = await cashuStore.getMintProofs(mintUrl);
-      console.log('rdlogs: sp', proofs.length);
 
       const proofStates = await wallet.checkProofsStates(proofs);
       const spentProofsStates = proofStates.filter(
@@ -307,7 +306,6 @@ export function useCashuToken() {
           (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
         )
       );
-      console.log('rdlogs: sp', spentProofs);
 
       await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 

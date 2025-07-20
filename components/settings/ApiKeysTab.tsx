@@ -64,6 +64,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [isLoading, setIsLoading] = useState(false); // Added isLoading state (for minting, not sync)
   const [isRefundingKey, setIsRefundingKey] = useState<string | null>(null); // New state for refund loading
   const [isDeletingKey, setIsDeletingKey] = useState<string | null>(null); // New state for delete loading
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false); // New state for refresh balances loading
   const [newApiKeyLabel, setNewApiKeyLabel] = useState(''); // Added state for new API key label
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false); // New state for delete confirmation modal
   const [keyToDeleteConfirmation, setKeyToDeleteConfirmation] = useState<string | null>(null); // Key to delete in confirmation modal
@@ -225,47 +226,52 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   };
 
   const refreshApiKeysBalances = async () => {
+    setIsRefreshingBalances(true); // Set loading state
     const updatedKeys: StoredApiKey[] = [];
-    for (const keyData of storedApiKeys) {
-      const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
-      try {
-        const response = await fetch(`${urlToUse}v1/wallet/info`, {
-          headers: {
-            'Authorization': `Bearer ${keyData.key}`
+    try {
+      for (const keyData of storedApiKeys) {
+        const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
+        try {
+          const response = await fetch(`${urlToUse}v1/wallet/info`, {
+            headers: {
+              'Authorization': `Bearer ${keyData.key}`
+            }
+          });
+          if (!response.ok) {
+            console.error(`Failed to refresh balance for key ${keyData.key}:`, response);
+            const data = await response.json();
+            if (data.detail?.error?.code === "invalid_api_key") {
+              updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid and set balance to null
+            } else {
+              updatedKeys.push(keyData); // Keep old data if refresh fails or other error
+            }
+            continue;
           }
-        });
-        if (!response.ok) {
-          console.error(`Failed to refresh balance for key ${keyData.key}:`, response);
-          const data = await response.json();
-          if (data.detail?.error?.code === "invalid_api_key") {
-            updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid and set balance to null
-          } else {
-            updatedKeys.push(keyData); // Keep old data if refresh fails or other error
-          }
-          continue;
-        }
 
-        const data = await response.json();
-        updatedKeys.push({ ...keyData, balance: data.balance, isInvalid: false }); // Set isInvalid to false on successful refresh
-      } catch (error) {
-        console.error(`Error refreshing balance for key ${keyData.key}:`, error);
-        if (error instanceof TypeError) {
-          toast.error(`Base URL ${urlToUse} is not responding. Skipping key ${keyData.key}.`);
-          updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid if base URL is not responding
-        } else {
-          toast.error(`Error refreshing balance for key ${keyData.key}: ${error instanceof Error ? error.message : String(error)}`);
-          updatedKeys.push(keyData); // Keep old data if other error occurs
+          const data = await response.json();
+          updatedKeys.push({ ...keyData, balance: data.balance, isInvalid: false }); // Set isInvalid to false on successful refresh
+        } catch (error) {
+          console.error(`Error refreshing balance for key ${keyData.key}:`, error);
+          if (error instanceof TypeError) {
+            toast.error(`Base URL ${urlToUse} is not responding. Skipping key ${keyData.key}.`);
+            updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid if base URL is not responding
+          } else {
+            toast.error(`Error refreshing balance for key ${keyData.key}: ${error instanceof Error ? error.message : String(error)}`);
+            updatedKeys.push(keyData); // Keep old data if other error occurs
+          }
         }
       }
-    }
-    // Update local storage if not cloud syncing, otherwise the hook will handle it
-    setStoredApiKeys(updatedKeys);
-    if (cloudSyncEnabled) {
-      await createOrUpdateApiKeys(updatedKeys); // Sync updated keys to cloud
-      toast.success('API Key balances refreshed and synced to cloud!');
-    } else {
-      localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
-      toast.success('API Key balances refreshed!');
+      // Update local storage if not cloud syncing, otherwise the hook will handle it
+      setStoredApiKeys(updatedKeys);
+      if (cloudSyncEnabled) {
+        await createOrUpdateApiKeys(updatedKeys); // Sync updated keys to cloud
+        toast.success('API Key balances refreshed and synced to cloud!');
+      } else {
+        localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
+        toast.success('API Key balances refreshed!');
+      }
+    } finally {
+      setIsRefreshingBalances(false); // Reset loading state
     }
   };
 
@@ -486,10 +492,11 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
           <div className="flex justify-between items-center mt-4">
             <h4 className="text-md font-semibold">{cloudSyncEnabled ? 'Cloud Synced API Keys:' : 'Locally Stored API Keys:'}</h4>
             <button
-              className="px-3 py-1 bg-white/10 text-white rounded-md text-xs hover:bg-white/20 transition-colors"
+              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm border border-green-500 hover:bg-green-700 transition-colors"
               onClick={refreshApiKeysBalances}
+              disabled={isRefreshingBalances}
             >
-              Refresh Balances
+              {isRefreshingBalances ? 'Refreshing...' : 'Refresh Balances'}
             </button>
           </div>
           {storedApiKeys.map((keyData, index) => (
@@ -564,6 +571,8 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
           ))}
         </div>
       )}
+
+      <div className="pb-20"></div>
 
       {showConfirmation && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
