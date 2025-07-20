@@ -16,6 +16,7 @@ export interface FetchAIResponseParams {
   activeMintUrl?: string | null;
   onStreamingUpdate: (content: string) => void;
   onMessagesUpdate: (messages: Message[]) => void;
+  onMessageAppend: (message: Message) => void;
   onBalanceUpdate: (balance: number) => void;
   onTransactionUpdate: (transaction: TransactionHistory) => void;
   transactionHistory: TransactionHistory[];
@@ -40,6 +41,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     activeMintUrl,
     onStreamingUpdate,
     onMessagesUpdate,
+    onMessageAppend,
     onBalanceUpdate,
     onTransactionUpdate,
     transactionHistory,
@@ -104,7 +106,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
         activeMintUrl,
         retryOnInsufficientBalance,
         messageHistory,
-        onMessagesUpdate
+        onMessagesUpdate,
+        onMessageAppend
       });
     }
 
@@ -148,13 +151,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       onTransactionUpdate,
       transactionHistory,
       messageHistory,
-      onMessagesUpdate
+      onMessagesUpdate,
+      onMessageAppend
     });
     console.error("rdlogs:rdlogs: respon 23242342", response)
 
   } catch (error) {
     console.log('API Error: ', error);
-    handleApiResponseError(error, messageHistory, onMessagesUpdate);
+    handleApiResponseError(error, onMessageAppend);
   }
 };
 
@@ -175,6 +179,7 @@ async function handleApiError(
     retryOnInsufficientBalance: boolean;
     messageHistory: Message[];
     onMessagesUpdate: (messages: Message[]) => void;
+    onMessageAppend: (message: Message) => void;
   }
 ): Promise<void> {
   const {
@@ -188,11 +193,12 @@ async function handleApiError(
     activeMintUrl,
     retryOnInsufficientBalance,
     messageHistory,
-    onMessagesUpdate
+    onMessagesUpdate,
+    onMessageAppend
   } = params;
 
   if (response.status === 401 || response.status === 403) {
-    handleApiResponseError(response.statusText + ". Trying to get a refund. ", messageHistory, onMessagesUpdate);
+    handleApiResponseError(response.statusText + ". Trying to get a refund. ", onMessageAppend);
     const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
 
@@ -213,7 +219,7 @@ async function handleApiError(
     if (shouldAttemptUnifiedRefund) {
       const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
       if (!refundStatus.success){
-        handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
+        handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
       }
     }
     
@@ -240,7 +246,7 @@ async function handleApiError(
   else if (response.status === 413) {
     const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
     if (!refundStatus.success){
-      handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
+      handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
     }
   }
   else if (response.status === 500) {
@@ -368,6 +374,7 @@ async function handlePostResponseRefund(params: {
   transactionHistory: TransactionHistory[];
   messageHistory: Message[];
   onMessagesUpdate: (messages: Message[]) => void;
+  onMessageAppend: (message: Message) => void;
 }): Promise<void> {
   const {
     mintUrl,
@@ -381,7 +388,8 @@ async function handlePostResponseRefund(params: {
     onTransactionUpdate,
     transactionHistory,
     messageHistory,
-    onMessagesUpdate
+    onMessagesUpdate,
+    onMessageAppend
   } = params;
 
   let satsSpent: number;
@@ -402,9 +410,13 @@ async function handlePostResponseRefund(params: {
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
     else {
-      handleApiResponseError("Refund failed: " + refundStatus.message, messageHistory, onMessagesUpdate);
+      handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
     }
     satsSpent = Math.ceil(tokenAmount);
+  }
+  const netCosts = satsSpent - estimatedCosts;
+  if (netCosts > 1){
+    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + estimatedCosts +". Actual Costs: " + satsSpent, onMessageAppend);
   }
 
   const newTransaction: TransactionHistory = {
@@ -426,8 +438,7 @@ async function handlePostResponseRefund(params: {
  */
 function handleApiResponseError(
   error: unknown,
-  messageHistory: Message[],
-  onMessagesUpdate: (messages: Message[]) => void
+  onMessageAppend: (message: Message) => void
 ): void {
   let errorMessage = 'Failed to process your request';
   
@@ -437,5 +448,5 @@ function handleApiResponseError(
     errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : 'Failed to process your request');
   }
 
-  onMessagesUpdate([...messageHistory, createTextMessage('system', errorMessage)]);
+  onMessageAppend(createTextMessage('system', errorMessage));
 }

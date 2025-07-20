@@ -286,6 +286,13 @@ export const useChatActions = (): UseChatActionsReturn => {
     setIsLoading(true);
     setStreamingContent('');
 
+    // Create a ref to track current messages during the API call
+    let currentMessages = messageHistory;
+    const updateMessages = (newMessages: Message[]) => {
+      currentMessages = newMessages;
+      setMessages(newMessages);
+    };
+
     try {
       await fetchAIResponse({
         messageHistory,
@@ -298,7 +305,12 @@ export const useChatActions = (): UseChatActionsReturn => {
         receiveToken,
         activeMintUrl: cashuStore.activeMintUrl,
         onStreamingUpdate: setStreamingContent,
-        onMessagesUpdate: setMessages,
+        onMessagesUpdate: updateMessages,
+        onMessageAppend: (message) => {
+          // Append to current messages state
+          const updatedMessages = [...currentMessages, message];
+          updateMessages(updatedMessages);
+        },
         onBalanceUpdate: setBalance,
         onTransactionUpdate: (transaction) => {
           const updated = [...transactionHistory, transaction];
