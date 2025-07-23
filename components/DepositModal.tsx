@@ -256,6 +256,20 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
         </button>
         <h2 className="text-xl font-semibold text-white mb-4">Deposit Funds</h2>
 
+        {isLoading && (
+          <div className="bg-blue-500/10 border border-blue-500/30 text-blue-200 p-3 rounded-md text-sm mb-4 flex items-center">
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Wallet is being loaded, please wait...
+          </div>
+        )}
+
+        {!isLoading && !cashuStore.activeMintUrl && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 p-3 rounded-md text-sm mb-4 flex items-center">
+            <Info className="h-4 w-4 mr-2" />
+            Configuring your wallet, please wait...
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-200 p-3 rounded-md text-sm mb-4">
             {error}
@@ -279,7 +293,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
                   <button
                     key={amount}
                     onClick={() => handleQuickMint(amount)}
-                    disabled={isProcessing}
+                    disabled={isProcessing || isLoading || !cashuStore.activeMintUrl}
                     className="flex-1 bg-white/5 border border-white/20 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 hover:border-white/30 transition-colors disabled:opacity-50 cursor-pointer"
                     type="button"
                   >
@@ -296,12 +310,13 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
                   type="number"
                   value={receiveAmount}
                   onChange={(e) => setReceiveAmount(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+                  disabled={isLoading || !cashuStore.activeMintUrl}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none disabled:opacity-50"
                   placeholder="Amount in sats"
                 />
                 <button
                   onClick={() => handleCreateInvoice()}
-                  disabled={isProcessing || !receiveAmount || !cashuStore.activeMintUrl}
+                  disabled={isProcessing || !receiveAmount || !cashuStore.activeMintUrl || isLoading}
                   className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                   type="button"
                 >
@@ -358,12 +373,13 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
               <textarea
                 value={tokenToImport}
                 onChange={(e) => setTokenToImport(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white h-24 focus:border-white/30 focus:outline-none resize-none"
+                disabled={isLoading}
+                className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white h-24 focus:border-white/30 focus:outline-none resize-none disabled:opacity-50"
                 placeholder="Paste your Cashu token here..."
               />
               <button
                 onClick={handleReceiveToken}
-                disabled={isImporting || !tokenToImport.trim()}
+                disabled={isImporting || !tokenToImport.trim() || isLoading}
                 className="w-full bg-white/10 border border-white/10 text-white py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                 type="button"
               >
