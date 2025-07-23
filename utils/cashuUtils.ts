@@ -221,25 +221,47 @@ export const fetchRefundToken = async (baseUrl: string, storedToken: string): Pr
 
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
-  const response = await fetch(`${normalizedBaseUrl}v1/wallet/refund`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${storedToken}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  // Create an AbortController for timeout handling
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, 60000); // 1 minute timeout
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    if (response.status === 400 && errorData?.detail === "No balance to refund") {
-      invalidateApiToken(baseUrl); // Pass baseUrl here
-      throw new Error('No balance to refund'); // Indicate this specific case
+  try {
+    const response = await fetch(`${normalizedBaseUrl}v1/wallet/refund`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${storedToken}`,
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      if (response.status === 400 && errorData?.detail === "No balance to refund") {
+        invalidateApiToken(baseUrl);
+        throw new Error('No balance to refund');
+      }
+      throw new Error(`Refund request failed with status ${response.status}: ${errorData?.detail || response.statusText}`);
     }
-    throw new Error(`Refund request failed with status ${response.status}: ${errorData?.detail || response.statusText}`);
+    
+    const data = await response.json();
+    return data.token;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out after 1 minute');
+      }
+      throw error;
+    }
+    
+    throw new Error('Unknown error occurred during refund request');
   }
-  const data = await response.json();
-
-  return data.token;
 };
 
 export const storeCashuToken = async (mintUrl: string, token: string): Promise<void> => {

@@ -127,7 +127,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       onMessagesUpdate([...messageHistory, createTextMessage('assistant', streamingResult.content)]);
     }
 
-    let estimatedCosts;
+    let estimatedCosts = 0; // Initialize to 0
     // Log usage statistics if available
     if (streamingResult.usage) {
       if ( streamingResult.usage.completion_tokens !== undefined && streamingResult.usage.prompt_tokens !== undefined) {
@@ -152,7 +152,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       transactionHistory,
       messageHistory,
       onMessagesUpdate,
-      onMessageAppend
+      onMessageAppend,
+      estimatedCosts // Pass estimatedCosts here
     });
     console.error("rdlogs:rdlogs: respon 23242342", response)
 
@@ -375,6 +376,7 @@ async function handlePostResponseRefund(params: {
   messageHistory: Message[];
   onMessagesUpdate: (messages: Message[]) => void;
   onMessageAppend: (message: Message) => void;
+  estimatedCosts: number; // Add estimatedCosts here
 }): Promise<void> {
   const {
     mintUrl,
@@ -389,7 +391,8 @@ async function handlePostResponseRefund(params: {
     transactionHistory,
     messageHistory,
     onMessagesUpdate,
-    onMessageAppend
+    onMessageAppend,
+    estimatedCosts // Destructure estimatedCosts here
   } = params;
 
   let satsSpent: number;
@@ -414,9 +417,10 @@ async function handlePostResponseRefund(params: {
     }
     satsSpent = Math.ceil(tokenAmount);
   }
+  console.error("spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
   if (netCosts > 1){
-    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + estimatedCosts +". Actual Costs: " + satsSpent, onMessageAppend);
+    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + Math.ceil(estimatedCosts) +". Actual Costs: " + satsSpent, onMessageAppend);
   }
 
   const newTransaction: TransactionHistory = {

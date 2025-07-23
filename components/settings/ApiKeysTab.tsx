@@ -73,6 +73,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [topUpAmount, setTopUpAmount] = useState(''); // New state for topup amount
   const [keyToTopUp, setKeyToTopUp] = useState<StoredApiKey | null>(null); // Key to topup
   const [selectedNewApiKeyBaseUrl, setSelectedNewApiKeyBaseUrl] = useState<string>(baseUrl); // New state for base URL during API key creation
+  const [refundFailed, setRefundFailed] = useState(false); // New state to track refund failures
 
   // Effect to update selectedNewApiKeyBaseUrl if baseUrl prop changes
   useEffect(() => {
@@ -283,6 +284,12 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const confirmDeleteApiKey = async () => {
     if (!keyToDeleteConfirmation) return;
 
+    // If refund failed and we're showing the refund failure confirmation
+    if (refundFailed) {
+      proceedWithDeletion(keyToDeleteConfirmation);
+      return;
+    }
+
     setIsDeletingKey(keyToDeleteConfirmation); // Set loading for this specific key
     setShowDeleteConfirmation(false); // Close the confirmation modal
     try {
@@ -296,29 +303,43 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
 
         if (refundResult.success) {
           toast.success(refundResult.message || 'API Key balance refunded successfully!');
+          // Proceed with deletion after successful refund
+          proceedWithDeletion(keyToDeleteConfirmation);
         } else {
-          toast.error(refundResult.message || 'Failed to refund API Key balance. Deleting key anyway.');
+          // Refund failed - ask for user confirmation before deleting
+          setRefundFailed(true);
+          setShowDeleteConfirmation(true);
         }
-      }
-      
-      const updatedKeys = storedApiKeys.filter(keyData => keyData.key !== keyToDeleteConfirmation);
-      
-      if (cloudSyncEnabled) {
-        await deleteApiKey(keyToDeleteConfirmation); // The hook handles updating the cloud
-        toast.success('API Key deleted and synced to cloud successfully!');
       } else {
-        localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
-        toast.success('API Key deleted locally!');
+        // No key data found, proceed with deletion
+        proceedWithDeletion(keyToDeleteConfirmation);
       }
-
-      setStoredApiKeys(updatedKeys);
     } catch (error) {
       console.error('Error deleting API key:', error);
       toast.error(`Error deleting API key: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setIsDeletingKey(null); // Reset loading
-      setKeyToDeleteConfirmation(null); // Clear the key to delete
+      setIsDeletingKey(null);
+      setKeyToDeleteConfirmation(null);
     }
+  };
+
+  const proceedWithDeletion = async (keyToDelete: string) => {
+    if (!keyToDelete) return;
+    
+    const updatedKeys = storedApiKeys.filter(keyData => keyData.key !== keyToDelete);
+    
+    if (cloudSyncEnabled) {
+      await deleteApiKey(keyToDelete); // The hook handles updating the cloud
+      toast.success('API Key deleted and synced to cloud successfully!');
+    } else {
+      localStorage.setItem('api_keys', JSON.stringify(updatedKeys));
+      toast.success('API Key deleted locally!');
+    }
+
+    setStoredApiKeys(updatedKeys);
+    setIsDeletingKey(null); // Reset loading
+    setKeyToDeleteConfirmation(null); // Clear the key to delete
+    setShowDeleteConfirmation(false); // Close any confirmation modals
+    setRefundFailed(false); // Reset refund failure state
   };
 
   const handleTopUp = (keyData: StoredApiKey) => {
@@ -661,7 +682,35 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
           <div className="bg-black rounded-lg p-6 max-w-md w-full border border-white/10">
-            {isDeletingKey === keyToDeleteConfirmation || isSyncingApiKeys ? (
+            {refundFailed ? (
+              <>
+                <h4 className="text-lg font-semibold text-white mb-4">Refund Failed</h4>
+                <p className="text-sm text-white/70 mb-4">
+                  ATTENTION! The REFUND operation FAILED. Do you still want to delete this API Key? Any remaining balance will be lost.
+                  {cloudSyncEnabled ? ' This will also update your cloud-synced API keys.' : ''}
+                </p>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                    onClick={confirmDeleteApiKey}
+                  >
+                    Delete Anyway
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+                    onClick={() => {
+                      setShowDeleteConfirmation(false);
+                      setKeyToDeleteConfirmation(null);
+                      setRefundFailed(false);
+                      setIsDeletingKey(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                </div>
+              </>
+            ) : isDeletingKey === keyToDeleteConfirmation || isSyncingApiKeys ? (
               <>
                 <h4 className="text-lg font-semibold text-white mb-4">Deleting API Key...</h4>
                 <p className="text-sm text-white/70 mb-4">Please wait while the API key is being deleted and {cloudSyncEnabled ? 'synced to the cloud and refunded' : 'refunded'}.</p>
