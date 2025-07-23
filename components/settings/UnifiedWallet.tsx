@@ -2,40 +2,31 @@ import React from 'react';
 import SixtyWallet from './SixtyWallet';
 import WalletTab from './WalletTab';
 
+import { TransactionHistory } from '@/types/chat';
+
 interface UnifiedWalletProps {
   // WalletTab props
   balance: number;
-  error: string;
-  successMessage: string;
-  mintAmount: string;
-  setMintAmount: (amount: string) => void;
-  createMintQuote: () => Promise<void>;
-  isMinting: boolean;
-  mintInvoice: string;
-  setShowInvoiceModal: (show: boolean) => void;
-  isAutoChecking: boolean;
-  countdown: number;
-  sendAmount: string;
-  setSendAmount: (amount: string) => void;
-  generateSendToken: () => Promise<void>;
-  isGeneratingSendToken: boolean;
-  generatedToken: string;
-  tokenToImport: string;
-  setTokenToImport: (token: string) => void;
-  importToken: () => Promise<void>;
-  isImporting: boolean;
+  setBalance: (balance: number | ((prevBalance: number) => number)) => void;
+  mintUrl: string;
+  baseUrl: string;
+  transactionHistory: TransactionHistory[];
+  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void;
   
   // SixtyWallet props
-  mintUrl: string;
   usingNip60: boolean;
   setUsingNip60: (usingNip60: boolean) => void;
 }
 
 const UnifiedWallet: React.FC<UnifiedWalletProps> = ({
+  balance,
+  setBalance,
+  mintUrl,
+  baseUrl,
+  transactionHistory,
+  setTransactionHistory,
   usingNip60,
   setUsingNip60,
-  mintUrl,
-  ...walletTabProps
 }) => {
   return (
     <div className="space-y-6">
@@ -62,7 +53,14 @@ const UnifiedWallet: React.FC<UnifiedWalletProps> = ({
           setUsingNip60={setUsingNip60} 
         />
       ) : (
-        <WalletTab {...walletTabProps} />
+        <WalletTab
+          balance={balance}
+          setBalance={setBalance}
+          mintUrl={mintUrl}
+          baseUrl={baseUrl}
+          transactionHistory={transactionHistory}
+          setTransactionHistory={setTransactionHistory}
+        />
       )}
     </div>
   );

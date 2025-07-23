@@ -35,23 +35,19 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center" onClick={() => setShowInvoiceModal(false)}>
-      <div className="bg-black rounded-lg max-w-md w-full m-4 border border-white/10" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-4 border-b border-white/10">
+      <div className="bg-black rounded-lg max-w-md w-full m-4 border border-white/10 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-4 border-b border-white/10 flex-shrink-0">
           <h3 className="text-lg font-semibold text-white">Lightning Invoice</h3>
           <button onClick={() => setShowInvoiceModal(false)} className="text-white/70 hover:text-white cursor-pointer">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="p-4 rounded-lg bg-white/5 border border-white/10 flex justify-center">
-            <QRCode
-              value={mintInvoice}
-              size={220}
-              level="M"
-              fgColor="#FFFFFF"
-              bgColor="transparent"
-            />
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <div className="bg-white p-4 rounded-md flex items-center justify-center">
+            <div className="border border-gray-300 w-56 h-56 flex items-center justify-center bg-white p-2 rounded-md">
+              <QRCode value={mintInvoice} size={220} />
+            </div>
           </div>
 
           <div className="space-y-4">

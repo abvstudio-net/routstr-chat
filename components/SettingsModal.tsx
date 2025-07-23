@@ -1,40 +1,19 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, LogOut } from 'lucide-react';
-import { CashuMint, CashuWallet, MintQuoteState } from '@cashu/cashu-ts';
+import { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { Model } from '@/data/models';
-import QRCode from 'react-qr-code';
-import { useNostr } from '@/context/NostrContext';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { TransactionHistory } from '@/types/chat';
-import { fetchBalances, getBalanceFromStoredProofs } from '@/utils/cashuUtils';
 
 // Import new components
 import GeneralTab from './settings/GeneralTab';
 import WalletTab from './settings/WalletTab';
 import HistoryTab from './settings/HistoryTab';
-import InvoiceModal from './settings/InvoiceModal';
 import ApiKeysTab from './settings/ApiKeysTab';
 import UnifiedWallet from './settings/UnifiedWallet';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrLogin } from '@nostrify/react/login';
-
-// Types for Cashu
-interface CashuProof {
-  amount: number;
-  secret: string;
-  C: string;
-  id: string;
-  [key: string]: unknown;
-}
-
-interface MintQuoteResponse {
-  quote: string;
-  request?: string;
-  state: MintQuoteState;
-  expiry?: number;
-}
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -86,9 +65,6 @@ const SettingsModal = ({
   const { user } = useCurrentUser();
   const {logins} = useNostrLogin();
   const [activeTab, setActiveTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>(initialActiveTab || 'settings');
-  const [mintAmount, setMintAmount] = useState('64');
-  const [mintInvoice, setMintInvoice] = useState('');
-  const [mintQuote, setMintQuote] = useState<MintQuoteResponse | null>(null);
   const [baseUrls, setBaseUrls] = useState<string[]>([]); // State to hold base URLs
 
   // Effect to load base URLs from localStorage
@@ -113,22 +89,6 @@ const SettingsModal = ({
     setBaseUrls(initialBaseUrls);
   }, [baseUrl]); // Re-run if baseUrl prop changes
 
-  const [isMinting, setIsMinting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [isGeneratingSendToken, setIsGeneratingSendToken] = useState(false);
-
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [tokenToImport, setTokenToImport] = useState('');
-  const [sendAmount, setSendAmount] = useState('');
-  const [generatedToken, setGeneratedToken] = useState('');
-  const [cashuWallet, setCashuWallet] = useState<CashuWallet | null>(null);
-  const [isAutoChecking, setIsAutoChecking] = useState(false);
-  const [countdown, setCountdown] = useState(3);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-
-  const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Handle auto-saving mint URL changes
   const handleMintUrlChange = useCallback((url: string) => {
@@ -136,306 +96,6 @@ const SettingsModal = ({
     localStorage.setItem('mint_url', url);
   }, [setMintUrl]);
 
-  // Initialize wallet when modal opens or mintUrl changes
-  useEffect(() => {
-    let isMounted = true;
-
-    const initWallet = async () => {
-      try {
-        const mint = new CashuMint(mintUrl);
-        const wallet = new CashuWallet(mint);
-        await wallet.loadMint();
-        if (isMounted) setCashuWallet(wallet);
-
-        if (!usingNip60) {
-          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
-          setBalance((apiBalance / 1000) + (proofsBalance / 1000)); //balances returned in mSats
-        }
-      } catch {
-        if (isMounted) setError('Failed to initialize wallet. Please try again.');
-      }
-    };
-
-    if (isOpen) {
-      void initWallet();
-    }
-
-    return () => {
-      isMounted = false;
-      if (checkIntervalRef.current) {
-        clearInterval(checkIntervalRef.current);
-      }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-    // setBalance is stable from parent, so safe to omit from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, mintUrl]);
-
-  const checkMintQuote = useCallback(async () => {
-    if (!cashuWallet || !mintQuote) return;
-
-    if (!isAutoChecking) {
-      setIsAutoChecking(true);
-    }
-    setError('');
-
-    try {
-      const checkedQuote = await cashuWallet.checkMintQuote(mintQuote.quote);
-      if (checkedQuote.state === MintQuoteState.PAID) {
-        if (checkIntervalRef.current) {
-          clearInterval(checkIntervalRef.current);
-          checkIntervalRef.current = null;
-        }
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-        setIsAutoChecking(false);
-
-        try {
-          const amount = parseInt(mintAmount, 10);
-          const proofs = await cashuWallet.mintProofs(amount, mintQuote.quote);
-
-          const storedProofs = localStorage.getItem('cashu_proofs');
-          const existingProofs = storedProofs ? (JSON.parse(storedProofs) as CashuProof[]) : [];
-          localStorage.setItem('cashu_proofs', JSON.stringify([...existingProofs, ...proofs]));
-
-          const newBalance = existingProofs.reduce((total, proof) => total + proof.amount, 0) +
-            proofs.reduce((total, proof) => total + proof.amount, 0);
-
-
-          const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
-          setBalance((apiBalance / 1000) + newBalance)
-
-          setSuccessMessage('Payment received! Tokens minted successfully.');
-          const newTransaction: TransactionHistory = {
-            type: 'mint',
-            amount: amount,
-            timestamp: Date.now(),
-            status: 'success',
-            message: 'Tokens minted',
-            balance: (apiBalance / 1000) + newBalance
-          }
-          localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
-          setTransactionHistory(prev => [...prev, newTransaction]);
-
-          setShowInvoiceModal(false);
-          setMintQuote(null);
-          setMintInvoice('');
-        } catch (mintError) {
-         const err = mintError as Error;
-          if (err?.message?.includes('already spent') ||
-            err?.message?.includes('Token already spent')) {
-            setError('This token has already been spent.');
-          } else if (err?.message?.includes('already issued') ||
-            err?.message?.includes('already minted')) {
-              
-            const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
-            setBalance((apiBalance / 1000) + (proofsBalance / 1000)); //balances returned in mSats
-            setSuccessMessage('Payment already processed! Your balance has been updated.');
-            setShowInvoiceModal(false);
-            setMintQuote(null);
-            setMintInvoice('');
-          } else {
-            setError(err?.message || 'Failed to process the payment. Please try again.');
-          }
-        }
-      }
-    } catch (err) {
-      if (!isAutoChecking) {
-        setError(err instanceof Error ? err.message : 'Failed to check payment status');
-      }
-    } finally {
-      if (!isAutoChecking) {
-        setIsAutoChecking(false);
-      }
-    }
-  }, [cashuWallet, mintQuote, isAutoChecking, mintAmount, setBalance]);
-
-  const createMintQuote = useCallback(async () => {
-    if (!cashuWallet) return;
-
-    setIsMinting(true);
-    setError('');
-    setSuccessMessage('');
-
-    try {
-      const amount = parseInt(mintAmount, 10);
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      const quote = await cashuWallet.createMintQuote(amount);
-      setMintQuote(quote);
-      setMintInvoice(quote.request || '');
-      setSuccessMessage('Invoice generated! Pay it to mint tokens.');
-      setShowInvoiceModal(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create mint quote');
-    } finally {
-      setIsMinting(false);
-    }
-  }, [cashuWallet, mintAmount]);
-
-  const importToken = useCallback(async () => {
-    if (!cashuWallet || !tokenToImport.trim()) return;
-
-    setIsImporting(true);
-    setError('');
-    setSuccessMessage('');
-
-    try {
-      const result = await cashuWallet.receive(tokenToImport);
-      const proofs = Array.isArray(result) ? result : [];
-
-      if (!proofs || proofs.length === 0) {
-        setError('Invalid token format. Please check and try again.');
-        return;
-      }
-
-      const storedProofs = localStorage.getItem('cashu_proofs');
-      const existingProofs = storedProofs ? (JSON.parse(storedProofs) as CashuProof[]) : [];
-      localStorage.setItem('cashu_proofs', JSON.stringify([...existingProofs, ...proofs]));
-
-      const importedAmount = proofs.reduce((total: number, proof: CashuProof) => total + proof.amount, 0);
-
-      setBalance((prevBalance) => prevBalance + importedAmount);
-
-      setSuccessMessage(`Successfully imported ${importedAmount} sats!`);
-
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
-      const newTransaction: TransactionHistory = {
-        type: 'import',
-        amount: importedAmount,
-        timestamp: Date.now(),
-        status: 'success',
-        message: 'Tokens imported',
-        balance: (apiBalance / 1000) + importedAmount
-      }
-      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
-      setTransactionHistory(prev => [...prev, newTransaction]);
-      setTokenToImport('');
-    } catch (err) {
-      const error = err as Error;
-      if (error?.message?.includes('already spent') ||
-        error?.message?.includes('Token already spent')) {
-        setError('This token has already been spent.');
-      } else {
-        setError(error?.message || 'Failed to import token. Please try again.');
-      }
-    } finally {
-      setIsImporting(false);
-    }
-  }, [cashuWallet, tokenToImport, setBalance]);
-
-  const generateSendToken = useCallback(async () => {
-    if (!cashuWallet) return;
-
-    setIsGeneratingSendToken(true);
-    setError('');
-    setSuccessMessage('');
-
-    try {
-      const amount = parseInt(sendAmount, 10);
-
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      if (amount > balance) {
-        throw new Error('Amount exceeds available balance');
-      }
-
-      const storedProofs = localStorage.getItem('cashu_proofs');
-      const existingProofs = storedProofs ? (JSON.parse(storedProofs) as CashuProof[]) : [];
-
-      if (!existingProofs || existingProofs.length === 0) {
-        throw new Error('No tokens available to send');
-      }
-
-      const sendResult = await cashuWallet.send(amount, existingProofs);
-      const { send, keep } = sendResult;
-
-      if (!send || send.length === 0) {
-        throw new Error('Failed to generate token');
-      }
-
-      localStorage.setItem('cashu_proofs', JSON.stringify(keep));
-
-      setBalance((prevBalance) => prevBalance - amount);
-
-      const tokenObj = {
-        token: [{ mint: mintUrl, proofs: send }]
-      };
-      const token = `cashuA${btoa(JSON.stringify(tokenObj))}`;
-
-      setGeneratedToken(token);
-      setSuccessMessage(`Generated token for ${amount} sats. Share it with the recipient.`);
-      
-      const {apiBalance, proofsBalance} = await fetchBalances(mintUrl, baseUrl);
-      const newTransaction: TransactionHistory = {
-        type: 'send',
-        amount: amount,
-        timestamp: Date.now(),
-        status: 'success',
-        message: 'Tokens sent',
-        balance: (apiBalance / 1000) + amount
-      }
-      localStorage.setItem('transaction_history', JSON.stringify([...transactionHistory, newTransaction]))
-      setTransactionHistory(prev => [...prev, newTransaction]);
-      setSendAmount('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate token');
-    } finally {
-      setIsGeneratingSendToken(false);
-    }
-  }, [cashuWallet, sendAmount, balance, mintUrl, setBalance]);
-
-
-  // Set up auto-refresh interval when invoice is generated
-  useEffect(() => {
-    if (checkIntervalRef.current) {
-      clearInterval(checkIntervalRef.current);
-      checkIntervalRef.current = null;
-      setIsAutoChecking(false);
-    }
-
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-
-    if (mintInvoice && mintQuote) {
-      setIsAutoChecking(true);
-      setCountdown(3);
-
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            void checkMintQuote();
-            return 3;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      checkIntervalRef.current = setInterval(() => {
-        void checkMintQuote();
-      }, 3000);
-    }
-
-    return () => {
-      if (checkIntervalRef.current) {
-        clearInterval(checkIntervalRef.current);
-        setIsAutoChecking(false);
-      }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, [mintInvoice, mintQuote, checkMintQuote]);
 
   if (!isOpen) return null;
 
@@ -518,48 +178,17 @@ const SettingsModal = ({
           ) : activeTab === 'wallet' ? (
             <UnifiedWallet
               balance={balance}
-              error={error}
-              successMessage={successMessage}
-              mintAmount={mintAmount}
-              setMintAmount={setMintAmount}
-              createMintQuote={createMintQuote}
-              isMinting={isMinting}
-              mintInvoice={mintInvoice}
-              setShowInvoiceModal={setShowInvoiceModal}
-              isAutoChecking={isAutoChecking}
-              countdown={countdown}
-              sendAmount={sendAmount}
-              setSendAmount={setSendAmount}
-              generateSendToken={generateSendToken}
-              isGeneratingSendToken={isGeneratingSendToken}
-              generatedToken={generatedToken}
-              tokenToImport={tokenToImport}
-              setTokenToImport={setTokenToImport}
-              importToken={importToken}
-              isImporting={isImporting}
+              setBalance={setBalance}
               mintUrl={mintUrl}
+              baseUrl={baseUrl}
+              transactionHistory={transactionHistory}
+              setTransactionHistory={setTransactionHistory}
               usingNip60={usingNip60}
               setUsingNip60={setUsingNip60}
             />
           ) : null}
         </div>
       </div>
-
-      {/* Invoice Modal */}
-      <InvoiceModal
-        showInvoiceModal={showInvoiceModal}
-        mintInvoice={mintInvoice}
-        mintAmount={mintAmount}
-        isAutoChecking={isAutoChecking}
-        countdown={countdown}
-        setShowInvoiceModal={setShowInvoiceModal}
-        setMintInvoice={setMintInvoice}
-        setMintQuote={setMintQuote}
-        checkIntervalRef={checkIntervalRef}
-        countdownIntervalRef={countdownIntervalRef}
-        setIsAutoChecking={setIsAutoChecking}
-        checkMintQuote={checkMintQuote}
-      />
     </div>
   );
 };

@@ -245,7 +245,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className="bg-black border border-white/20 rounded-md p-4 max-w-md w-full relative">
+      <div ref={modalRef} className="bg-black border border-white/20 rounded-md p-4 max-w-md w-full max-h-[90vh] overflow-y-auto relative">
         <button
           onClick={onClose}
           className="absolute top-3 right-3 text-white/50 hover:text-white"

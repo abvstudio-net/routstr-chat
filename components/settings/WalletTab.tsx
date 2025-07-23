@@ -1,50 +1,147 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useWalletOperations } from '@/hooks/useWalletOperations';
+import { TransactionHistory } from '@/types/chat';
+import { MintQuoteState } from '@cashu/cashu-ts';
+import InvoiceModal from './InvoiceModal';
+
+// Types for Cashu
+interface MintQuoteResponse {
+  quote: string;
+  request?: string;
+  state: MintQuoteState;
+  expiry?: number;
+}
 
 interface WalletTabProps {
   balance: number;
-  error: string;
-  successMessage: string;
-  mintAmount: string;
-  setMintAmount: (amount: string) => void;
-  createMintQuote: () => Promise<void>;
-  isMinting: boolean;
-  mintInvoice: string;
-  setShowInvoiceModal: (show: boolean) => void;
-  isAutoChecking: boolean;
-  countdown: number;
-  sendAmount: string;
-  setSendAmount: (amount: string) => void;
-  generateSendToken: () => Promise<void>;
-  isGeneratingSendToken: boolean;
-  generatedToken: string;
-  tokenToImport: string;
-  setTokenToImport: (token: string) => void;
-  importToken: () => Promise<void>;
-  isImporting: boolean;
+  setBalance: (balance: number | ((prevBalance: number) => number)) => void;
+  mintUrl: string;
+  baseUrl: string;
+  transactionHistory: TransactionHistory[];
+  setTransactionHistory: (transactionHistory: TransactionHistory[] | ((prevTransactionHistory: TransactionHistory[]) => TransactionHistory[])) => void;
 }
 
 const WalletTab: React.FC<WalletTabProps> = ({
   balance,
-  error,
-  successMessage,
-  mintAmount,
-  setMintAmount,
-  createMintQuote,
-  isMinting,
-  mintInvoice,
-  setShowInvoiceModal,
-  isAutoChecking,
-  countdown,
-  sendAmount,
-  setSendAmount,
-  generateSendToken,
-  isGeneratingSendToken,
-  generatedToken,
-  tokenToImport,
-  setTokenToImport,
-  importToken,
-  isImporting,
+  setBalance,
+  mintUrl,
+  baseUrl,
+  transactionHistory,
+  setTransactionHistory,
 }) => {
+  // Local state for the component
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [mintAmount, setMintAmount] = useState('');
+  const [mintInvoice, setMintInvoice] = useState('');
+  const [mintQuote, setMintQuote] = useState<MintQuoteResponse | null>(null);
+  const [isMinting, setIsMinting] = useState(false);
+  const [isAutoChecking, setIsAutoChecking] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const [sendAmount, setSendAmount] = useState('');
+  const [isGeneratingSendToken, setIsGeneratingSendToken] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState('');
+  const [tokenToImport, setTokenToImport] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  // Use wallet operations hook
+  const {
+    initWallet,
+    checkMintQuote: hookCheckMintQuote,
+    createMintQuote: hookCreateMintQuote,
+    importToken: hookImportToken,
+    generateSendToken: hookGenerateSendToken,
+    setupAutoRefresh,
+    checkIntervalRef,
+    countdownIntervalRef
+  } = useWalletOperations({
+    mintUrl,
+    baseUrl,
+    setBalance,
+    setTransactionHistory,
+    transactionHistory
+  });
+
+  // Wrapper functions to call hook functions with proper parameters
+  const checkMintQuote = useCallback(async () => {
+    await hookCheckMintQuote(
+      isAutoChecking,
+      setIsAutoChecking,
+      mintAmount,
+      setError,
+      setSuccessMessage,
+      setShowInvoiceModal,
+      setMintQuote,
+      setMintInvoice,
+      countdown,
+      setCountdown
+    );
+  }, [hookCheckMintQuote, isAutoChecking, mintAmount]);
+
+  const createMintQuote = async (amountOverride?: number) => {
+    await hookCreateMintQuote(
+      setIsMinting,
+      setError,
+      setSuccessMessage,
+      setShowInvoiceModal,
+      mintAmount,
+      setMintQuote,
+      setMintInvoice,
+      amountOverride
+    );
+  };
+
+  const importToken = async () => {
+    await hookImportToken(
+      setIsImporting,
+      setError,
+      setSuccessMessage,
+      tokenToImport,
+      setTokenToImport
+    );
+  };
+
+  const generateSendToken = async () => {
+    await hookGenerateSendToken(
+      setIsGeneratingSendToken,
+      setError,
+      setSuccessMessage,
+      sendAmount,
+      balance,
+      setSendAmount,
+      setGeneratedToken
+    );
+  };
+
+  // Initialize wallet when component mounts or mintUrl changes
+  useEffect(() => {
+    const initializeWallet = async () => {
+      try {
+        await initWallet();
+      } catch (error) {
+        setError('Failed to initialize wallet. Please try again.');
+      }
+    };
+
+    void initializeWallet();
+  }, [mintUrl, initWallet]);
+
+  // Set up auto-refresh interval when invoice is generated
+  useEffect(() => {
+    const cleanup = setupAutoRefresh(
+      mintInvoice,
+      mintQuote,
+      checkMintQuote,
+      isAutoChecking,
+      setIsAutoChecking,
+      countdown,
+      setCountdown
+    );
+
+    return cleanup;
+  }, [mintInvoice, mintQuote, checkMintQuote, isAutoChecking, setupAutoRefresh]);
+
   // Popular amounts for quick minting
   const popularAmounts = [100, 500, 1000];
   
@@ -54,10 +151,8 @@ const WalletTab: React.FC<WalletTabProps> = ({
   // Handle quick mint button click
   const handleQuickMint = async (amount: number) => {
     setMintAmount(amount.toString());
-    // Small delay to ensure state is updated before creating quote
-    setTimeout(() => {
-      void createMintQuote();
-    }, 0);
+    // Pass amount directly to avoid state update race condition
+    await createMintQuote(amount);
   };
 
   return (
@@ -148,7 +243,7 @@ const WalletTab: React.FC<WalletTabProps> = ({
                       placeholder="Amount in sats"
                     />
                     <button
-                      onClick={createMintQuote}
+                      onClick={() => void createMintQuote()}
                       disabled={isMinting || !mintAmount}
                       className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                       type="button"
@@ -272,6 +367,22 @@ const WalletTab: React.FC<WalletTabProps> = ({
           )}
         </div>
       </div>
+
+      {/* Invoice Modal */}
+      <InvoiceModal
+        showInvoiceModal={showInvoiceModal}
+        mintInvoice={mintInvoice}
+        mintAmount={mintAmount}
+        isAutoChecking={isAutoChecking}
+        countdown={countdown}
+        setShowInvoiceModal={setShowInvoiceModal}
+        setMintInvoice={setMintInvoice}
+        setMintQuote={setMintQuote}
+        checkIntervalRef={checkIntervalRef}
+        countdownIntervalRef={countdownIntervalRef}
+        setIsAutoChecking={setIsAutoChecking}
+        checkMintQuote={checkMintQuote}
+      />
     </div>
   );
 };
