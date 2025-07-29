@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KINDS } from '@/lib/nostr-kinds';
 import { StoredApiKey } from '@/components/settings/ApiKeysTab';
 import { NostrEvent } from 'nostr-tools';
-import { useState, useEffect } from 'react'; // Added useState and useEffect
+import { useState, useEffect, useCallback } from 'react'; // Added useState, useEffect, and useCallback
 
 /**
  * Hook to fetch and manage user's API keys synced with the cloud
@@ -151,12 +151,23 @@ export function useApiKeysSync() {
     enabled: !!user && cloudSyncEnabled && !!user.signer.nip44,
   });
 
+  // Memoize the mutation functions to prevent infinite re-renders
+  const createOrUpdateApiKeys = useCallback(
+    (apiKeys: StoredApiKey[]) => createApiKeysMutation.mutateAsync(apiKeys),
+    [createApiKeysMutation]
+  );
+
+  const deleteApiKey = useCallback(
+    (keyToDelete: string) => deleteApiKeyMutation.mutateAsync(keyToDelete),
+    [deleteApiKeyMutation]
+  );
+
   return {
     syncedApiKeys: apiKeysQuery.data || [],
     isLoadingApiKeys: apiKeysQuery.isLoading,
     isSyncingApiKeys: createApiKeysMutation.isPending || deleteApiKeyMutation.isPending,
-    createOrUpdateApiKeys: createApiKeysMutation.mutateAsync, // Use mutateAsync for awaitable calls
-    deleteApiKey: deleteApiKeyMutation.mutateAsync, // Use mutateAsync for awaitable calls
+    createOrUpdateApiKeys, // Use memoized function
+    deleteApiKey, // Use memoized function
     cloudSyncEnabled: cloudSyncEnabled, // Expose for component to use
     setCloudSyncEnabled, // Expose setter for component to toggle
   };

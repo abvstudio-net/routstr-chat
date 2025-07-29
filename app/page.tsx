@@ -121,13 +121,15 @@ function ChatPageContent() {
       />)}
 
       {/* Deposit Modal */}
-      <DepositModal
-        isOpen={isDepositModalOpen}
-        onClose={() => setIsDepositModalOpen(false)}
-        mintUrl={mintUrl}
-        balance={balance}
-        setBalance={setBalance}
-      />
+      {isDepositModalOpen && (
+        <DepositModal
+          isOpen={isDepositModalOpen}
+          onClose={() => setIsDepositModalOpen(false)}
+          mintUrl={mintUrl}
+          balance={balance}
+          setBalance={setBalance}
+        />
+      )}
 
       <QueryTimeoutModal
         isOpen={showQueryTimeoutModal}

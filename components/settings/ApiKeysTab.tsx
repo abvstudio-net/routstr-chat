@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Copy, Eye, EyeOff, Info } from 'lucide-react';
 import { getBalanceFromStoredProofs, refundRemainingBalance, create60CashuToken, generateApiToken, unifiedRefund } from '@/utils/cashuUtils';
 import { toast } from 'sonner';
@@ -75,6 +75,23 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [selectedNewApiKeyBaseUrl, setSelectedNewApiKeyBaseUrl] = useState<string>(baseUrl); // New state for base URL during API key creation
   const [refundFailed, setRefundFailed] = useState(false); // New state to track refund failures
 
+  // Ref to track previous syncedApiKeys for deep comparison
+  const prevSyncedApiKeysRef = useRef<StoredApiKey[]>([]);
+
+  // Helper function to deep compare API keys arrays
+  const areApiKeysEqual = (keys1: StoredApiKey[], keys2: StoredApiKey[]): boolean => {
+    if (keys1.length !== keys2.length) return false;
+    
+    return keys1.every((key1, index) => {
+      const key2 = keys2[index];
+      return key1.key === key2.key &&
+             key1.balance === key2.balance &&
+             key1.label === key2.label &&
+             key1.baseUrl === key2.baseUrl &&
+             key1.isInvalid === key2.isInvalid;
+    });
+  };
+
   // Effect to update selectedNewApiKeyBaseUrl if baseUrl prop changes
   useEffect(() => {
     setSelectedNewApiKeyBaseUrl(baseUrl);
@@ -83,12 +100,11 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   // Effect to manage API keys based on cloud sync setting
   useEffect(() => {
     if (cloudSyncEnabled && user) {
-      // Use functional update to avoid issues if syncedApiKeys reference changes but content is same
-      setStoredApiKeys(prevKeys => {
-        // Simple reference equality check. Assume syncedApiKeys itself is stable/memoized.
-        if (prevKeys === syncedApiKeys) return prevKeys; 
-        return syncedApiKeys;
-      });
+      // Only update if syncedApiKeys content actually changed
+      if (!areApiKeysEqual(prevSyncedApiKeysRef.current, syncedApiKeys)) {
+        setStoredApiKeys(syncedApiKeys);
+        prevSyncedApiKeysRef.current = syncedApiKeys;
+      }
 
       // Migrate local keys to cloud if any exist and cloud is empty
       const localKeys = typeof window !== 'undefined' ? localStorage.getItem('api_keys') : null; // Check if window is defined (for SSR safety)
@@ -141,7 +157,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         setStoredApiKeys(prevKeys => (prevKeys.length > 0 ? [] : prevKeys)); // Only clear if not already empty
       }
     }
-  }, [cloudSyncEnabled, user, syncedApiKeys, createOrUpdateApiKeys, baseUrl]); // Added baseUrl to dependencies
+  }, [cloudSyncEnabled, user, syncedApiKeys, baseUrl]); // Added syncedApiKeys back with proper deep comparison
 
   const handleCopyClick = async (keyToCopy: string) => {
     if (keyToCopy) {

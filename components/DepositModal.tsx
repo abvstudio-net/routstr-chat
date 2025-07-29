@@ -34,7 +34,6 @@ interface DepositModalProps {
 }
 
 const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, balance, setBalance }) => {
-  if (!isOpen) return null;
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
