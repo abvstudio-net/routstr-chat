@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertCircle, Copy, Loader2, QrCode, Zap, ArrowRight, Info } from "lucide-react";
-import QRCode from "react-qr-code";
 import { getEncodedTokenV4, Proof, MeltQuoteResponse, MintQuoteResponse } from "@cashu/cashu-ts";
 import { useCashuWallet } from "@/hooks/useCashuWallet";
 import { useCreateCashuWallet } from "@/hooks/useCreateCashuWallet";
@@ -9,6 +8,7 @@ import { useCashuToken } from "@/hooks/useCashuToken";
 import { useCashuStore } from "@/stores/cashuStore";
 import { formatBalance, calculateBalance } from "@/lib/cashu";
 import { cn } from "@/lib/utils";
+import InvoiceModal from './InvoiceModal';
 import {
   createLightningInvoice,
   mintTokensFromPaidInvoice,
@@ -61,6 +61,9 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const [isMigrating, setIsMigrating] = useState(false);
   const [showMigrationBanner, setShowMigrationBanner] = useState(false);
 
+  // Invoice modal state
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
   // Handle lightning invoice creation
   const handleCreateInvoice = async (quickMintAmount?: number) => {
     if (!cashuStore.activeMintUrl) {
@@ -91,6 +94,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setInvoice(invoiceData.paymentRequest);
       setcurrentMeltQuoteId(invoiceData.quoteId);
       setPaymentRequest(invoiceData.paymentRequest);
+      setShowInvoiceModal(true); // Automatically show QR code modal
 
       // Create pending transaction
       const pendingTxId = generateId();
@@ -192,12 +196,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     }
   };
 
-  // Copy invoice to clipboard
-  const copyInvoiceToClipboard = () => {
-    navigator.clipboard.writeText(invoice);
-    setSuccessMessage("Invoice copied to clipboard");
-    setTimeout(() => setSuccessMessage(null), 3000);
-  };
+
 
   const { user } = useCurrentUser();
   const { wallet, isLoading, updateProofs } = useCashuWallet();
@@ -600,15 +599,15 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     <div className="space-y-6">
       {/* Migration Banner */}
       {showMigrationBanner && (
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-md p-4">
+        <div className="bg-white/5 border border-white/20 rounded-md p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3">
-              <Info className="h-5 w-5 text-blue-300 mt-0.5 flex-shrink-0" />
+              <Info className="h-5 w-5 text-white/70 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <h3 className="text-sm font-medium text-blue-200 mb-1">
+                <h3 className="text-sm font-medium text-white mb-1">
                   Local Wallet Found - Migrate to Cloud Wallet
                 </h3>
-                <p className="text-xs text-blue-200/80 mb-3">
+                <p className="text-xs text-white/70 mb-3">
                   You have {formatBalance(localWalletBalance)} in your local device wallet.
                   Migrate to the new NIP-60 cloud-based wallet for better security and sync across devices.
                 </p>
@@ -616,7 +615,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   <button
                     onClick={handleMigration}
                     disabled={isMigrating}
-                    className="inline-flex items-center px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-200 text-xs font-medium rounded-md hover:bg-blue-500/30 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center px-3 py-1.5 bg-white/10 border border-white/20 text-white/80 text-xs font-medium rounded-md hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                     type="button"
                     title="Migrate your local wallet balance to the new NIP-60 cloud wallet. This will move all your funds to the cloud for better security and device sync."
                   >
@@ -634,7 +633,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   </button>
                   <button
                     onClick={() => setShowMigrationBanner(false)}
-                    className="text-xs text-blue-200/60 hover:text-blue-200/80"
+                    className="text-xs text-white/60 hover:text-white/80 cursor-pointer"
                     type="button"
                   >
                     Dismiss
@@ -659,7 +658,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
               <h3 className="text-sm font-medium text-white/80 mr-2">Select Mint</h3>
               <button
                 onClick={() => setShowAddMintInput(!showAddMintInput)}
-                className="text-xs text-blue-300 hover:text-blue-200 cursor-pointer"
+                className="text-xs text-white/70 hover:text-white cursor-pointer"
                 type="button"
               >
                 {showAddMintInput ? 'Cancel Add' : '(Add New Mint)'}
@@ -814,36 +813,25 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
 
                 {invoice && (
                   <div className="space-y-4">
-                    <div className="bg-white p-4 rounded-md flex items-center justify-center">
-                      <div className="border border-gray-300 w-48 h-48 flex items-center justify-center bg-white p-2 rounded-md">
-                        <QRCode value={invoice} size={180} />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="text-sm text-white/70">Lightning Invoice</span>
-                      <div className="relative">
-                        <input
-                          readOnly
-                          value={invoice}
-                          className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 pr-10 text-xs text-white font-mono break-all focus:border-white/30 focus:outline-none"
-                        />
+                    <div className="bg-white/5 border border-white/10 rounded-md p-4">
+                      <div className="mb-2 flex justify-between items-center">
+                        <span className="text-sm text-white/70">Lightning Invoice</span>
                         <button
-                          onClick={copyInvoiceToClipboard}
-                          className="absolute right-2 top-2 text-white/70 hover:text-white"
+                          onClick={() => setShowInvoiceModal(true)}
+                          className="text-xs text-white/70 hover:text-white cursor-pointer"
                           type="button"
                         >
-                          <Copy className="h-4 w-4" />
+                          Show QR Code
                         </button>
                       </div>
-                      <p className="text-xs text-white/50">
-                        Waiting for payment...
-                      </p>
+                      <div className="font-mono text-xs break-all text-white/70">
+                        {invoice}
+                      </div>
                     </div>
 
                     <button
                       onClick={handleCancel}
-                      className="w-full bg-white/10 border border-white/10 text-white py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors"
+                      className="w-full bg-white/10 border border-white/10 text-white py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors cursor-pointer"
                       type="button"
                     >
                       Cancel
@@ -984,7 +972,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       <span className="text-sm text-white/70">Generated Token</span>
                       <button
                         onClick={copyTokenToClipboard}
-                        className="text-xs text-blue-300 hover:text-blue-200 cursor-pointer"
+                        className="text-xs text-white/70 hover:text-white cursor-pointer"
                         type="button"
                       >
                         Copy Token
@@ -1004,6 +992,22 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           )}
         </div>
       </div>
+
+      {/* Invoice Modal */}
+      <InvoiceModal
+        showInvoiceModal={showInvoiceModal}
+        mintInvoice={invoice}
+        mintAmount={receiveAmount}
+        isAutoChecking={false}
+        countdown={0}
+        setShowInvoiceModal={setShowInvoiceModal}
+        setMintInvoice={(value: string) => setInvoice(value)}
+        setMintQuote={() => {}}
+        checkIntervalRef={{ current: null }}
+        countdownIntervalRef={{ current: null }}
+        setIsAutoChecking={() => {}}
+        checkMintQuote={() => Promise.resolve()}
+      />
     </div>
   );
 };

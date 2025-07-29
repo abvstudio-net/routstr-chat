@@ -327,9 +327,14 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
 
             {invoice && (
               <div className="space-y-4">
-                <div className="bg-white p-4 rounded-md flex items-center justify-center">
-                  <div className="border border-gray-300 w-48 h-48 flex items-center justify-center bg-white p-2 rounded-md">
-                    <QRCode value={invoice} size={180} />
+                <div className="bg-white/10 border border-white/20 p-4 rounded-md flex items-center justify-center">
+                  <div className="w-48 h-48 flex items-center justify-center p-2 rounded-md">
+                    <QRCode 
+                      value={invoice} 
+                      size={180}
+                      bgColor="transparent"
+                      fgColor="#ffffff"
+                    />
                   </div>
                 </div>
 

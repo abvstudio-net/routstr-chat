@@ -74,13 +74,20 @@ export async function mintTokensFromPaidInvoice(mintUrl: string, quoteId: string
 
         if (mintQuoteChecked.state === MintQuoteState.PAID) {
           break; // Exit the loop if the invoice is paid
-        } else {
-          throw new Error('Lightning invoice has not been paid yet');
+        }
+        
+        // Invoice not paid yet - this is normal, just wait and try again
+        attempts++;
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for 3 seconds before retrying
         }
       } catch (error) {
+        // Only log actual API/network errors
         console.error('Error checking mint quote:', error);
         attempts++;
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for 3 seconds before retrying
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for 3 seconds before retrying
+        }
       }
     }
 

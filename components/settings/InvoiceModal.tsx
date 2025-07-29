@@ -44,9 +44,14 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
         </div>
 
         <div className="p-6 space-y-4 overflow-y-auto">
-          <div className="bg-white p-4 rounded-md flex items-center justify-center">
-            <div className="border border-gray-300 w-56 h-56 flex items-center justify-center bg-white p-2 rounded-md">
-              <QRCode value={mintInvoice} size={220} />
+          <div className="bg-white/10 border border-white/20 p-4 rounded-md flex items-center justify-center">
+            <div className="w-56 h-56 flex items-center justify-center p-2 rounded-md">
+              <QRCode 
+                value={mintInvoice} 
+                size={220}
+                bgColor="transparent"
+                fgColor="#ffffff"
+              />
             </div>
           </div>
 

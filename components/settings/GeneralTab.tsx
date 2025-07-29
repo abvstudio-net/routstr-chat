@@ -126,13 +126,13 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   return (
     <>
       {showNsecWarning && (
-        <div className="relative bg-red-800/20 border border-red-700 text-red-400 px-4 py-3 rounded-md mb-6">
+        <div className="relative bg-red-500/5 border border-red-500/20 text-red-400 px-4 py-3 rounded-md mb-6">
           <p className="text-sm">
             <span className="font-bold">Warning:</span> Your nsec is currently stored only in your browser's local storage. It will be lost if you clear your browser data. Please consider exporting and securely storing your nsec.
           </p>
           <button
             onClick={handleCloseNsecWarning}
-            className="absolute top-2 right-2 text-red-400 hover:text-red-300 transition-colors"
+            className="absolute top-2 right-2 text-red-400 hover:text-red-500 transition-colors"
             type="button"
             title="Dismiss warning"
           >
@@ -423,7 +423,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
         <div className="flex gap-2 mt-2">
           {loginType === 'nsec' && nsecData && (
             <button
-              className="flex-grow flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 border border-red-700 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer"
+              className="flex-grow flex items-center justify-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer"
               onClick={() => {
                 const nsec = nsecData && 'nsec' in nsecData && typeof nsecData.nsec === 'string' && nsecData.nsec.startsWith('nsec1') ? nsecData.nsec : '';
                 setNsecValue(nsec);

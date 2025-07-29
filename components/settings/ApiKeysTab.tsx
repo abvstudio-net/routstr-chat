@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Copy, Eye, EyeOff, Info } from 'lucide-react';
+import { Copy, Eye, EyeOff, Info, Check, Plus, RefreshCw } from 'lucide-react';
 import { getBalanceFromStoredProofs, refundRemainingBalance, create60CashuToken, generateApiToken, unifiedRefund } from '@/utils/cashuUtils';
 import { toast } from 'sonner';
 import { useApiKeysSync } from '@/hooks/useApiKeysSync'; // Import the new hook
@@ -74,6 +74,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [keyToTopUp, setKeyToTopUp] = useState<StoredApiKey | null>(null); // Key to topup
   const [selectedNewApiKeyBaseUrl, setSelectedNewApiKeyBaseUrl] = useState<string>(baseUrl); // New state for base URL during API key creation
   const [refundFailed, setRefundFailed] = useState(false); // New state to track refund failures
+  const [copiedKey, setCopiedKey] = useState<string | null>(null); // Track which key was recently copied
 
   // Ref to track previous syncedApiKeys for deep comparison
   const prevSyncedApiKeysRef = useRef<StoredApiKey[]>([]);
@@ -163,7 +164,9 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     if (keyToCopy) {
       try {
         await navigator.clipboard.writeText(keyToCopy);
+        setCopiedKey(keyToCopy);
         toast.success('Copied!');
+        setTimeout(() => setCopiedKey(null), 2000); // Clear copied state after 2 seconds
       } catch (err) {
         toast.error('Failed to copy!');
       }
@@ -435,47 +438,42 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     <div className="space-y-4 text-white relative"> {/* Added relative positioning back */}
       <h3 className="text-lg font-semibold">API Keys</h3>
 
-      {user && ( // Only show cloud sync option if user is logged in
-        <div className="mb-4 md:absolute md:top-4 md:right-4 md:mb-0 z-10"> {/* Responsive positioning */}
-          <div className="bg-white/5 rounded-lg p-3 border border-white/10 flex items-center shadow-lg">
-            <label htmlFor="cloud-sync-toggle" className="text-sm font-medium text-white/70 mr-2 flex items-center cursor-pointer" onClick={() => setShowTooltip(!showTooltip)}>
-              Sync with Cloud (Nostr)
-              <div
-                className="relative inline-block ml-2" // Removed 'group' class
-                
-                onMouseEnter={() => setShowTooltip(true)} // Keep hover for desktop
-                onMouseLeave={() => setShowTooltip(false)} // Keep hover for desktop
-              >
-                <Info className="h-4 w-4 text-white/60 hover:text-white transition-colors cursor-pointer" /> {/* Added cursor-pointer */}
-                {/* Tooltip */}
-                <div
-                  className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-800 text-white text-xs rounded-md shadow-lg transition-opacity duration-300 w-64 border border-gray-700 whitespace-normal ${
-                    showTooltip ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                  }`}
-                >
-                  <p>API keys are synced with Nostr using <span className="font-semibold">NIP-78</span> (Kind 30078) for addressable replaceable events.</p>
-                  <p className="mt-1">Data is encrypted using <span className="font-semibold">NIP-44</span> for enhanced security and privacy.</p>
-                </div>
-              </div>
-            </label>
-            {/* Custom Toggle Switch */}
-            <button
-              role="switch"
-              aria-checked={cloudSyncEnabled}
-              onClick={() => setCloudSyncEnabled(!cloudSyncEnabled)}
-              className={`${
-                cloudSyncEnabled ? 'bg-blue-600' : 'bg-gray-400'
-              } relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+      {user && (
+        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-white">Sync with Cloud (Nostr)</span>
+            <div
+              className="relative inline-block"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
             >
-              <span
-                className={`${
-                  cloudSyncEnabled ? 'translate-x-6' : 'translate-x-1'
-                } inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300`}
-              />
-            </button>
-          </div>
-        </div>
-      )}
+              <Info className="h-4 w-4 text-white/60 hover:text-white transition-colors cursor-pointer" />
+              <div
+                className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-800 text-white text-xs rounded-md shadow-lg transition-opacity duration-300 w-64 border border-gray-700 whitespace-normal z-50 ${
+                  showTooltip ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
+              >
+                <p>API keys are synced with Nostr using <span className="font-semibold">NIP-78</span> (Kind 30078) for addressable replaceable events.</p>
+                <p className="mt-1">Data is encrypted using <span className="font-semibold">NIP-44</span> for enhanced security and privacy.</p>
+              </div>
+            </div>
+                     </div>
+           <button
+             role="switch"
+             aria-checked={cloudSyncEnabled}
+             onClick={() => setCloudSyncEnabled(!cloudSyncEnabled)}
+             className={`${
+               cloudSyncEnabled ? 'bg-white' : 'bg-white/20'
+             } inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-white/50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer`}
+           >
+             <span
+               className={`${
+                 cloudSyncEnabled ? 'translate-x-[calc(100%-2px)] bg-black' : 'translate-x-0 bg-white'
+               } pointer-events-none block size-4 rounded-full ring-0 transition-transform`}
+             />
+           </button>
+         </div>
+       )}
 
       <div>
         <p className="text-sm text-white/70">Available Balance:</p>
@@ -514,66 +512,80 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         </div>
       )}
 
-      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between">
         <button
-          className="px-4 py-2 bg-white/10 border border-white/10 text-white rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/20 text-white/80 rounded-md text-sm font-medium hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
           onClick={createApiKey}
-          disabled={isLoading || isSyncingApiKeys} // Disable button when loading or syncing
+          disabled={isLoading || isSyncingApiKeys}
         >
-          {isLoading ? 'Creating...' : 'Create New API Key'} {/* Change button text when loading */}
+          <Plus className="h-4 w-4" />
+          {isLoading ? 'Creating...' : 'Create New API Key'}
         </button>
+        {storedApiKeys.length > 0 && (
+          <button
+            className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-sm hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+            onClick={refreshApiKeysBalances}
+            disabled={isRefreshingBalances}
+            title="Refresh all API key balances"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshingBalances ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isRefreshingBalances ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+        )}
       </div>
 
       {storedApiKeys.length > 0 && (
-        <div className="space-y-2">          
-          <div className="flex justify-between items-center mt-4">
-            <h4 className="text-md font-semibold">{cloudSyncEnabled ? 'Cloud Synced API Keys:' : 'Locally Stored API Keys:'}</h4>
-            <button
-              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm border border-green-500 hover:bg-green-700 transition-colors"
-              onClick={refreshApiKeysBalances}
-              disabled={isRefreshingBalances}
-            >
-              {isRefreshingBalances ? 'Refreshing...' : 'Refresh Balances'}
-            </button>
-          </div>
+        <div className="space-y-3">          
+          <h4 className="text-sm font-medium text-white/70 mt-6">{cloudSyncEnabled ? 'Cloud Synced API Keys' : 'Locally Stored API Keys'}</h4>
           {storedApiKeys.map((keyData, index) => (
-            <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-white/70">Label: {keyData.label || 'Unnamed'}</p> {/* Display label */}
-                <p className="text-md text-white">
-                  Balance: {keyData.isInvalid ? 'Invalid' : (keyData.balance !== null ? `${(keyData.balance / 1000).toFixed(2)} sats` : 'N/A')}
-                  {keyData.isInvalid && (
-                    <span className="ml-2 px-2 py-1 bg-red-600 text-white text-xs font-semibold rounded-full">Invalid</span>
-                  )}
-                </p>
+            <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10 space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">{keyData.label || 'Unnamed API Key'}</span>
+                    {keyData.isInvalid && (
+                      <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium rounded-full">Invalid</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-white/50">{keyData.baseUrl || 'No base URL set'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-white">
+                    {keyData.isInvalid ? 'Invalid' : (keyData.balance !== null ? `${(keyData.balance / 1000).toFixed(2)} sats` : 'N/A')}
+                  </p>
+                  <p className="text-xs text-white/50">Balance</p>
+                </div>
               </div>
-              <p className="text-sm text-white/70">Base URL: {keyData.baseUrl || 'Unset'}</p>
-              <div className="flex items-center space-x-2 mt-1">
+              <div className="flex items-center space-x-2">
                 <input
-                  type="password" // Always hide stored keys by default
+                  type="password"
                   value={keyData.key}
                   readOnly
-                  className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                  className="flex-grow bg-black/20 border border-white/10 rounded-md px-3 py-2 text-xs text-white/80 font-mono focus:outline-none focus:ring-1 focus:ring-white/20"
                 />
-                {/* For simplicity, not adding individual show/hide for each stored key, but it can be added */}
                 <button
                   onClick={() => handleCopyClick(keyData.key)}
-                  className="p-2 rounded-md bg-white/5 hover:bg-white/10 transition-colors"
-                  title="Copy API Key"
+                  className="p-2 rounded-md bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                  title={copiedKey === keyData.key ? "Copied!" : "Copy API Key"}
                 >
-                  <Copy className="h-5 w-5 text-white/70" />
+                  {copiedKey === keyData.key ? (
+                    <Check className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-white/70" />
+                  )}
                 </button>
               </div>
-              <div className="flex justify-end space-x-2 mt-2">
+              <div className="flex justify-end space-x-2">
                 <button
-                  className="px-3 py-1 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 transition-colors"
+                  className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-xs hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
                   onClick={() => handleTopUp(keyData)}
                   disabled={isTopUpLoading === keyData.key || keyData.isInvalid}
                 >
                   {isTopUpLoading === keyData.key ? 'Topping Up...' : 'Top Up'}
                 </button>
                 <button
-                  className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-xs hover:bg-blue-500/20 transition-colors disabled:opacity-50 cursor-pointer"
                   onClick={async () => {
                     setIsRefundingKey(keyData.key); // Set loading for this specific key
                     try {
@@ -597,7 +609,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                   {isRefundingKey === keyData.key ? 'Refunding...' : 'Refund'}
                 </button>
                 <button
-                  className="px-3 py-1 bg-red-800 text-white rounded-md text-xs hover:bg-red-900 transition-colors"
+                  className="px-3 py-1 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-xs hover:bg-red-500/20 transition-colors disabled:opacity-50 cursor-pointer"
                   onClick={() => handleDeleteApiKey(keyData.key)}
                   disabled={isDeletingKey === keyData.key || isSyncingApiKeys} // Disable if this key is deleting or syncing
                 >
@@ -650,7 +662,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                   />
                   <button
                     onClick={() => setApiKeyAmount(localMintBalance.toString())}
-                    className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
+                    className="px-3 py-2 bg-white/5 border border-white/20 text-white/70 rounded-md text-sm hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                   >
                     Max
                   </button>
@@ -677,13 +689,13 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 )}
                 <div className="flex justify-end space-x-2">
                   <button
-                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
                     onClick={() => setShowConfirmation(false)}
                   >
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-sm hover:bg-blue-500/20 transition-colors cursor-pointer"
                     onClick={confirmCreateApiKey}
                   >
                     Confirm
@@ -707,13 +719,13 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 </p>
                 <div className="flex justify-end space-x-2">
                   <button
-                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
                     onClick={confirmDeleteApiKey}
                   >
                     Delete Anyway
                   </button>
                   <button
-                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+                    className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
                     onClick={() => {
                       setShowDeleteConfirmation(false);
                       setKeyToDeleteConfirmation(null);
@@ -746,7 +758,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 </p>
                 <div className="flex justify-end space-x-2">
                   <button
-                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                    className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
                     onClick={() => {
                       setShowDeleteConfirmation(false);
                       setKeyToDeleteConfirmation(null);
@@ -755,7 +767,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+                    className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
                     onClick={confirmDeleteApiKey}
                   >
                     Confirm Delete
@@ -786,7 +798,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 />
                 <button
                   onClick={() => setTopUpAmount(localMintBalance.toString())}
-                  className="px-3 py-2 bg-white/10 text-white rounded-md text-sm hover:bg-white/20 transition-colors"
+                  className="px-3 py-2 bg-white/5 border border-white/20 text-white/70 rounded-md text-sm hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                 >
                   Max
                 </button>
@@ -795,7 +807,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             </div>
             <div className="flex justify-end space-x-2">
               <button
-                className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors"
+                className="px-4 py-2 bg-transparent text-white/70 hover:text-white rounded-md text-sm transition-colors cursor-pointer"
                 onClick={() => {
                   setShowTopUpModal(false);
                   setTopUpAmount('');
@@ -805,7 +817,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors"
+                className="px-4 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-sm hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
                 onClick={confirmTopUp}
                 disabled={!topUpAmount || parseInt(topUpAmount) <= 0 || parseInt(topUpAmount) > localMintBalance}
               >
