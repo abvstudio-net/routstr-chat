@@ -261,7 +261,14 @@ export const saveBaseUrlsList = (baseUrls: string[]): void => {
  */
 export const loadUsingNip60 = (): boolean => {
   const storedValue = localStorage.getItem('usingNip60');
-  return storedValue === null ? true : storedValue === 'true';
+  if (storedValue === null) return true;
+  try {
+    // Stored value may be a JSON-encoded boolean or a raw string
+    return JSON.parse(storedValue);
+  } catch {
+    // Fallback for legacy "stringified string" format
+    return storedValue === 'true';
+  }
 };
 
 /**
@@ -269,7 +276,8 @@ export const loadUsingNip60 = (): boolean => {
  * @param usingNip60 Whether to use NIP-60
  */
 export const saveUsingNip60 = (usingNip60: boolean): void => {
-  setStorageItem('usingNip60', usingNip60.toString());
+  // Persist the raw boolean value to avoid double-encoding issues
+  setStorageItem('usingNip60', usingNip60);
 };
 
 /**
