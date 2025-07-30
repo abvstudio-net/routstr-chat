@@ -78,7 +78,10 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     }
 
     // Convert messages to API format
-    const apiMessages = messageHistory.map(convertMessageForAPI);
+    // Filter out system messages (error messages) before sending to API
+    const apiMessages = messageHistory
+      .filter(message => message.role !== 'system')
+      .map(convertMessageForAPI);
 
     const response = await fetch(`${baseUrl}v1/chat/completions`, {
       method: 'POST',
@@ -132,7 +135,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     if (streamingResult.usage) {
       if ( streamingResult.usage.completion_tokens !== undefined && streamingResult.usage.prompt_tokens !== undefined) {
         estimatedCosts = selectedModel?.sats_pricing.completion * streamingResult.usage.completion_tokens + selectedModel?.sats_pricing.prompt * streamingResult.usage.prompt_tokens
-        console.error("Estimated costs: ", estimatedCosts);
+        console.log("Estimated costs: ", estimatedCosts);
       }
     }
 
@@ -155,7 +158,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       onMessageAppend,
       estimatedCosts // Pass estimatedCosts here
     });
-    console.error("rdlogs:rdlogs: respon 23242342", response)
+    console.log("rdlogs:rdlogs: respon 23242342", response)
 
   } catch (error) {
     console.log('API Error: ', error);
@@ -417,7 +420,7 @@ async function handlePostResponseRefund(params: {
     }
     satsSpent = Math.ceil(tokenAmount);
   }
-  console.error("spent: ", satsSpent)
+  console.log("spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
   if (netCosts > 1){
     handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + Math.ceil(estimatedCosts) +". Actual Costs: " + satsSpent, onMessageAppend);
