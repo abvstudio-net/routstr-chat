@@ -14,6 +14,7 @@ interface ModelSelectorProps {
   handleModelChange: (modelId: string) => void;
   balance: number;
   favoriteModels: string[];
+  toggleFavoriteModel: (modelId: string) => void;
 }
 
 export default function ModelSelector({
@@ -27,6 +28,7 @@ export default function ModelSelector({
   handleModelChange,
   balance,
   favoriteModels,
+  toggleFavoriteModel,
 }: ModelSelectorProps) {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,18 +115,35 @@ export default function ModelSelector({
               : 'bg-white/10 cursor-pointer'
             : 'hover:bg-white/5 cursor-pointer'
         }`}
-        onClick={() => {
-          if (isAvailable) {
-            handleModelChange(model.id);
-            setIsModelDrawerOpen(false);
-          }
-        }}
       >
         <div className="flex items-center gap-2">
-          {isFavorite && (
-            <Star className="h-3 w-3 text-yellow-400 fill-current flex-shrink-0" />
-          )}
-          <div className="flex-1 min-w-0">
+          {/* Star Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavoriteModel(model.id);
+            }}
+            className={`flex-shrink-0 p-0.5 rounded transition-colors cursor-pointer ${
+              isFavorite 
+                ? 'text-yellow-400 hover:text-yellow-300' 
+                : 'text-white/30 hover:text-yellow-400'
+            }`}
+            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            type="button"
+          >
+            <Star className={`h-3 w-3 ${isFavorite ? 'fill-current' : ''}`} />
+          </button>
+
+          {/* Model Info - Clickable area for selection */}
+          <div 
+            className="flex-1 min-w-0 cursor-pointer"
+            onClick={() => {
+              if (isAvailable) {
+                handleModelChange(model.id);
+                setIsModelDrawerOpen(false);
+              }
+            }}
+          >
             <div className={`font-medium truncate ${isFavorite ? 'text-yellow-100' : ''}`}>
               {getModelNameWithoutProvider(model.name)}
             </div>
@@ -135,8 +154,10 @@ export default function ModelSelector({
               )}
             </div>
           </div>
+          
+          {/* Selected Indicator */}
           {selectedModel?.id === model.id && (
-            <div className={`text-xs font-medium ${isFavorite ? 'text-yellow-300' : 'text-green-400'}`}>
+            <div className={`text-xs font-medium flex-shrink-0 ${isFavorite ? 'text-yellow-300' : 'text-green-400'}`}>
               ✓
             </div>
           )}

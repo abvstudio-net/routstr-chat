@@ -23,6 +23,7 @@ const ChatHeader: React.FC = () => {
     models: filteredModels,
     handleModelChange,
     favoriteModels,
+    toggleFavoriteModel,
     
     // UI State
     isMobile,
@@ -73,6 +74,7 @@ const ChatHeader: React.FC = () => {
           handleModelChange={handleModelChange}
           balance={balance}
           favoriteModels={favoriteModels}
+          toggleFavoriteModel={toggleFavoriteModel}
         />
 
         {/* Balance Display */}
