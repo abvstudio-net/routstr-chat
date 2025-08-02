@@ -2,6 +2,7 @@ import { Message, MessageContent } from '@/types/chat';
 import { Edit, MessageSquare } from 'lucide-react';
 import MessageContentRenderer from '@/components/MessageContent';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import ThinkingSection from '@/components/ui/ThinkingSection';
 import { RefObject } from 'react';
 
 interface ChatMessagesProps {
@@ -136,6 +137,9 @@ export default function ChatMessages({
                 </div>
               ) : (
                 <div className="flex flex-col items-start mb-6 group">
+                  {message.thinking && (
+                    <ThinkingSection thinking={message.thinking} />
+                  )}
                   <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
                     <MessageContentRenderer content={message.content} />
                   </div>

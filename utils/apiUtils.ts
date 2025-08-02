@@ -3,6 +3,7 @@ import { convertMessageForAPI, createTextMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
+import { extractThinkingFromStream, isThinkingCapableModel } from './thinkingParser';
 
 export interface FetchAIResponseParams {
   messageHistory: Message[];
@@ -28,6 +29,7 @@ export interface FetchAIResponseParams {
  * @param params Configuration object with all required parameters
  * @returns Promise that resolves when the response is complete
  */
+
 export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<void> => {
   const {
     messageHistory,
@@ -124,10 +126,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       throw new Error('Response body is not available');
     }
 
-    const streamingResult = await processStreamingResponse(response, onStreamingUpdate);
+    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, selectedModel?.id);
 
     if (streamingResult.content) {
-      onMessagesUpdate([...messageHistory, createTextMessage('assistant', streamingResult.content)]);
+      const assistantMessage = createTextMessage('assistant', streamingResult.content);
+      if (streamingResult.thinking) {
+        assistantMessage.thinking = streamingResult.thinking;
+      }
+      onMessagesUpdate([...messageHistory, assistantMessage]);
     }
 
     let estimatedCosts = 0; // Initialize to 0
@@ -270,6 +276,7 @@ async function handleApiError(
  */
 interface StreamingResult {
   content: string;
+  thinking?: string;
   usage?: {
     total_tokens?: number;
     prompt_tokens?: number;
@@ -281,11 +288,14 @@ interface StreamingResult {
 
 async function processStreamingResponse(
   response: Response,
-  onStreamingUpdate: (content: string) => void
+  onStreamingUpdate: (content: string) => void,
+  modelId?: string
 ): Promise<StreamingResult> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let accumulatedContent = '';
+  let accumulatedThinking = '';
+  let isInThinking = false;
   let usage: StreamingResult['usage'];
   let model: string | undefined;
   let finish_reason: string | undefined;
@@ -320,8 +330,20 @@ async function processStreamingResponse(
               parsedData.choices[0].delta.content) {
 
               const newContent = parsedData.choices[0].delta.content;
-              accumulatedContent += newContent;
-              onStreamingUpdate(accumulatedContent);
+              
+              if (modelId && isThinkingCapableModel(modelId)) {
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                isInThinking = thinkingResult.isInThinking;
+                
+                if (thinkingResult.content) {
+                  accumulatedContent += thinkingResult.content;
+                  onStreamingUpdate(accumulatedContent);
+                }
+              } else {
+                accumulatedContent += newContent;
+                onStreamingUpdate(accumulatedContent);
+              }
             }
 
             // Handle usage statistics (usually in the final chunk)
@@ -356,6 +378,7 @@ async function processStreamingResponse(
 
   return {
     content: accumulatedContent,
+    thinking: (modelId && isThinkingCapableModel(modelId) && accumulatedThinking) ? accumulatedThinking : undefined,
     usage,
     model,
     finish_reason
