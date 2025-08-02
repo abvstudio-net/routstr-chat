@@ -202,7 +202,8 @@ export function useCashuWallet() {
       try {
 
       // Get the last stored timestamp for the TOKEN event kind
-      const lastTimestamp = getLastEventTimestamp(user.pubkey, CASHU_EVENT_KINDS.TOKEN);
+      // const lastTimestamp = getLastEventTimestamp(user.pubkey, CASHU_EVENT_KINDS.TOKEN);
+      let lastTimestamp; // Commneted out because if a different client changes balance there seems to be problems with it loading. Now every reload is like loading with a new login. 
 
       // Create the filter with 'since' if a timestamp exists
       const filter = {
@@ -261,7 +262,7 @@ export function useCashuWallet() {
           console.error('Failed to decrypt token data:', error);
         }
       }
-      console.log('rdlogs: ', nip60TokenEvents);
+      console.log('rdlogs events: ', nip60TokenEvents);
 
       return nip60TokenEvents;
       } catch (error) {
