@@ -34,8 +34,6 @@ export default function Sidebar({
   setInitialSettingsTab,
   balance
 }: SidebarProps) {
-  if (!isAuthenticated) return null;
-
   return (
     <div className="relative h-full flex-shrink-0 z-50">
       {/* Sidebar */}

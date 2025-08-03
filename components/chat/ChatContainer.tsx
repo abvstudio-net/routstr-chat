@@ -39,7 +39,7 @@ const ChatContainer: React.FC = () => {
   return (
     <div className="flex h-dvh w-full bg-black text-white overflow-hidden">
       {/* Mobile Sidebar Overlay */}
-      {isMobile && (
+      {isMobile && isAuthenticated && (
         <div
           className={`fixed inset-0 bg-black/70 z-40 transition-opacity duration-300 ${
             isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -48,27 +48,29 @@ const ChatContainer: React.FC = () => {
         />
       )}
 
-      {/* Sidebar */}
-      <Sidebar
-        isAuthenticated={isAuthenticated}
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-        isSidebarCollapsed={isSidebarCollapsed}
-        setIsSidebarCollapsed={setIsSidebarCollapsed}
-        isMobile={isMobile}
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        createNewConversation={createNewConversationHandler}
-        loadConversation={loadConversation}
-        deleteConversation={deleteConversation}
-        setIsSettingsOpen={setIsSettingsOpen}
-        setInitialSettingsTab={setInitialSettingsTab}
-        balance={balance}
-      />
+      {/* Sidebar - only render when authenticated */}
+      {isAuthenticated && (
+        <Sidebar
+          isAuthenticated={isAuthenticated}
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          isSidebarCollapsed={isSidebarCollapsed}
+          setIsSidebarCollapsed={setIsSidebarCollapsed}
+          isMobile={isMobile}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          createNewConversation={createNewConversationHandler}
+          loadConversation={loadConversation}
+          deleteConversation={deleteConversation}
+          setIsSettingsOpen={setIsSettingsOpen}
+          setInitialSettingsTab={setInitialSettingsTab}
+          balance={balance}
+        />
+      )}
 
       {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden relative transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'ml-0' : ''
+        !isAuthenticated ? 'w-full' : (isSidebarCollapsed ? 'ml-0' : '')
       }`}>
         {/* Fixed Header */}
         <ChatHeader />

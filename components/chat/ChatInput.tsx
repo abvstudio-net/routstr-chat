@@ -70,7 +70,9 @@ export default function ChatInput({
   };
 
   return (
-    <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${isMobile ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'}`}>
+    <div className={`fixed bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 z-30 ${
+      isMobile || !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
+    }`}>
       <div className="mx-auto w-full max-w-2xl">
         {/* Image Preview */}
         {uploadedImages.length > 0 && (
