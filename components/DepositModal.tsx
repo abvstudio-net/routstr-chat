@@ -31,9 +31,10 @@ interface DepositModalProps {
   mintUrl: string;
   balance: number;
   setBalance: React.Dispatch<React.SetStateAction<number>>;
+  usingNip60: boolean;
 }
 
-const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, balance, setBalance }) => {
+const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, balance, setBalance, usingNip60 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
