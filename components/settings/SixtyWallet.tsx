@@ -242,14 +242,15 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     const checkLocalBalance = () => {
       const localBalance = getBalanceFromStoredProofs();
       setLocalWalletBalance(localBalance);
-      setShowMigrationBanner(localBalance > 0);
+      // Only show migration banner if NIP-60 is enabled and there's a local balance
+      setShowMigrationBanner(usingNip60 && localBalance > 0);
     };
     
     checkLocalBalance();
     // Check periodically for changes
     const interval = setInterval(checkLocalBalance, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [usingNip60]);
 
   const handleAddCustomMint = async () => {
     if (!customMintUrl.trim()) {
