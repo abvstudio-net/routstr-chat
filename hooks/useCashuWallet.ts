@@ -41,7 +41,6 @@ export function useCashuWallet() {
         ], { signal });
 
         console.log(nostr.relays)
-        console.log(nostr.relay('https://nos.lol'))
         
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Query timeout')), 10000);
@@ -62,13 +61,6 @@ export function useCashuWallet() {
         }
         const decrypted = await user.signer.nip44.decrypt(user.pubkey, event.content);
         const data = n.json().pipe(z.string().array().array()).parse(decrypted);
-        const decrypted2 = await user.signer.nip44.decrypt(user.pubkey, events[1].content);
-        const decrypted3 = await user.signer.nip44.decrypt(user.pubkey, events[2].content);
-        const data2 = n.json().pipe(z.string().array().array()).parse(decrypted2);
-        const data3 = n.json().pipe(z.string().array().array()).parse(decrypted3);
-
-        console.log('rdlogs: wallet events', data2)
-        console.log('rdlogs: wallet events 3', data3)
 
         const privkey = data.find(([key]) => key === 'privkey')?.[1];
 
