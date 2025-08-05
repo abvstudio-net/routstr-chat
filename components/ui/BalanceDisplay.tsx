@@ -720,7 +720,23 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <button className="px-3 py-1.5 rounded-md bg-white/5 text-white hover:bg-white/10 transition-colors text-sm flex items-center justify-center border border-white/10 cursor-pointer">
+        <button className="px-3 py-1.5 rounded-md bg-white/5 text-white hover:bg-white/10 transition-colors text-sm flex items-center justify-center border border-white/10 cursor-pointer gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="lucide lucide-wallet"
+          >
+            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+            <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
+          </svg>
           {isBalanceLoading ? 'loading' : `${balance} sats`}
         </button>
       </PopoverTrigger>
