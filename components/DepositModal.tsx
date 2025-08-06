@@ -175,7 +175,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setPendingTransactionId(null);
 
-        setSuccessMessage(`Received ${formatBalance(amount)}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
         setInvoice("");
         setcurrentMeltQuoteId("");
         setReceiveAmount("");
@@ -235,7 +235,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
       const proofs = await receiveToken(tokenToImport);
       const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-      setSuccessMessage(`Received ${formatBalance(totalAmount)} successfully!`);
+      setSuccessMessage(`Received ${formatBalance(totalAmount, 'sats')} successfully!`);
       setTokenToImport("");
     } catch (error) {
       console.error("Error receiving token:", error);

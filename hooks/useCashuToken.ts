@@ -235,16 +235,18 @@ export function useCashuToken() {
       }
 
       const { mint: mintUrl, proofs: tokenProofs } = decodedToken;
+      console.log("rdlogs profs: ", tokenProofs)
 
       // if we don't have the mintUrl yet, add it
       await addMintIfNotExists(mintUrl);
 
       // Setup wallet for receiving
       const mint = new CashuMint(mintUrl);
-      const wallet = new CashuWallet(mint);
+      const wallet = new CashuWallet(mint, {'unit': decodedToken.unit});
 
       // Load mint keysets
       await wallet.loadMint();
+      console.log(wallet.keysets)
 
       // Receive proofs from token
       const receivedProofs = await wallet.receive(token);

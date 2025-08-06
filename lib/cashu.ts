@@ -44,22 +44,27 @@ export const defaultMints = [
 ];
 
 // Helper function to calculate total balance from tokens
-export function calculateBalance(proofs: Proof[]): Record<string, number> {
+export function calculateBalance(proofs: Proof[]): { balances: Record<string, number>, units: Record<string, string> } {
   const balances: { [mint: string]: number } = {};
+  const units: { [mint: string]: string } = {};
   const mints = useCashuStore.getState().mints;
   for (const mint of mints) {
     balances[mint.url] = 0;
+    units[mint.url] = 'sat';
     const keysets = mint.keysets;
     if (!keysets) continue;
+    console.log('rdlogs: mint porofs', proofs)
+    console.log('rdlogs: mint keysets', mint.url, keysets)
     for (const keyset of keysets) {
       // select all proofs with id == keyset.id
       const proofsForKeyset = proofs.filter((proof) => proof.id === keyset.id);
       if (proofsForKeyset.length) {
         balances[mint.url] += proofsForKeyset.reduce((acc, proof) => acc + proof.amount, 0);
+        units[mint.url] = keyset.unit
       }
     }
   }
-  return balances;
+  return { balances, units };
 }
 
 // Helper function to add thousands separator to a number
@@ -68,22 +73,25 @@ function addThousandsSeparator(num: number): string {
 }
 
 // Helper function to format balance with appropriate units
-export function formatBalance(sats: number): string {
-  if (sats >= 1000000) {
-    return `${(sats / 1000000).toFixed(1)}M sats`;
-  } else if (sats >= 100000) {
-    return `${(sats / 1000).toFixed(1)}k sats`;
+export function formatBalance(balance: number, unit: string): string {
+  if (balance >= 1000000) {
+    return `${(balance / 1000000).toFixed(1)}M ${unit}`;
+  } else if (balance >= 100000) {
+    return `${(balance / 1000).toFixed(1)}k ${unit}`;
   } else {
-    return `${addThousandsSeparator(sats)} sats`;
+    return `${addThousandsSeparator(balance)} ${unit}`;
   }
 }
 
 export async function activateMint(mintUrl: string): Promise<{ mintInfo: GetInfoResponse, keysets: MintKeyset[] }> {
   const mint = new CashuMint(mintUrl);
   const wallet = new CashuWallet(mint);
+  const msatWallet = new CashuWallet(mint, {'unit': 'msat'});
   const mintInfo = await wallet.getMintInfo();
   const keysets = await wallet.getKeySets();
-  return { mintInfo, keysets };
+  const msatKeysets = await msatWallet.getKeySets();
+  const allKeysets = Array.from(new Set([...keysets, ...msatKeysets]));
+  return { mintInfo, keysets: allKeysets };
 }
 
 export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Promise<{ keys: Record<string, MintKeys>[] }> {

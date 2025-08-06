@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertCircle, Copy, Loader2, QrCode, Zap, ArrowRight, Info } from "lucide-react";
-import { getEncodedTokenV4, Proof, MeltQuoteResponse, MintQuoteResponse } from "@cashu/cashu-ts";
+import { getEncodedTokenV4, Proof, MeltQuoteResponse, MintQuoteResponse, getDecodedToken } from "@cashu/cashu-ts";
 import { useCashuWallet } from "@/hooks/useCashuWallet";
 import { useCreateCashuWallet } from "@/hooks/useCreateCashuWallet";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -160,7 +160,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setPendingTransactionId(null);
 
-        setSuccessMessage(`Received ${formatBalance(amount)}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
         setInvoice("");
         setcurrentMeltQuoteId("");
         setReceiveAmount("");
@@ -224,8 +224,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     }
   }, [hookError]);
 
-  const mintBalances = React.useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = React.useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs]);
 
@@ -293,10 +293,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setError(null);
       setSuccessMessage(null);
 
+      const unit = getDecodedToken(tokenToImport).unit;
       const proofs = await receiveToken(tokenToImport);
       const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-      setSuccessMessage(`Received ${formatBalance(totalAmount)} successfully!`);
+      setSuccessMessage(`Received ${formatBalance(totalAmount, unit != undefined ? unit+'s' : 'sats' )} successfully!`);
       setTokenToImport("");
     } catch (error) {
       console.error("Error receiving token:", error);
@@ -669,6 +670,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
               {wallet.mints.map((mint) => {
                 const mintBalance = mintBalances[mint] || 0;
                 const isActive = cashuStore.activeMintUrl === mint;
+                const unit = mintUnits[mint] || 'sat';
                 return (
                   <div key={mint} className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -693,7 +695,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       </button>
                     </div>
                     <span className={cn("text-sm font-medium", isActive ? "text-white" : "text-white/70")}>
-                      {formatBalance(mintBalance)}
+                      {formatBalance(mintBalance, unit+'s')}
                     </span>
                   </div>
                 );
