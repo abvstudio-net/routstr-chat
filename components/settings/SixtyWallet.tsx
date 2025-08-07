@@ -230,12 +230,18 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   }, [cashuStore.proofs]);
 
   useEffect(() => {
-    const totalBalance = Object.values(mintBalances).reduce(
-      (sum, balance) => sum + balance,
-      0
-    );
+    let totalBalance = 0;
+    for (const mintUrl in mintBalances) {
+      const balance = mintBalances[mintUrl];
+      const unit = mintUnits[mintUrl];
+      if (unit === 'msat') {
+        totalBalance += balance / 1000;
+      } else {
+        totalBalance += balance;
+      }
+    }
     setBalance(totalBalance);
-  }, [mintBalances]);
+  }, [mintBalances, mintUnits]);
 
   // Check for local wallet balance on component mount
   useEffect(() => {
