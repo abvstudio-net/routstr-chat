@@ -60,12 +60,12 @@ function ChatPageContent() {
   const { showQueryTimeoutModal, setShowQueryTimeoutModal } = useCashuWallet();
 
   useEffect(() => {
-    if (!isBalanceLoading && balance === 0 && isAuthenticated && !isSettingsOpen) {
+    if (!isBalanceLoading && balance === 0 && isAuthenticated && !isSettingsOpen && !usingNip60) {
       setIsDepositModalOpen(true);
     } else {
       setIsDepositModalOpen(false);
     }
-  }, [balance, isBalanceLoading, isAuthenticated]);
+  }, [balance, isBalanceLoading, isAuthenticated, usingNip60]);
 
   if (!authChecked) {
     return (
@@ -128,6 +128,7 @@ function ChatPageContent() {
           mintUrl={mintUrl}
           balance={balance}
           setBalance={setBalance}
+          usingNip60={usingNip60}
         />
       )}
 

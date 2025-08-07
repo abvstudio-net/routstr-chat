@@ -1,9 +1,9 @@
 import { Message, MessageContent } from '@/types/chat';
-import { Edit, MessageSquare } from 'lucide-react';
+import { Edit, MessageSquare, Copy, Check } from 'lucide-react';
 import MessageContentRenderer from '@/components/MessageContent';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ThinkingSection from '@/components/ui/ThinkingSection';
-import { RefObject } from 'react';
+import { RefObject, useState } from 'react';
 
 interface ChatMessagesProps {
   messages: Message[];
@@ -32,13 +32,24 @@ export default function ChatMessages({
   getTextFromContent,
   messagesEndRef
 }: ChatMessagesProps) {
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+
+  const copyMessageContent = async (messageIndex: number, content: string | MessageContent[]) => {
+    try {
+      const textContent = getTextFromContent(content);
+      await navigator.clipboard.writeText(textContent);
+      setCopiedMessageIndex(messageIndex);
+      setTimeout(() => setCopiedMessageIndex(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+    }
+  };
   return (
     <div className="flex-1 overflow-y-auto pt-[60px] pb-[80px]">
       <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 pt-24">
-            <MessageSquare className="h-16 w-16 mb-6 text-white/20" />
-            <p className="text-base text-white/80">Send a message to start chatting</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 min-h-[calc(100vh-200px)]">
+            {/* Greeting message will be handled by the input component when centered */}
           </div>
         ) : (
           messages.map((message, index) => (
@@ -143,7 +154,18 @@ export default function ChatMessages({
                   <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
                     <MessageContentRenderer content={message.content} />
                   </div>
-                  <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2">
+                    <button
+                      onClick={() => copyMessageContent(index, message.content)}
+                      className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
+                    >
+                      {copiedMessageIndex === index ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      {copiedMessageIndex === index ? 'Copied!' : 'Copy'}
+                    </button>
                     <button
                       onClick={() => retryMessage(index)}
                       className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"

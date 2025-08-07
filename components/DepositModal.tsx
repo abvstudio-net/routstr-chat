@@ -31,9 +31,10 @@ interface DepositModalProps {
   mintUrl: string;
   balance: number;
   setBalance: React.Dispatch<React.SetStateAction<number>>;
+  usingNip60: boolean;
 }
 
-const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, balance, setBalance }) => {
+const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, balance, setBalance, usingNip60 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
 
 
   const popularAmounts = [100, 500, 1000];
-  
+
   const [receiveAmount, setReceiveAmount] = useState("");
   const [invoice, setInvoice] = useState("");
   const [currentMeltQuoteId, setcurrentMeltQuoteId] = useState("");
@@ -65,7 +66,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
@@ -143,7 +144,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
       console.error("Error creating invoice:", error);
       setError(
         "Failed to create Lightning invoice: " +
-          (error instanceof Error ? error.message : String(error))
+        (error instanceof Error ? error.message : String(error))
       );
     } finally {
       setIsProcessing(false);
@@ -193,7 +194,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
         console.error("Error checking payment status:", error);
         setError(
           "Failed to check payment status: " +
-            (error instanceof Error ? error.message : String(error))
+          (error instanceof Error ? error.message : String(error))
         );
       } else {
         setTimeout(() => {
@@ -227,7 +228,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
       return;
     }
 
-   try {
+    try {
       setError(null);
       setSuccessMessage(null);
 
@@ -329,8 +330,8 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
               <div className="space-y-4">
                 <div className="bg-white/10 border border-white/20 p-4 rounded-md flex items-center justify-center">
                   <div className="w-48 h-48 flex items-center justify-center p-2 rounded-md">
-                    <QRCode 
-                      value={invoice} 
+                    <QRCode
+                      value={invoice}
                       size={180}
                       bgColor="transparent"
                       fgColor="#ffffff"
@@ -351,7 +352,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
                       className="absolute right-2 top-2 text-white/70 hover:text-white"
                       type="button"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3 w-3" />
                     </button>
                   </div>
                   <p className="text-xs text-white/50">

@@ -34,8 +34,6 @@ export default function Sidebar({
   setInitialSettingsTab,
   balance
 }: SidebarProps) {
-  if (!isAuthenticated) return null;
-
   return (
     <div className="relative h-full flex-shrink-0 z-50">
       {/* Sidebar */}
@@ -78,7 +76,20 @@ export default function Sidebar({
             className="w-full flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
             data-tutorial="new-chat-button"
           >
-            <PlusCircle className="h-4 w-4" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              <line x1="12" y1="8" x2="12" y2="16" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
             <span>New chat</span>
           </button>
         </div>
@@ -118,22 +129,8 @@ export default function Sidebar({
 
         {/* Bottom Controls */}
         <div className="p-4 mt-auto">
-          {/* API Keys Button */}
-          <div className="mb-2"> {/* Added margin-bottom for spacing */}
-            <button
-              onClick={() => {
-                setIsSettingsOpen(true);
-                setInitialSettingsTab('api-keys');
-              }}
-              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer w-full"
-            >
-              <Key className="h-4 w-4" />
-              <span>API Keys</span>
-            </button>
-          </div>
-
-          {/* Settings Button */}
           <div className="flex items-center justify-between">
+            {/* Settings Button - Left */}
             <button
               onClick={() => {
                 setIsSettingsOpen(true);
@@ -145,18 +142,18 @@ export default function Sidebar({
               <Settings className="h-4 w-4" />
               <span>Settings</span>
             </button>
-            {!isMobile && (
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(true);
-                  setInitialSettingsTab('wallet');
-                }}
-                className="bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] flex items-center cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium">{balance}</span>
-                <span className="text-xs text-white/70 ml-1">sats</span>
-              </button>
-            )}
+
+            {/* API Keys Button - Right */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(true);
+                setInitialSettingsTab('api-keys');
+              }}
+              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+            >
+              <Key className="h-4 w-4" />
+              <span>API Keys</span>
+            </button>
           </div>
         </div>
       </div>

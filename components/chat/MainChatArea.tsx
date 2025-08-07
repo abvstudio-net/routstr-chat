@@ -125,6 +125,7 @@ const MainChatArea: React.FC = () => {
         setTextareaHeight={setTextareaHeight}
         isSidebarCollapsed={isSidebarCollapsed}
         isMobile={isMobile}
+        hasMessages={messages.length > 0}
       />
     </>
   );

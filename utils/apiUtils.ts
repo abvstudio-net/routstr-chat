@@ -208,6 +208,7 @@ async function handleApiError(
   } = params;
 
   if (response.status === 401 || response.status === 403) {
+    console.log(response.body)
     handleApiResponseError(response.statusText + ". Trying to get a refund. ", onMessageAppend);
     const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
