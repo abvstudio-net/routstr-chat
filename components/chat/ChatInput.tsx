@@ -32,20 +32,11 @@ export default function ChatInput({
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isCentered, setIsCentered] = useState(!hasMessages && !isMobile);
+  const [isCentered, setIsCentered] = useState(!hasMessages);
 
   // Handle animation when messages change from external updates
   useEffect(() => {
-    // On mobile, never center the input - always keep it at bottom
-    if (isMobile) {
-      if (isCentered) {
-        setIsCentered(false);
-        setIsAnimating(false);
-      }
-      return;
-    }
-    
-    // Desktop behavior - center when no messages, bottom when messages exist
+    // Center when no messages, bottom when messages exist (both mobile and desktop)
     if (hasMessages && isCentered) {
       setIsAnimating(true);
       setIsCentered(false);
@@ -55,7 +46,7 @@ export default function ChatInput({
       setIsCentered(true);
       setIsAnimating(false);
     }
-  }, [hasMessages, isCentered, isMobile]);
+  }, [hasMessages, isCentered]);
 
   const handleSendMessage = () => {
     if (isCentered) {
