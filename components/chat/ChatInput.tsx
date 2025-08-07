@@ -35,7 +35,8 @@ export default function ChatInput({
   const [isCentered, setIsCentered] = useState(!hasMessages);
 
   // Handle animation when messages change from external updates
-  useEffect(() => {
+  useEffect(() => {    
+    // Both mobile and desktop behavior - center when no messages, bottom when messages exist
     if (hasMessages && isCentered) {
       setIsAnimating(true);
       setIsCentered(false);
@@ -45,7 +46,7 @@ export default function ChatInput({
       setIsCentered(true);
       setIsAnimating(false);
     }
-  }, [hasMessages, isCentered]);
+  }, [hasMessages, isCentered, isMobile]);
 
   const handleSendMessage = () => {
     if (isCentered) {
@@ -101,8 +102,8 @@ export default function ChatInput({
       {(isCentered || isAnimating) && (
         <div 
           className={`fixed z-20 flex flex-col items-center justify-center transition-all duration-500 ease-out pointer-events-none ${
-            isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
-          }`}
+            !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
+          } ${isMobile ? 'px-4' : ''}`}
           style={{
             transform: 'translateY(-60px)',
             opacity: isCentered && !isAnimating ? 1 : 0
@@ -119,21 +120,21 @@ export default function ChatInput({
       {/* Chat Input Container */}
       <div 
         className={`fixed z-30 ${
-          isCentered 
+          isCentered && !isMobile
             ? `flex items-center justify-center transition-all duration-500 ease-out ${
-                isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
+                !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
               }`
-            : `bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 transition-all duration-300 ease-in-out ${
-                isMobile || !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
+            : `bottom-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out ${
+                isMobile ? 'left-0 right-0 p-3' : !isAuthenticated ? 'left-0 right-0 p-4' : isSidebarCollapsed ? 'left-0 right-0 p-4' : 'left-72 right-0 p-4'
               }`
         }`}
         style={{
-          transform: isCentered 
+          transform: isCentered && !isMobile
             ? 'translateY(30px)' 
             : 'translateY(0)'
         }}
       >
-        <div className={`mx-auto w-full ${isCentered ? 'max-w-xl' : 'max-w-2xl'}`}>
+        <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-xl' : 'max-w-2xl'}`}>
           {/* Image Preview */}
           {uploadedImages.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">

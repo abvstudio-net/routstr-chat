@@ -25,6 +25,7 @@ import {
   PendingTransaction,
 } from "@/stores/transactionHistoryStore";
 import type { TransactionHistory } from '@/types/chat';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 /**
  * User balance and authentication status component with comprehensive wallet popover
@@ -43,6 +44,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'activity' | 'invoice'>('overview');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
   
   // Send state
   const [sendTab, setSendTab] = useState<'token' | 'lightning'>('token');
@@ -720,7 +722,9 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <button className="px-3 py-1.5 rounded-md bg-white/5 text-white hover:bg-white/10 transition-colors text-sm flex items-center justify-center border border-white/10 cursor-pointer gap-2">
+        <button className={`${
+          isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'
+        } rounded-md bg-white/5 text-white hover:bg-white/10 transition-colors text-sm flex items-center justify-center border border-white/10 cursor-pointer gap-2`}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"
@@ -731,18 +735,22 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="lucide lucide-wallet"
+            className="lucide lucide-wallet flex-shrink-0"
           >
             <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
             <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
             <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
           </svg>
-          {isBalanceLoading ? 'loading' : `${balance} sats`}
+          <span className={isMobile ? 'text-xs' : 'text-sm'}>
+            {isBalanceLoading ? 'loading' : `${balance} sats`}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent 
         align="end" 
-        className="w-80 bg-black/95 backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden"
+        className={`${
+          isMobile ? 'w-[95vw] max-w-sm' : 'w-80'
+        } bg-black/95 backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10">
