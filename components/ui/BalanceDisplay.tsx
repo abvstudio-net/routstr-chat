@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { getEncodedTokenV4 } from "@cashu/cashu-ts";
 import { useChat } from '@/context/ChatProvider';
@@ -764,6 +764,21 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                 {activeTab === 'invoice' ? 'Invoice' : 'Wallet'}
               </h3>
             </div>
+          )}
+          
+          {/* Settings Icon - Top Right */}
+          {activeTab === 'overview' && (
+            <button
+              onClick={() => {
+                setIsSettingsOpen(true);
+                setInitialSettingsTab('wallet');
+                setIsPopoverOpen(false);
+              }}
+              className="text-white/70 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5 cursor-pointer"
+              title="Wallet Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
           )}
         </div>
 

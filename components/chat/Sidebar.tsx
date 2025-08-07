@@ -129,22 +129,8 @@ export default function Sidebar({
 
         {/* Bottom Controls */}
         <div className="p-4 mt-auto">
-          {/* API Keys Button */}
-          <div className="mb-2"> {/* Added margin-bottom for spacing */}
-            <button
-              onClick={() => {
-                setIsSettingsOpen(true);
-                setInitialSettingsTab('api-keys');
-              }}
-              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer w-full"
-            >
-              <Key className="h-4 w-4" />
-              <span>API Keys</span>
-            </button>
-          </div>
-
-          {/* Settings Button */}
           <div className="flex items-center justify-between">
+            {/* Settings Button - Left */}
             <button
               onClick={() => {
                 setIsSettingsOpen(true);
@@ -156,18 +142,18 @@ export default function Sidebar({
               <Settings className="h-4 w-4" />
               <span>Settings</span>
             </button>
-            {!isMobile && (
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(true);
-                  setInitialSettingsTab('wallet');
-                }}
-                className="bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] flex items-center cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium">{balance}</span>
-                <span className="text-xs text-white/70 ml-1">sats</span>
-              </button>
-            )}
+
+            {/* API Keys Button - Right */}
+            <button
+              onClick={() => {
+                setIsSettingsOpen(true);
+                setInitialSettingsTab('api-keys');
+              }}
+              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+            >
+              <Key className="h-4 w-4" />
+              <span>API Keys</span>
+            </button>
           </div>
         </div>
       </div>
