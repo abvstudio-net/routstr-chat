@@ -42,7 +42,7 @@ const ChatHeader: React.FC = () => {
   } = useChat();
 
   return (
-    <div className={`fixed top-0 bg-black/95 backdrop-blur-sm z-40 ${
+    <div className={`fixed top-0 bg-black/95 backdrop-blur-sm z-40 transition-all duration-300 ease-in-out ${
       isMobile || !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
     }`}>
       <div className="flex items-center justify-center h-[60px] px-4 relative">

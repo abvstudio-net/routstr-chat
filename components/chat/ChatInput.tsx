@@ -100,7 +100,9 @@ export default function ChatInput({
       {/* Greeting message when centered */}
       {(isCentered || isAnimating) && (
         <div 
-          className="fixed inset-0 flex flex-col items-center justify-center z-20 transition-all duration-500 ease-out pointer-events-none" 
+          className={`fixed z-20 flex flex-col items-center justify-center transition-all duration-500 ease-out pointer-events-none ${
+            isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
+          }`}
           style={{
             transform: 'translateY(-60px)',
             opacity: isCentered && !isAnimating ? 1 : 0
@@ -116,10 +118,12 @@ export default function ChatInput({
 
       {/* Chat Input Container */}
       <div 
-        className={`fixed z-30 transition-all duration-500 ease-out ${
+        className={`fixed z-30 ${
           isCentered 
-            ? 'inset-0 flex items-center justify-center' 
-            : `bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 ${
+            ? `flex items-center justify-center transition-all duration-500 ease-out ${
+                isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
+              }`
+            : `bottom-0 bg-black/95 backdrop-blur-sm p-3 md:p-4 transition-all duration-300 ease-in-out ${
                 isMobile || !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
               }`
         }`}
