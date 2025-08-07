@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { hasSeenTutorial, markTutorialAsSeen } from '@/utils/storageUtils';
+import { hasSeenTutorial, markTutorialAsSeen, loadSidebarOpen, saveSidebarOpen, loadSidebarCollapsed, saveSidebarCollapsed } from '@/utils/storageUtils';
 
 export interface UseUiStateReturn {
   isSettingsOpen: boolean;
@@ -35,8 +35,8 @@ export const useUiState = (isAuthenticated: boolean): UseUiStateReturn => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [isModelDrawerOpen, setIsModelDrawerOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => loadSidebarCollapsed());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => loadSidebarOpen());
   const [textareaHeight, setTextareaHeight] = useState(48);
   const [initialSettingsTab, setInitialSettingsTab] = useState<'settings' | 'wallet' | 'history' | 'api-keys'>('settings');
 
@@ -80,6 +80,16 @@ export const useUiState = (isAuthenticated: boolean): UseUiStateReturn => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isModelDrawerOpen]);
+
+  // Persist sidebar open state to localStorage
+  useEffect(() => {
+    saveSidebarOpen(isSidebarOpen);
+  }, [isSidebarOpen]);
+
+  // Persist sidebar collapsed state to localStorage
+  useEffect(() => {
+    saveSidebarCollapsed(isSidebarCollapsed);
+  }, [isSidebarCollapsed]);
 
   // iOS Safari viewport height stabilization
   useEffect(() => {
