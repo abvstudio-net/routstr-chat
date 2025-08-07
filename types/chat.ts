@@ -9,6 +9,7 @@ export interface MessageContent {
 export interface Message {
   role: string;
   content: string | MessageContent[];
+  thinking?: string;
 }
 
 export interface Conversation {
