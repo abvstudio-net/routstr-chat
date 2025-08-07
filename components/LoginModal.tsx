@@ -26,6 +26,9 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showNsec, setShowNsec] = useState(false);
 
+  // Mobile tab state
+  const [activeTab, setActiveTab] = useState<'create' | 'signin'>('signin');
+
   const loginActions = useLoginActions();
 
   // Reset state when modal opens
@@ -39,6 +42,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
       setShowSaveConfirmation(false);
       setShowNsec(false);
       setNsecCopied(false);
+      setActiveTab('signin');
     }
   }, [isOpen]);
 
@@ -130,7 +134,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
 
   return (
     <div className="fixed inset-0 backdrop-blur-md bg-black/20 flex items-center justify-center z-50 p-4">
-      <div className="bg-black/90 backdrop-blur-xl border-2 border-white/20 rounded-xl max-w-2xl w-full p-4 relative shadow-2xl">
+      <div className="bg-black/90 backdrop-blur-xl border-2 border-white/20 rounded-xl max-w-2xl w-full p-4 md:p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -141,50 +145,83 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
           </svg>
         </button>
 
-        {/* Flex Layout */}
-        <div className="flex gap-4">
+        {/* Welcome Section */}
+        <div className="text-center mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Welcome to Routstr Chat</h2>
+          <p className="text-sm text-gray-400">A decentralized LLM routing marketplace</p>
+        </div>
+
+        {/* Mobile Tabs */}
+        <div className="md:hidden mb-4">
+          <div className="flex bg-white/5 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('create')}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'create'
+                  ? 'bg-white text-black'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Create Account
+            </button>
+            <button
+              onClick={() => setActiveTab('signin')}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'signin'
+                  ? 'bg-white text-black'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Sign In
+            </button>
+          </div>
+        </div>
+
+        {/* Responsive Layout */}
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           
-          {/* Left Column - Welcome + Signup */}
-          <div className="w-1/2 flex flex-col space-y-2">
-            
-            {/* Welcome Section - Top Left */}
-            <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-              <div className="text-center">
-                <h2 className="text-xl font-bold text-white mb-1">Welcome to Routstr</h2>
-                <p className="text-xs text-gray-400">A decentralized LLM routing marketplace</p>
-              </div>
-            </div>
-
-            {/* Signup Section - Bottom Left */}
-            <div className="p-3">
-              <div className="text-center pb-2 border-b border-white/10">
-                <h3 className="text-base font-semibold text-white mb-1">Create Account</h3>
-                <p className="text-xs text-gray-400">New to Nostr?</p>
+          {/* Signup Section - Top on mobile, Left on desktop */}
+          <div className={`w-full md:w-1/2 order-2 md:order-1 ${activeTab === 'create' ? 'block' : 'hidden md:block'}`}>
+            <div className="p-3 md:p-4 flex flex-col h-full">
+              <div className="hidden md:block text-center pb-3 md:pb-2 border-b border-white/10 mb-4 md:mb-3">
+                <h3 className="text-lg md:text-base font-semibold text-white mb-1">Create Account</h3>
+                <p className="text-sm md:text-xs text-gray-400">New to Nostr?</p>
               </div>
 
-              <div className="mt-3">
+              <div className="flex-1 flex flex-col">
                 {signupStep === 'initial' && (
-                  <div className="space-y-3">
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2">
-                      <div className="flex items-start gap-2">
-                        <div className="w-3 h-3 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <svg className="w-2 h-2 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
+                  <div className="flex flex-col h-full">
+                    <div className="mb-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          <span className="text-xs text-gray-300">Multiple AI models, always the best price</span>
                         </div>
-                        <div>
-                          <p className="text-xs text-yellow-200 font-medium mb-1">Important</p>
-                          <p className="text-xs text-yellow-200/80">Save your private key securely - we cannot recover it if lost.</p>
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          <span className="text-xs text-gray-300">Pay with Bitcoin (Lightning or on-chain)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          <span className="text-xs text-gray-300">Private, permissionless, open source</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          <span className="text-xs text-gray-300">Powered by Nostr + Cashu tokens</span>
                         </div>
                       </div>
                     </div>
 
-                    <button
-                      onClick={generateNewKeypair}
-                      className="w-full py-2.5 bg-white text-black rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      Generate New Identity
-                    </button>
+                    <div className="flex-1"></div>
+
+                    <div className="space-y-3">
+                      <button
+                        onClick={generateNewKeypair}
+                        className="w-full py-3 md:py-2.5 bg-white text-black rounded-lg text-base md:text-sm font-semibold hover:bg-gray-100 transition-colors cursor-pointer"
+                      >
+                        Generate New Identity
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -237,14 +274,14 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
                       <button
                         onClick={completeSignup}
                         disabled={!showSaveConfirmation}
-                        className="w-full py-2 bg-white text-black rounded-lg text-sm font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="w-full py-3 md:py-2 bg-white text-black rounded-lg text-base md:text-sm font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                       >
                         Complete Setup
                       </button>
 
                       <button
                         onClick={handleSaveLater}
-                        className="w-full py-1.5 bg-white/5 border border-white/10 text-white rounded-lg text-xs font-medium hover:bg-white/10 transition-colors cursor-pointer"
+                        className="w-full py-2.5 md:py-1.5 bg-white/5 border border-white/10 text-white rounded-lg text-sm md:text-xs font-medium hover:bg-white/10 transition-colors cursor-pointer"
                       >
                         I'll Save It Later
                       </button>
@@ -255,14 +292,14 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
             </div>
           </div>
 
-          {/* Right Column - Sign In */}
-          <div className="w-1/2 p-3">
-            <div className="text-center pb-2 border-b border-white/10">
+          {/* Sign In Section - Top on mobile, Right on desktop */}
+          <div className={`w-full md:w-1/2 order-1 md:order-2 p-3 md:p-4 ${activeTab === 'signin' ? 'block' : 'hidden md:block'}`}>
+            <div className="hidden md:block text-center pb-2 border-b border-white/10">
               <h3 className="text-base font-semibold text-white mb-1">Sign In</h3>
               <p className="text-xs text-gray-400">Already have an account?</p>
             </div>
 
-            <div className="mt-3 space-y-3">
+            <div className="mt-0 md:mt-3 space-y-3">
               {/* Extension Login */}
               <button
                 onClick={handleExtensionLogin}

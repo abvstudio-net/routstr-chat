@@ -2,7 +2,6 @@ import { useRef, useEffect, useState } from 'react';
 import { ChevronDown, Loader2, Search, Star } from 'lucide-react';
 import { Model } from '@/types/chat';
 import { getModelNameWithoutProvider } from '@/data/models';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface ModelSelectorProps {
   selectedModel: Model | null;
@@ -34,7 +33,6 @@ export default function ModelSelector({
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Filter models based on search query
   const filteredModels = models.filter(model => 
@@ -100,12 +98,6 @@ export default function ModelSelector({
       setSearchQuery('');
       e.preventDefault();
     }
-  };
-
-  // Truncate model name for mobile display
-  const truncateModelName = (name: string, maxLength: number = 20) => {
-    if (name.length <= maxLength) return name;
-    return name.substring(0, maxLength - 3) + '...';
   };
 
   // Render a model item
@@ -178,33 +170,22 @@ export default function ModelSelector({
     <div className="relative">
       <button
         onClick={() => isAuthenticated ? setIsModelDrawerOpen(!isModelDrawerOpen) : setIsLoginModalOpen(true)}
-        className={`flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10 ${
-          isMobile ? 'max-w-[180px]' : ''
-        }`}
+        className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10"
         data-tutorial="model-selector"
       >
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
           {selectedModel && favoriteModels.includes(selectedModel.id) && (
-            <Star className="h-3 w-3 text-yellow-400 fill-current flex-shrink-0" />
+            <Star className="h-3 w-3 text-yellow-400 fill-current" />
           )}
-          <span className="font-medium truncate" title={selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}>
-            {selectedModel 
-              ? isMobile 
-                ? truncateModelName(getModelNameWithoutProvider(selectedModel.name), 15)
-                : getModelNameWithoutProvider(selectedModel.name)
-              : 'Select Model'
-            }
-          </span>
+          <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
         </div>
-        <ChevronDown className="h-4 w-4 text-white/70 flex-shrink-0" />
+        <ChevronDown className="h-4 w-4 text-white/70" />
       </button>
 
       {isModelDrawerOpen && isAuthenticated && (
         <div
           ref={modelDrawerRef}
-          className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-80 overflow-hidden z-50 ${
-            isMobile ? 'w-80 max-w-[90vw]' : 'w-72'
-          }`}
+          className="absolute top-full left-1/2 transform -translate-x-1/2 w-72 mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-80 overflow-hidden z-50"
         >
           {/* Search bar */}
           <div className="sticky top-0 p-2 bg-black/90 backdrop-blur-sm border-b border-white/10">

@@ -32,11 +32,20 @@ export default function ChatInput({
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isCentered, setIsCentered] = useState(!hasMessages);
+  const [isCentered, setIsCentered] = useState(!hasMessages && !isMobile);
 
   // Handle animation when messages change from external updates
-  useEffect(() => {    
-    // Both mobile and desktop behavior - center when no messages, bottom when messages exist
+  useEffect(() => {
+    // On mobile, never center the input - always keep it at bottom
+    if (isMobile) {
+      if (isCentered) {
+        setIsCentered(false);
+        setIsAnimating(false);
+      }
+      return;
+    }
+    
+    // Desktop behavior - center when no messages, bottom when messages exist
     if (hasMessages && isCentered) {
       setIsAnimating(true);
       setIsCentered(false);
@@ -102,8 +111,8 @@ export default function ChatInput({
       {(isCentered || isAnimating) && (
         <div 
           className={`fixed z-20 flex flex-col items-center justify-center transition-all duration-500 ease-out pointer-events-none ${
-            !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
-          } ${isMobile ? 'px-4' : ''}`}
+            isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
+          }`}
           style={{
             transform: 'translateY(-60px)',
             opacity: isCentered && !isAnimating ? 1 : 0
