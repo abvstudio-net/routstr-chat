@@ -19,6 +19,7 @@ const MainChatArea: React.FC = () => {
     messages,
     setMessages,
     streamingContent,
+    thinkingContent,
     editingMessageIndex,
     editingContent,
     setEditingContent,
@@ -101,6 +102,7 @@ const MainChatArea: React.FC = () => {
       <ChatMessages
         messages={messages}
         streamingContent={streamingContent}
+        thinkingContent={thinkingContent}
         editingMessageIndex={editingMessageIndex}
         editingContent={editingContent}
         setEditingContent={setEditingContent}

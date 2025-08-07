@@ -8,6 +8,7 @@ import { RefObject, useState } from 'react';
 interface ChatMessagesProps {
   messages: Message[];
   streamingContent: string;
+  thinkingContent: string;
   editingMessageIndex: number | null;
   editingContent: string;
   setEditingContent: (content: string) => void;
@@ -22,6 +23,7 @@ interface ChatMessagesProps {
 export default function ChatMessages({
   messages,
   streamingContent,
+  thinkingContent,
   editingMessageIndex,
   editingContent,
   setEditingContent,
@@ -148,7 +150,7 @@ export default function ChatMessages({
                 </div>
               ) : (
                 <div className="flex flex-col items-start mb-6 group">
-                  {message.thinking && (
+                  {(message.thinking) && (
                     <ThinkingSection thinking={message.thinking} />
                   )}
                   <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
@@ -199,6 +201,10 @@ export default function ChatMessages({
               )}
             </div>
           ))
+        )}
+
+        {thinkingContent && (
+          <ThinkingSection thinkingContent={thinkingContent} isStreaming={streamingContent==''}/>
         )}
 
         {streamingContent && (

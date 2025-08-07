@@ -1,20 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Brain, Copy, Check } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 interface ThinkingSectionProps {
   thinking?: string;
+  thinkingContent?: string;
   isStreaming?: boolean;
 }
 
-export default function ThinkingSection({ thinking, isStreaming = false }: ThinkingSectionProps) {
+export default function ThinkingSection({ thinking, thinkingContent, isStreaming = false }: ThinkingSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [thinkingText, setThinkingText] = useState('');
 
-  if (!thinking && !isStreaming) return null;
+  useEffect(() => {
+    if (thinkingContent !== '') {
+      setThinkingText(thinkingContent!);
+      setIsExpanded(true);
+    } else {
+      setThinkingText(thinking || '');
+      setIsExpanded(false);
+    }
+  }, [thinking, thinkingContent]);
+  
+  useEffect(() => {
+    if (isStreaming){
+      setIsExpanded(true)
+    }
+    else{
+      setIsExpanded(false)
+    }
+  }, [isStreaming]);
+
+  if (!thinking && !isStreaming && !thinkingContent) return null;
 
   const handleCopy = async () => {
     if (!thinking) return;
@@ -64,8 +85,8 @@ export default function ThinkingSection({ thinking, isStreaming = false }: Think
                 </button>
               )}
               <div className="text-xs text-gray-300 font-mono leading-relaxed">
-                {thinking ? (
-                  <MarkdownRenderer content={thinking} />
+                {thinkingText ? (
+                  <MarkdownRenderer content={thinkingText} />
                 ) : (
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-1 bg-gray-400 rounded-full animate-pulse" />

@@ -16,6 +16,7 @@ export interface FetchAIResponseParams {
   receiveToken: (token: string) => Promise<any[]>;
   activeMintUrl?: string | null;
   onStreamingUpdate: (content: string) => void;
+  onThinkingUpdate: (content: string) => void;
   onMessagesUpdate: (messages: Message[]) => void;
   onMessageAppend: (message: Message) => void;
   onBalanceUpdate: (balance: number) => void;
@@ -42,6 +43,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     receiveToken,
     activeMintUrl,
     onStreamingUpdate,
+    onThinkingUpdate,
     onMessagesUpdate,
     onMessageAppend,
     onBalanceUpdate,
@@ -126,7 +128,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       throw new Error('Response body is not available');
     }
 
-    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, selectedModel?.id);
+    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, onThinkingUpdate, selectedModel?.id);
 
     if (streamingResult.content) {
       const assistantMessage = createTextMessage('assistant', streamingResult.content);
@@ -146,6 +148,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     }
 
     onStreamingUpdate('');
+    onThinkingUpdate('');
 
     // Handle refund and balance update
     await handlePostResponseRefund({
@@ -290,6 +293,7 @@ interface StreamingResult {
 async function processStreamingResponse(
   response: Response,
   onStreamingUpdate: (content: string) => void,
+  onThinkingUpdate: (content: string) => void,
   modelId?: string
 ): Promise<StreamingResult> {
   const reader = response.body!.getReader();
@@ -297,6 +301,7 @@ async function processStreamingResponse(
   let accumulatedContent = '';
   let accumulatedThinking = '';
   let isInThinking = false;
+  let isInContent = false;
   let usage: StreamingResult['usage'];
   let model: string | undefined;
   let finish_reason: string | undefined;
@@ -324,11 +329,44 @@ async function processStreamingResponse(
           try {
             const parsedData = JSON.parse(jsonData);
 
-            // Handle content delta
+            // Handle reasoning delta. OpenRouter does this. 
             if (parsedData.choices &&
               parsedData.choices[0] &&
               parsedData.choices[0].delta &&
+              parsedData.choices[0].delta.reasoning) {
+              
+                let newContent;
+                if (!isInThinking) {
+                  newContent = "<thinking> " + parsedData.choices[0].delta.reasoning;
+                  isInThinking = true;
+                }
+                else {
+                  newContent = parsedData.choices[0].delta.reasoning;
+                }
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                onThinkingUpdate(accumulatedThinking)
+              }
+
+            // Handle content delta
+            else if (parsedData.choices &&
+              parsedData.choices[0] &&
+              parsedData.choices[0].delta &&
               parsedData.choices[0].delta.content) {
+
+              if (isInThinking && !isInContent) {
+                const newContent = "</thinking>";
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                onThinkingUpdate(accumulatedThinking);
+                
+                if (thinkingResult.content) {
+                  accumulatedContent += thinkingResult.content;
+                  onStreamingUpdate(accumulatedContent);
+                }
+                isInThinking = false;
+                isInContent = true;
+              }
 
               const newContent = parsedData.choices[0].delta.content;
               
@@ -336,6 +374,7 @@ async function processStreamingResponse(
                 const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
                 accumulatedThinking = thinkingResult.thinking;
                 isInThinking = thinkingResult.isInThinking;
+                onThinkingUpdate(accumulatedThinking);
                 
                 if (thinkingResult.content) {
                   accumulatedContent += thinkingResult.content;
@@ -379,7 +418,7 @@ async function processStreamingResponse(
 
   return {
     content: accumulatedContent,
-    thinking: (modelId && isThinkingCapableModel(modelId) && accumulatedThinking) ? accumulatedThinking : undefined,
+    thinking: (modelId && accumulatedThinking) ? accumulatedThinking : undefined,
     usage,
     model,
     finish_reason
