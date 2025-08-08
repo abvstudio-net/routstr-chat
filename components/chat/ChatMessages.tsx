@@ -151,7 +151,7 @@ export default function ChatMessages({
               ) : (
                 <div className="flex flex-col items-start mb-6 group">
                   {(message.thinking) && (
-                    <ThinkingSection thinking={message.thinking} />
+                    <ThinkingSection thinking={message.thinking}  thinkingContent={thinkingContent}/>
                   )}
                   <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
                     <MessageContentRenderer content={message.content} />
