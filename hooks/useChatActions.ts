@@ -17,6 +17,7 @@ export interface UseChatActionsReturn {
   inputMessage: string;
   isLoading: boolean;
   streamingContent: string;
+  thinkingContent: string;
   balance: number;
   isBalanceLoading: boolean;
   uploadedImages: string[];
@@ -72,6 +73,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [thinkingContent, setThinkingContent] = useState('');
   const [balance, setBalance] = useState(0);
   const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -180,7 +182,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [streamingContent]);
+  }, [streamingContent, thinkingContent]);
 
   const setTransactionHistory = useCallback((value: React.SetStateAction<TransactionHistory[]>) => {
     setTransactionHistoryState(prev => {
@@ -285,6 +287,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   ) => {
     setIsLoading(true);
     setStreamingContent('');
+    setThinkingContent('');
 
     // Create a ref to track current messages during the API call
     let currentMessages = messageHistory;
@@ -305,6 +308,7 @@ export const useChatActions = (): UseChatActionsReturn => {
         receiveToken,
         activeMintUrl: cashuStore.activeMintUrl,
         onStreamingUpdate: setStreamingContent,
+        onThinkingUpdate: setThinkingContent,
         onMessagesUpdate: updateMessages,
         onMessageAppend: (message) => {
           // Append to current messages state
@@ -326,6 +330,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     } finally {
       setIsLoading(false);
       setStreamingContent('');
+      setThinkingContent('');
     }
   }, [usingNip60, balance, sendToken, receiveToken, cashuStore.activeMintUrl, transactionHistory, setPendingCashuAmountState]);
 
@@ -333,6 +338,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     inputMessage,
     isLoading,
     streamingContent,
+    thinkingContent,
     balance,
     isBalanceLoading,
     uploadedImages,

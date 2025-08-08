@@ -2,6 +2,7 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import CodeBlock from './CodeBlock';
 import 'katex/dist/katex.min.css';
@@ -14,7 +15,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
     <div className="prose prose-invert max-w-none text-sm leading-relaxed">
       <ReactMarkdown
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex]}
         components={{
           // Code blocks and inline code

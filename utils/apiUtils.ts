@@ -3,6 +3,7 @@ import { convertMessageForAPI, createTextMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
+import { extractThinkingFromStream, isThinkingCapableModel } from './thinkingParser';
 
 export interface FetchAIResponseParams {
   messageHistory: Message[];
@@ -15,6 +16,7 @@ export interface FetchAIResponseParams {
   receiveToken: (token: string) => Promise<any[]>;
   activeMintUrl?: string | null;
   onStreamingUpdate: (content: string) => void;
+  onThinkingUpdate: (content: string) => void;
   onMessagesUpdate: (messages: Message[]) => void;
   onMessageAppend: (message: Message) => void;
   onBalanceUpdate: (balance: number) => void;
@@ -28,6 +30,7 @@ export interface FetchAIResponseParams {
  * @param params Configuration object with all required parameters
  * @returns Promise that resolves when the response is complete
  */
+
 export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<void> => {
   const {
     messageHistory,
@@ -40,6 +43,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     receiveToken,
     activeMintUrl,
     onStreamingUpdate,
+    onThinkingUpdate,
     onMessagesUpdate,
     onMessageAppend,
     onBalanceUpdate,
@@ -124,10 +128,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       throw new Error('Response body is not available');
     }
 
-    const streamingResult = await processStreamingResponse(response, onStreamingUpdate);
+    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, onThinkingUpdate, selectedModel?.id);
 
     if (streamingResult.content) {
-      onMessagesUpdate([...messageHistory, createTextMessage('assistant', streamingResult.content)]);
+      const assistantMessage = createTextMessage('assistant', streamingResult.content);
+      if (streamingResult.thinking) {
+        assistantMessage.thinking = streamingResult.thinking;
+      }
+      onMessagesUpdate([...messageHistory, assistantMessage]);
     }
 
     let estimatedCosts = 0; // Initialize to 0
@@ -140,6 +148,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     }
 
     onStreamingUpdate('');
+    onThinkingUpdate('');
 
     // Handle refund and balance update
     await handlePostResponseRefund({
@@ -271,6 +280,7 @@ async function handleApiError(
  */
 interface StreamingResult {
   content: string;
+  thinking?: string;
   usage?: {
     total_tokens?: number;
     prompt_tokens?: number;
@@ -282,11 +292,16 @@ interface StreamingResult {
 
 async function processStreamingResponse(
   response: Response,
-  onStreamingUpdate: (content: string) => void
+  onStreamingUpdate: (content: string) => void,
+  onThinkingUpdate: (content: string) => void,
+  modelId?: string
 ): Promise<StreamingResult> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let accumulatedContent = '';
+  let accumulatedThinking = '';
+  let isInThinking = false;
+  let isInContent = false;
   let usage: StreamingResult['usage'];
   let model: string | undefined;
   let finish_reason: string | undefined;
@@ -314,15 +329,61 @@ async function processStreamingResponse(
           try {
             const parsedData = JSON.parse(jsonData);
 
-            // Handle content delta
+            // Handle reasoning delta. OpenRouter does this. 
             if (parsedData.choices &&
+              parsedData.choices[0] &&
+              parsedData.choices[0].delta &&
+              parsedData.choices[0].delta.reasoning) {
+              
+                let newContent;
+                if (!isInThinking) {
+                  newContent = "<thinking> " + parsedData.choices[0].delta.reasoning;
+                  isInThinking = true;
+                }
+                else {
+                  newContent = parsedData.choices[0].delta.reasoning;
+                }
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                onThinkingUpdate(accumulatedThinking)
+              }
+
+            // Handle content delta
+            else if (parsedData.choices &&
               parsedData.choices[0] &&
               parsedData.choices[0].delta &&
               parsedData.choices[0].delta.content) {
 
+              if (isInThinking && !isInContent) {
+                const newContent = "</thinking>";
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                onThinkingUpdate(accumulatedThinking);
+                
+                if (thinkingResult.content) {
+                  accumulatedContent += thinkingResult.content;
+                  onStreamingUpdate(accumulatedContent);
+                }
+                isInThinking = false;
+                isInContent = true;
+              }
+
               const newContent = parsedData.choices[0].delta.content;
-              accumulatedContent += newContent;
-              onStreamingUpdate(accumulatedContent);
+              
+              if (modelId && isThinkingCapableModel(modelId)) {
+                const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
+                accumulatedThinking = thinkingResult.thinking;
+                isInThinking = thinkingResult.isInThinking;
+                onThinkingUpdate(accumulatedThinking);
+                
+                if (thinkingResult.content) {
+                  accumulatedContent += thinkingResult.content;
+                  onStreamingUpdate(accumulatedContent);
+                }
+              } else {
+                accumulatedContent += newContent;
+                onStreamingUpdate(accumulatedContent);
+              }
             }
 
             // Handle usage statistics (usually in the final chunk)
@@ -357,6 +418,7 @@ async function processStreamingResponse(
 
   return {
     content: accumulatedContent,
+    thinking: (modelId && accumulatedThinking) ? accumulatedThinking : undefined,
     usage,
     model,
     finish_reason

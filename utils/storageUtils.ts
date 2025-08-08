@@ -296,6 +296,38 @@ export const markTutorialAsSeen = (): void => {
 };
 
 /**
+ * Load sidebar open state from localStorage
+ * @returns Sidebar open state, defaults to false for first use
+ */
+export const loadSidebarOpen = (): boolean => {
+  return getStorageItem<boolean>('sidebar_open', false);
+};
+
+/**
+ * Save sidebar open state to localStorage
+ * @param isOpen Whether the sidebar is open
+ */
+export const saveSidebarOpen = (isOpen: boolean): void => {
+  setStorageItem('sidebar_open', isOpen);
+};
+
+/**
+ * Load sidebar collapsed state from localStorage
+ * @returns Sidebar collapsed state, defaults to false
+ */
+export const loadSidebarCollapsed = (): boolean => {
+  return getStorageItem<boolean>('sidebar_collapsed', false);
+};
+
+/**
+ * Save sidebar collapsed state to localStorage
+ * @param isCollapsed Whether the sidebar is collapsed
+ */
+export const saveSidebarCollapsed = (isCollapsed: boolean): void => {
+  setStorageItem('sidebar_collapsed', isCollapsed);
+};
+
+/**
  * Storage keys used throughout the application
  */
 export const STORAGE_KEYS = {
@@ -308,6 +340,8 @@ export const STORAGE_KEYS = {
   BASE_URLS_LIST: 'base_urls_list', // Add new key
   USING_NIP60: 'usingNip60',
   TUTORIAL_SEEN: 'hasSeenTutorial',
+  SIDEBAR_OPEN: 'sidebar_open',
+  SIDEBAR_COLLAPSED: 'sidebar_collapsed',
   LOCAL_CASHU_TOKENS: 'local_cashu_tokens', // New key for structured tokens
   CASHU_PROOFS: 'cashu_proofs',
   WRAPPED_CASHU_TOKENS: 'wrapped_cashu_tokens'
