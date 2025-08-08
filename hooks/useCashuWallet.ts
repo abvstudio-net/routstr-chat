@@ -2,7 +2,7 @@ import { useNostr } from '@/hooks/useNostr';
 import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { DEFAULT_MINT_URL } from '@/lib/utils';
 import { CASHU_EVENT_KINDS, CashuWalletStruct, CashuToken, activateMint, updateMintKeys, defaultMints } from '@/lib/cashu';
 import { NostrEvent, getPublicKey } from 'nostr-tools';
@@ -24,6 +24,7 @@ export function useCashuWallet() {
   const cashuStore = useCashuStore();
   const { createNutzapInfo } = useNutzaps();
   const [showQueryTimeoutModal, setShowQueryTimeoutModal] = useState(false);
+  const [didRelaysTimeout, setDidRelaysTimeout] = useState(false);
 
   // Fetch wallet information (kind 17375)
   const walletQuery = useQuery<{ id: string; wallet: CashuWalletStruct; createdAt: number; } | null, Error, { id: string; wallet: CashuWalletStruct; createdAt: number; } | null, any[]>(
@@ -40,18 +41,20 @@ export function useCashuWallet() {
           { kinds: [CASHU_EVENT_KINDS.WALLET], authors: [user.pubkey], limit: 1 }
         ], { signal });
 
-        console.log(nostr.relays)
+        console.log("rdlogs: relaysa ", nostr.relays)
         
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Query timeout')), 10000);
         });
         
         const events = await Promise.race([queryPromise, timeoutPromise]);
-        console.log("rdlogs:  l wtf", events)
+        console.log("rdlogs:  l wtf", events, queryPromise, nostr.relays)
 
         if (events.length === 0) {
           return null;
         }
+
+        localStorage.setItem('cashu_relays_timeout', 'false');
 
         const event = events[0];
 
@@ -126,6 +129,10 @@ export function useCashuWallet() {
         console.error('walletQuery: Error in queryFn', error);
         if (error instanceof Error && error.message === 'Query timeout') {
           setShowQueryTimeoutModal(true);
+          console.log('rdlogs: wallet query timed out');
+          setDidRelaysTimeout(true);
+          // Store timeout status in localStorage for persistence across hook instances
+          localStorage.setItem('cashu_relays_timeout', 'true');
         }
         return null;
       }
@@ -272,6 +279,9 @@ export function useCashuWallet() {
         console.error('getNip60TokensQuery: Error in queryFn', error);
         if (error instanceof Error && error.message === 'Query timeout') {
           setShowQueryTimeoutModal(true);
+          setDidRelaysTimeout(true);
+          // Store timeout status in localStorage for persistence across hook instances
+          localStorage.setItem('cashu_relays_timeout', 'true');
         }
         return [];
       }
@@ -371,6 +381,10 @@ export function useCashuWallet() {
       queryClient.invalidateQueries({ queryKey: ['cashu', 'tokens', user?.pubkey] });
     }
   });
+  
+  // Check localStorage for timeout status to ensure consistency across hook instances
+  const hasTimedOut = didRelaysTimeout || localStorage.getItem('cashu_relays_timeout') === 'true';
+  
   return {
     wallet: walletQuery.data?.wallet,
     walletId: walletQuery.data?.id,
@@ -380,5 +394,6 @@ export function useCashuWallet() {
     updateProofs: updateProofsMutation.mutateAsync,
     showQueryTimeoutModal,
     setShowQueryTimeoutModal,
+    didRelaysTimeout: hasTimedOut,
   };
 }
