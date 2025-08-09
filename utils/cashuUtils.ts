@@ -318,7 +318,7 @@ export const invalidateApiToken = (baseUrl: string) => { // Add baseUrl paramete
 
 export const create60CashuToken = async (
   activeMintUrl: string,
-  sendToken: (mintUrl: string, amount: number) => Promise<any[]>,
+  sendToken: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>,
   amount: number
 ): Promise<string | undefined> => {
   // Check if amount is a decimal and round up if necessary
@@ -339,7 +339,8 @@ export const create60CashuToken = async (
   }
 
   try {
-    const proofs = await sendToken(activeMintUrl, amount);
+    const result = await sendToken(activeMintUrl, amount);
+    const proofs = result.proofs;
     const token = getEncodedTokenV4({
       mint: activeMintUrl,
       proofs: proofs.map((p) => ({
@@ -348,6 +349,7 @@ export const create60CashuToken = async (
         secret: p.secret || "",
         C: p.C || "",
       })),
+      unit: result.unit
     });
     
     // Clean up pending proofs after successful token creation

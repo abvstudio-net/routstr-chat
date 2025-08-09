@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink, Settings } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { getEncodedTokenV4 } from "@cashu/cashu-ts";
+import { getDecodedToken, getEncodedTokenV4 } from "@cashu/cashu-ts";
 import { useChat } from '@/context/ChatProvider';
 import { useAuth } from '@/context/AuthProvider';
 import { useNostr } from '@/context/NostrContext';
@@ -332,7 +332,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setNip60PendingTxId(null);
-        setSuccessMessage(`Received ${formatBalance(amount)}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
         setNip60Invoice("");
         setNip60QuoteId("");
         setMintAmount("");
@@ -432,7 +432,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       const totalProofsAmount = selectedProofs.reduce((sum, p) => sum + p.amount, 0);
 
       if (totalProofsAmount < invoiceAmount + (invoiceFeeReserve || 0)) {
-        setError(`Insufficient balance: have ${formatBalance(totalProofsAmount)}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0))}`);
+        setError(`Insufficient balance: have ${formatBalance(totalProofsAmount, 'sats')}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0), 'sats')}`);
         setIsNip60Processing(false);
         return;
       }
@@ -448,7 +448,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           proofsToRemove: selectedProofs,
         });
 
-        setSuccessMessage(`Paid ${formatBalance(invoiceAmount)}!`);
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, 'sats')}!`);
         handleNip60PaymentCancel();
         setTimeout(() => setSuccessMessage(""), 5000);
       }
@@ -490,7 +490,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         setIsGeneratingSendToken(true);
 
         const amountValue = parseInt(sendAmount);
-        const proofs = await nip60SendToken(cashuStore.activeMintUrl, amountValue);
+        const { proofs, unit } = await nip60SendToken(cashuStore.activeMintUrl, amountValue);
         const token = getEncodedTokenV4({
           mint: cashuStore.activeMintUrl,
           proofs: proofs.map((p) => ({
@@ -502,7 +502,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         });
 
         setGeneratedToken(token as string);
-        setSuccessMessage(`Token generated for ${formatBalance(amountValue)}`);
+        setSuccessMessage(`Token generated for ${formatBalance(amountValue, unit)}`);
       } catch (error) {
         console.error("Error generating NIP-60 token:", error);
         setError(error instanceof Error ? error.message : String(error));
@@ -584,10 +584,11 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         setSuccessMessage('');
         setIsImporting(true);
 
+        const unit = getDecodedToken(tokenToImport).unit;
         const proofs = await receiveToken(tokenToImport);
         const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-        setSuccessMessage(`Received ${formatBalance(totalAmount)} successfully!`);
+        setSuccessMessage(`Received ${formatBalance(totalAmount, unit ?? 'sat')} successfully!`);
         setTokenToImport("");
       } catch (error) {
         console.error("Error receiving NIP-60 token:", error);

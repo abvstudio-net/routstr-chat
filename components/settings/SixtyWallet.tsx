@@ -436,8 +436,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       if (totalProofsAmount < invoiceAmount + (invoiceFeeReserve || 0)) {
         setError(
           `Insufficient balance: have ${formatBalance(
-            totalProofsAmount
-          )}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0))}`
+            totalProofsAmount, 'sats'
+          )}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0), 'sats')}`
         );
         setIsProcessing(false);
         return;
@@ -458,7 +458,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           proofsToRemove: selectedProofs,
         });
 
-        setSuccessMessage(`Paid ${formatBalance(invoiceAmount)}!`);
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, 'sats')}!`);
         setSendInvoice("");
         setInvoiceAmount(null);
         setInvoiceFeeReserve(null);
@@ -550,7 +550,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setLocalWalletBalance(0);
       setShowMigrationBanner(false);
 
-      setSuccessMessage(`Successfully migrated ${formatBalance(receivedAmount)} from local wallet to NIP-60 wallet!`);
+      setSuccessMessage(`Successfully migrated ${formatBalance(receivedAmount, 'sats')} from local wallet to NIP-60 wallet!`);
       
     } catch (error) {
       console.error("Error during migration:", error);
@@ -617,7 +617,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   Local Wallet Found - Migrate to Cloud Wallet
                 </h3>
                 <p className="text-xs text-white/70 mb-3">
-                  You have {formatBalance(localWalletBalance)} in your local device wallet.
+                  You have {formatBalance(localWalletBalance, 'sats')} in your local device wallet.
                   Migrate to the new NIP-60 cloud-based wallet for better security and sync across devices.
                 </p>
                 <div className="flex items-center space-x-2">
@@ -636,7 +636,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     ) : (
                       <>
                         <ArrowRight className="h-3 w-3 mr-1" />
-                        Migrate {formatBalance(localWalletBalance)}
+                        Migrate {formatBalance(localWalletBalance, 'sats')}
                       </>
                     )}
                   </button>
@@ -901,11 +901,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   <div className="bg-white/5 border border-white/10 rounded-md p-4">
                     <p className="text-sm font-medium text-white/80">Invoice Amount</p>
                     <p className="text-2xl font-bold text-white">
-                      {formatBalance(invoiceAmount)}
+                      {formatBalance(invoiceAmount, 'sats')}
                       {invoiceFeeReserve && (
                         <>
                           <span className="text-xs font-bold pl-2 text-white/50">
-                            + max {formatBalance(invoiceFeeReserve)} fee
+                            + max {formatBalance(invoiceFeeReserve, 'sats')} fee
                           </span>
                         </>
                       )}

@@ -42,8 +42,8 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
 
   const [localMintBalance, setLocalMintBalance] = useState(0);
 
-  const mintBalances = useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs]);
 
@@ -51,11 +51,17 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     if (!usingNip60) {
       setLocalMintBalance(getBalanceFromStoredProofs());
     } else if (cashuStore.activeMintUrl && mintBalances[cashuStore.activeMintUrl]) {
-      setLocalMintBalance(mintBalances[cashuStore.activeMintUrl]);
+      const balance = mintBalances[cashuStore.activeMintUrl];
+      const unit = mintUnits[cashuStore.activeMintUrl];
+      if (unit === 'msat') {
+        setLocalMintBalance(balance / 1000);
+      } else {
+        setLocalMintBalance(balance);
+      }
     } else {
       setLocalMintBalance(0);
     }
-  }, [mintBalances, cashuStore.activeMintUrl, usingNip60]);
+  }, [mintBalances, mintUnits, cashuStore.activeMintUrl, usingNip60]);
 
   const [showTooltip, setShowTooltip] = useState(false); // New state for tooltip visibility
   const [apiKeyAmount, setApiKeyAmount] = useState('');
@@ -492,14 +498,24 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             </span>
           )}
         </p>
-        {usingNip60 && cashuStore.proofs && Object.keys(mintBalances).length > 1 && (
+        {usingNip60 && cashuStore.proofs && Object.keys(mintBalances).length > 1 && (() => {
+          let totalBalance = 0;
+          for (const mintUrl in mintBalances) {
+            const balance = mintBalances[mintUrl];
+            const unit = mintUnits[mintUrl];
+            if (unit === 'msat') {
+              totalBalance += balance / 1000;
+            } else {
+              totalBalance += balance;
+            }
+          }
           // Only display total balance if it's different from the current mint balance
-          localMintBalance !== Object.values(mintBalances).reduce((sum, balance) => sum + balance, 0) && (
+          return localMintBalance !== totalBalance && (
             <p className="text-sm text-white/70 mt-2">
-              Total Balance: {Object.values(mintBalances).reduce((sum, balance) => sum + balance, 0)} sats
+              Total Balance: {totalBalance} sats
             </p>
-          )
-        )}
+          );
+        })()}
       </div>
 
       {(isLoadingApiKeys || isSyncingApiKeys) && (

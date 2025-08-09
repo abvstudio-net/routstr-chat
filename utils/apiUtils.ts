@@ -12,7 +12,7 @@ export interface FetchAIResponseParams {
   mintUrl: string;
   usingNip60: boolean;
   balance: number;
-  sendToken?: (mintUrl: string, amount: number) => Promise<any[]>;
+  sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>;
   receiveToken: (token: string) => Promise<any[]>;
   activeMintUrl?: string | null;
   onStreamingUpdate: (content: string) => void;
@@ -187,7 +187,7 @@ async function handleApiError(
     receiveToken: (token: string) => Promise<any[]>;
     tokenAmount: number;
     selectedModel: any;
-    sendToken?: (mintUrl: string, amount: number) => Promise<any[]>;
+    sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>;
     activeMintUrl?: string | null;
     retryOnInsufficientBalance: boolean;
     messageHistory: Message[];

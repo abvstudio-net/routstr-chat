@@ -98,8 +98,8 @@ export const useChatActions = (): UseChatActionsReturn => {
   }, []);
 
   // Calculate mint balances
-  const mintBalances = React.useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = React.useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs, cashuStore.mints]);
 
@@ -112,10 +112,16 @@ export const useChatActions = (): UseChatActionsReturn => {
           setBalance(0);
         } else {
           setIsBalanceLoading(false);
-          const totalBalance = Object.values(mintBalances).reduce(
-            (sum, balance) => sum + balance,
-            0
-          );
+          let totalBalance = 0;
+          for (const mintUrl in mintBalances) {
+            const balance = mintBalances[mintUrl];
+            const unit = mintUnits[mintUrl];
+            if (unit === 'msat') {
+              totalBalance += balance / 1000;
+            } else {
+              totalBalance += balance;
+            }
+          }
           setBalance(totalBalance + pendingCashuAmountState);
         }
       } else {
@@ -125,7 +131,7 @@ export const useChatActions = (): UseChatActionsReturn => {
       }
     };
     fetchAndSetBalances();
-  }, [mintBalances, usingNip60, isWalletLoading, pendingCashuAmountState]);
+  }, [mintBalances, mintUnits, usingNip60, isWalletLoading, pendingCashuAmountState]);
 
   // Effect to listen for changes in localStorage for 'current_cashu_token'
   useEffect(() => {
