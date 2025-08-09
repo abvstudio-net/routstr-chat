@@ -499,7 +499,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           proofsToAdd: [...result.keep, ...result.change],
           proofsToRemove: selectedProofs,
         });
-        
+
         // Update invoice status to paid
         await updateInvoice(nip60MeltQuoteId, {
           state: MeltQuoteState.PAID,
