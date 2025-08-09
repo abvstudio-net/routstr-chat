@@ -330,7 +330,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setGeneratedToken("");
 
       const amountValue = parseInt(sendAmount);
-      const proofs = await sendToken(cashuStore.activeMintUrl, amountValue);
+      const { proofs, unit } = await sendToken(cashuStore.activeMintUrl, amountValue);
       const token = getEncodedTokenV4({
         mint: cashuStore.activeMintUrl,
         proofs: proofs.map((p) => ({
@@ -339,6 +339,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           secret: p.secret || "",
           C: p.C || "",
         })),
+        unit: unit
       });
 
       // Clean up pending proofs after successful token creation
@@ -347,7 +348,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       }
 
       setGeneratedToken(token as string);
-      setSuccessMessage(`Token generated for ${formatBalance(amountValue)}`);
+      setSuccessMessage(`Token generated for ${formatBalance(amountValue, unit)}`);
     } catch (error) {
       console.error("Error generating token:", error);
       setError(error instanceof Error ? error.message : String(error));
@@ -967,7 +968,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   />
                   <button
                     onClick={handlesendToken}
-                    disabled={isGeneratingSendToken || !sendAmount || parseInt(sendAmount) > balance}
+                    disabled={isGeneratingSendToken || !sendAmount}
                     className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                     type="button"
                   >

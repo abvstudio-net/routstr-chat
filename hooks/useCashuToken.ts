@@ -64,22 +64,29 @@ export function useCashuToken() {
    * @param mintUrl The URL of the mint to use
    * @param amount Amount to send in satoshis
    * @param p2pkPubkey The P2PK pubkey to lock the proofs to
-   * @returns The encoded token string for regular tokens, or Proof[] for nutzap tokens
+   * @returns Object containing proofs and preferred unit
    */
-  const sendToken = async (mintUrl: string, amount: number, p2pkPubkey?: string): Promise<Proof[]> => {
+  const sendToken = async (mintUrl: string, amount: number, p2pkPubkey?: string): Promise<{ proofs: Proof[], unit: string }> => {
     setIsLoading(true);
     setError(null);
 
     try {
       const mint = new CashuMint(mintUrl);
-      const keysets = await mint.getKeySets()
-      const wallet = new CashuWallet(mint);
+      const keysets = await mint.getKeySets();
+      
+      // Get preferred unit: msat over sat if both are active
+      const activeKeysets = keysets.keysets.filter(k => k.active);
+      const units = [...new Set(activeKeysets.map(k => k.unit))];
+      const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+      
+      const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
       // Load mint keysets
       await wallet.loadMint();
 
       // Get all proofs from store
       let proofs = await cashuStore.getMintProofs(mintUrl);
+      console.log(proofs);
 
       const proofsAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
       if (proofsAmount < amount) {
@@ -129,7 +136,7 @@ export function useCashuToken() {
         // Store the pending proofs key with the returned proofs for cleanup
         (proofsToSend as any).pendingProofsKey = pendingProofsKey;
         
-        return proofsToSend;
+        return { proofs: proofsToSend, unit: preferredUnit };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         
@@ -190,7 +197,7 @@ export function useCashuToken() {
           // Store the pending proofs key with the returned proofs for cleanup
           (proofsToSend as any).pendingProofsKey = pendingProofsKey;
           
-          return proofsToSend;
+          return { proofs: proofsToSend, unit: preferredUnit };
         }
         
         // Re-throw the error if it's not a "Token already spent" error
@@ -235,8 +242,8 @@ export function useCashuToken() {
         throw new Error('Invalid token format');
       }
 
-      const { mint: mintUrl, proofs: tokenProofs } = decodedToken;
-      console.log("rdlogs profs: ", tokenProofs)
+      const { mint: mintUrl, proofs: tokenProofs, unit: unit } = decodedToken;
+      console.log("rdlogs profs: ", tokenProofs, unit)
 
       // if we don't have the mintUrl yet, add it
       await addMintIfNotExists(mintUrl);
@@ -293,7 +300,14 @@ export function useCashuToken() {
 
     try {
       const mint = new CashuMint(mintUrl);
-      const wallet = new CashuWallet(mint);
+      
+      // Get preferred unit: msat over sat if both are active
+      const keysets = await mint.getKeySets();
+      const activeKeysets = keysets.keysets.filter(k => k.active);
+      const units = [...new Set(activeKeysets.map(k => k.unit))];
+      const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : units[0]);
+      
+      const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
       await wallet.loadMint();
 
