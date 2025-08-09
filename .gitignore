@@ -48,3 +48,4 @@ yarn-error.log*
 /test/*.log
 /test/temp/
 *.test.local
+.aider*

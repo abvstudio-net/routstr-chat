@@ -226,6 +226,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
       {/* Nostr Relays */}
       <NostrRelayManager />
 
+      {/* Nostr Relays */}
+      <NostrRelayManager />
+
       {/* Model Preferences */}
       <div className="mb-6">
         <h3 className="text-sm font-medium text-white/80 mb-4">Model Preferences</h3>
