@@ -38,7 +38,7 @@ export default function RootLayout({
       >
         <ClientProviders>
           {children}
-          <Toaster />
+          <Toaster theme="dark" />
         </ClientProviders>
       </body>
     </html>
