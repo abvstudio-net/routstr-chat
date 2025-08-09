@@ -91,7 +91,7 @@ export default function ChatMessages({
                               <MessageContentRenderer content={message.content} />
                             </div>
                           </div>
-                          <div className="flex justify-end mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div className="flex justify-end mt-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                             <button
                               onClick={() => startEditingMessage(index)}
                               className="p-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
@@ -116,7 +116,7 @@ export default function ChatMessages({
                         <p className="text-sm font-medium">{getTextFromContent(message.content)}</p>
                       </div>
                     </div>
-                    <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                       <button
                         onClick={() => retryMessage(index)}
                         className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
@@ -156,7 +156,7 @@ export default function ChatMessages({
                   <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
                     <MessageContentRenderer content={message.content} />
                   </div>
-                  <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2">
+                  <div className="mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2">
                     <button
                       onClick={() => copyMessageContent(index, message.content)}
                       className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
