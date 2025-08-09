@@ -72,6 +72,7 @@ export function useCashuToken() {
 
     try {
       const mint = new CashuMint(mintUrl);
+      const keysets = await mint.getKeySets()
       const wallet = new CashuWallet(mint);
 
       // Load mint keysets

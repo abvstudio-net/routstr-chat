@@ -47,16 +47,49 @@ export function useCashuWallet() {
           setTimeout(() => reject(new Error('Query timeout')), 10000);
         });
         
-        const events = await Promise.race([queryPromise, timeoutPromise]);
+        const events = await Promise.race([
+          (async () => {
+            const initialResult = await queryPromise;
+            // If it's empty, wait for the first incoming network event
+            if (Array.isArray(initialResult) && initialResult.length === 0) {
+              return await new Promise((resolve, reject) => {
+                try {
+                  const sub = (nostr as any).subscribe(
+                    [{ kinds: [CASHU_EVENT_KINDS.WALLET], authors: [user.pubkey], limit: 1 }],
+                    {
+                      onEvent: (ev: any) => {
+                        sub.unsubscribe();
+                        resolve([ev]);
+                      },
+                      onError: (err: any) => {
+                        sub.unsubscribe();
+                        reject(err);
+                      }
+                    }
+                  );
+                  // Safety timeout to not hang forever
+                  setTimeout(() => {
+                    sub.unsubscribe();
+                    reject(new Error('No network event before timeout'));
+                  }, 10000);
+                } catch (subErr) {
+                  reject(subErr);
+                }
+              });
+            }
+            return initialResult;
+          })(),
+          timeoutPromise
+        ]);
         console.log("rdlogs:  l wtf", events, queryPromise, nostr.relays)
 
-        if (events.length === 0) {
+        if ((events as any[]).length === 0) {
           return null;
         }
 
         localStorage.setItem('cashu_relays_timeout', 'false');
 
-        const event = events[0];
+        const event = (events as any[])[0];
 
         // Decrypt wallet content
         if (!user.signer.nip44) {
@@ -126,13 +159,49 @@ export function useCashuWallet() {
           createdAt: event.created_at
         };
       } catch (error) {
-        console.error('walletQuery: Error in queryFn', error);
         if (error instanceof Error && error.message === 'Query timeout') {
           setShowQueryTimeoutModal(true);
-          console.log('rdlogs: wallet query timed out');
+          // Log failed/disconnected relays
+          const relayEntries = nostr.relays ? Array.from(nostr.relays.entries()) : [];
+          const failedRelays = relayEntries.filter(([url, relay]: [string, any]) => {
+            const readyState = relay.socket?._underlyingWebsocket?.readyState;
+            return readyState !== 1; // 1 = connected, 3 = closed/failed
+          });
+          console.log('rdlogs: wallet query timed out', {
+            totalRelays: nostr.relays?.size || 0,
+            failedRelays: failedRelays.map(([url, relay]: [string, any]) => {
+              const readyState = relay.socket?._underlyingWebsocket?.readyState;
+              const getReadyStateText = (state: number) => {
+                switch (state) {
+                  case 0: return 'CONNECTING';
+                  case 1: return 'OPEN';
+                  case 2: return 'CLOSING';
+                  case 3: return 'CLOSED';
+                  default: return 'UNKNOWN';
+                }
+              };
+              return {
+                url: url,
+                readyState: readyState,
+                readyStateText: getReadyStateText(readyState),
+                closedByUser: relay.closedByUser,
+                lastConnection: relay.socket?._lastConnection
+              };
+            }),
+            workingRelays: relayEntries.filter(([url, relay]: [string, any]) => {
+              return relay.socket?._underlyingWebsocket?.readyState === 1;
+            }).map(([url]) => url)
+          });
+
           setDidRelaysTimeout(true);
           // Store timeout status in localStorage for persistence across hook instances
           localStorage.setItem('cashu_relays_timeout', 'true');
+        }
+        else if (error instanceof Error &&  error.message === 'nostr.subscribe is not a function') {
+          // swallowing this error as it MIGHT occur if Nostr hook isn't fully loaded. 
+        }
+        else {
+          console.error('walletQuery: Error in queryFn', error);
         }
         return null;
       }

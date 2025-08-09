@@ -252,8 +252,24 @@ export const loadBaseUrlsList = (): string[] => {
  * @param baseUrls Array of base URLs to save
  */
 export const saveBaseUrlsList = (baseUrls: string[]): void => {
-  setStorageItem(STORAGE_KEYS.BASE_URLS_LIST, baseUrls);
-};
+   setStorageItem(STORAGE_KEYS.BASE_URLS_LIST, baseUrls);
+ };
+
+ /**
+  * Load and manage the list of Nostr relays from localStorage.
+  * @returns Array of Nostr relay URLs
+  */
+ export const loadNostrRelaysList = (): string[] => {
+   return getStorageItem<string[]>(STORAGE_KEYS.NOSTR_RELAYS_LIST, []);
+ };
+
+ /**
+  * Save the list of Nostr relays to localStorage
+  * @param relays Array of Nostr relay URLs to save
+  */
+ export const saveNostrRelaysList = (relays: string[]): void => {
+   setStorageItem(STORAGE_KEYS.NOSTR_RELAYS_LIST, relays);
+ };
 
 /**
  * Load NIP-60 usage preference from localStorage
@@ -337,12 +353,13 @@ export const STORAGE_KEYS = {
   LAST_USED_MODEL: 'lastUsedModel',
   MINT_URL: 'mint_url',
   BASE_URL: 'base_url',
-  BASE_URLS_LIST: 'base_urls_list', // Add new key
+  BASE_URLS_LIST: 'base_urls_list',
+  NOSTR_RELAYS_LIST: 'nostr_relays_list', // New key for Nostr relays
   USING_NIP60: 'usingNip60',
   TUTORIAL_SEEN: 'hasSeenTutorial',
   SIDEBAR_OPEN: 'sidebar_open',
   SIDEBAR_COLLAPSED: 'sidebar_collapsed',
-  LOCAL_CASHU_TOKENS: 'local_cashu_tokens', // New key for structured tokens
+  LOCAL_CASHU_TOKENS: 'local_cashu_tokens',
   CASHU_PROOFS: 'cashu_proofs',
   WRAPPED_CASHU_TOKENS: 'wrapped_cashu_tokens'
 } as const;

@@ -3,6 +3,7 @@ import { LogOut, Plus, XCircle, ChevronDown, ChevronUp, Search, Star, Eye, Copy 
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { Model } from '@/data/models';
 import { loadBaseUrlsList, saveBaseUrlsList } from '@/utils/storageUtils';
+import NostrRelayManager from './NostrRelayManager'; // Import the new component
 
 interface GeneralTabProps {
   publicKey: string | undefined;
@@ -204,6 +205,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Nostr Relays */}
+      <NostrRelayManager />
 
       {/* Model Preferences */}
       <div className="mb-6">

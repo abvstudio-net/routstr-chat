@@ -85,7 +85,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Cashu wallet hooks
-  const { wallet, isLoading: isWalletLoading } = useCashuWallet();
+  const { wallet, isLoading: isWalletLoading, didRelaysTimeout } = useCashuWallet();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken, cleanSpentProofs } = useCashuToken();
   const { logins } = useAuth();
@@ -163,6 +163,13 @@ export const useChatActions = (): UseChatActionsReturn => {
       }
 
       if (!isWalletLoading) {
+        console.log('rdlogs: chat actions - didRelaysTimeout:', didRelaysTimeout, 'wallet:', !!wallet);
+        
+        if (didRelaysTimeout) {
+          console.log('rdlogs: Skipping wallet creation due to relay timeout');
+          return;
+        }
+        
         if (wallet) {
           console.log('rdlogs: Wallet found: ', wallet);
           // Call cleanSpentProofs for each mint in the wallet
@@ -170,12 +177,14 @@ export const useChatActions = (): UseChatActionsReturn => {
             cleanSpentProofs(mint);
           });
         } else {
-          console.log('rdlogs: Creating new wallet');
+          console.log('rdlogs: No wallet found, creating new wallet');
           handleCreateWallet();
         }
+      } else {
+        console.log('rdlogs: Wallet still loading, skipping actions');
       }
     }
-  }, [wallet, isWalletLoading, logins, handleCreateWallet]);
+  }, [wallet, isWalletLoading, logins, handleCreateWallet, didRelaysTimeout]);
 
   // Scroll to bottom when messages or streaming content changes
   useEffect(() => {

@@ -1,11 +1,12 @@
-import { NostrEvent, NPool, NRelay1 } from "@nostrify/nostrify";
-import { NostrContext } from "@nostrify/react";
-import React, { useRef } from "react";
-import { storeEventTimestamp } from "@/lib/nostrTimestamps";
+import { NostrEvent, NPool, NRelay1 } from '@nostrify/nostrify';
+import { NostrContext } from '@nostrify/react';
+import React, { useRef, useEffect } from 'react'; // Import useEffect
+import { storeEventTimestamp } from '@/lib/nostrTimestamps';
+import { useAppContext } from '@/hooks/useAppContext';
 
 interface NostrProviderProps {
   children: React.ReactNode;
-  relays: string[];
+  // relays: string[];
 }
 
 /**
@@ -25,10 +26,20 @@ class TimestampTrackingNPool extends NPool {
 }
 
 const NostrProvider: React.FC<NostrProviderProps> = (props) => {
-  const { children, relays } = props;
+  const { children } = props;
+
+  const { config, presetRelays } = useAppContext(); // Keep presetRelays even if not used directly here
 
   // Create NPool instance only once
   const pool = useRef<NPool | undefined>(undefined);
+
+  // Use ref for relayUrls to ensure the pool always has the latest config
+  const currentRelayUrls = useRef<string[]>(config.relayUrls);
+
+  // Update ref when config.relayUrls changes
+  useEffect(() => {
+    currentRelayUrls.current = config.relayUrls;
+  }, [config.relayUrls]);
 
   if (!pool.current) {
     pool.current = new TimestampTrackingNPool({
@@ -36,10 +47,12 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
         return new NRelay1(url);
       },
       reqRouter(filters) {
-        return new Map(relays.map((url) => [url, filters]));
+        // Use the ref's current value
+        return new Map(currentRelayUrls.current.map((url) => [url, filters]));
       },
       eventRouter(_event: NostrEvent) {
-        return relays;
+        // Use the ref's current value
+        return currentRelayUrls.current;
       },
     });
   }
