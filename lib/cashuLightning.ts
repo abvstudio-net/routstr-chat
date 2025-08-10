@@ -8,6 +8,7 @@ export interface MintQuote {
   paymentRequest: string;
   quoteId: string;
   state: MintQuoteState;
+  expiresAt?: number;
 }
 
 export interface MeltQuote {
@@ -16,6 +17,7 @@ export interface MeltQuote {
   paymentRequest: string;
   quoteId: string;
   state: MeltQuoteState;
+  expiresAt?: number;
 }
 
 /**
@@ -50,6 +52,7 @@ export async function createLightningInvoice(mintUrl: string, amount: number): P
       paymentRequest: mintQuote.request,
       quoteId: mintQuote.quote,
       state: MintQuoteState.UNPAID,
+      expiresAt: mintQuote.expiry ? mintQuote.expiry * 1000 : undefined,
     };
   } catch (error) {
     console.error('Error creating Lightning invoice:', error);

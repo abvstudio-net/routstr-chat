@@ -5,6 +5,7 @@ import { ReactNode, useEffect } from 'react';
 import NostrProvider from '@/components/NostrProvider'
 import dynamic from 'next/dynamic';
 import { migrateStorageItems } from '@/utils/storageUtils';
+import { InvoiceRecoveryProvider } from '@/components/InvoiceRecoveryProvider';
 
 const DynamicNostrLoginProvider = dynamic(
   () => import('@nostrify/react/login').then((mod) => mod.NostrLoginProvider),
@@ -51,8 +52,10 @@ export default function ClientProviders({ children }: { children: ReactNode }) {
       <DynamicNostrLoginProvider storageKey='nostr:login'>
         <NostrProvider>
           <QueryClientProvider client={queryClient}>
+            <InvoiceRecoveryProvider>
             {children}
-          </QueryClientProvider>
+            </InvoiceRecoveryProvider>
+        </QueryClientProvider>
         </NostrProvider>
       </DynamicNostrLoginProvider>
     </AppProvider>
