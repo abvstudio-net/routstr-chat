@@ -12,6 +12,7 @@ export interface FetchAIResponseParams {
   mintUrl: string;
   usingNip60: boolean;
   balance: number;
+  unit: string;
   sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>;
   receiveToken: (token: string) => Promise<any[]>;
   activeMintUrl?: string | null;
@@ -39,6 +40,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     mintUrl,
     usingNip60,
     balance,
+    unit,
     sendToken,
     receiveToken,
     activeMintUrl,
@@ -54,6 +56,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
   const tokenAmount = getTokenAmountForModel(selectedModel);
+  console.log("rdlogs: tokenAmount", tokenAmount, unit, 'asdfasdf')
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
     const token = await getTokenForRequest(
@@ -122,7 +125,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
   };
 
   try {
-    const response = await makeRequest();
+    // const response = await makeRequest();
+    const response = new Response();
 
     if (!response.body) {
       throw new Error('Response body is not available');

@@ -53,8 +53,6 @@ export function calculateBalance(proofs: Proof[]): { balances: Record<string, nu
     units[mint.url] = 'sat';
     const keysets = mint.keysets;
     if (!keysets) continue;
-    console.log('rdlogs: mint porofs', proofs)
-    console.log('rdlogs: mint keysets', mint.url, keysets)
     for (const keyset of keysets) {
       // select all proofs with id == keyset.id
       const proofsForKeyset = proofs.filter((proof) => proof.id === keyset.id);

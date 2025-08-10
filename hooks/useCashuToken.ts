@@ -86,7 +86,21 @@ export function useCashuToken() {
 
       // Get all proofs from store
       let proofs = await cashuStore.getMintProofs(mintUrl);
-      console.log(proofs);
+      
+      // Calculate fees using the Python reference implementation
+      const calculateFees = (inputProofs: Proof[]): number => {
+        let sumFees = 0;
+        for (const proof of inputProofs) {
+          const keyset = activeKeysets.find(k => k.id === proof.id);
+          if (keyset && keyset.input_fee_ppk !== undefined) {
+            sumFees += keyset.input_fee_ppk;
+          }
+        }
+        return Math.floor((sumFees + 999) / 1000);
+      };
+      
+      const fees = calculateFees(proofs);
+      console.log("rdlogs: fees", fees, "for proofs:", proofs.length);
 
       const proofsAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
       if (proofsAmount < amount) {
@@ -110,6 +124,8 @@ export function useCashuToken() {
           })),
           timestamp: Date.now()
         }));
+        const fees = calculateFees(proofsToSend);
+        console.log('rdlogs: fees to send ', amount, ' is ', fees)
 
         // Create new token for the proofs we're keeping
         if (proofsToKeep.length > 0) {
@@ -206,6 +222,7 @@ export function useCashuToken() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setError(`Failed to generate token: ${message}`);
+      console.log('rdlogs: amount adn error', amount, message)
       throw error;
     } finally {
       setIsLoading(false);
@@ -323,8 +340,9 @@ export function useCashuToken() {
           (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
         )
       );
+      console.log(spentProofs);
 
-      await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
+      // await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 
       return spentProofs;
     } catch (error) {

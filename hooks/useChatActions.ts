@@ -319,6 +319,7 @@ export const useChatActions = (): UseChatActionsReturn => {
         mintUrl,
         usingNip60,
         balance,
+        unit: mintUnits[mintUrl],
         sendToken: usingNip60 ? sendToken : undefined,
         receiveToken,
         activeMintUrl: cashuStore.activeMintUrl,
