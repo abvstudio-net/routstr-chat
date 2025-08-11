@@ -95,14 +95,12 @@ export async function activateMint(mintUrl: string): Promise<{ mintInfo: GetInfo
 
 export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Promise<{ keys: Record<string, MintKeys>[] }> {
   const mint = new CashuMint(mintUrl);
-  const mintKeysets = await mint.getKeySets();
-  
-  // Get preferred unit: msat over sat if both are active
-  const activeKeysets = mintKeysets.keysets.filter(k => k.active);
-  const units = [...new Set(activeKeysets.map(k => k.unit))];
-  const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
-  
-  const wallet = new CashuWallet(mint, { unit: preferredUnit });
+  const wallet = new CashuWallet(mint);
+  const msatWallet = new CashuWallet(mint, {'unit': 'msat'});
+  const walletKeysets = await wallet.getKeySets();
+  const msatKeysets = await msatWallet.getKeySets();
+
+  // const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
   // get keysets from store
   const keysetsLocal = useCashuStore.getState().mints.find((m) => m.url === mintUrl)?.keysets;
@@ -114,7 +112,10 @@ export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Pr
     }
     // get all keys for each keyset where keysetLocal != keyset and add them to the keysLocal
     const keys = await Promise.all(keysets.map(async (keyset) => {
-      return { [keyset.id]: await wallet.getKeys(keyset.id) };
+      // Use the appropriate wallet based on which keyset list contains this keyset.id
+      const isInWalletKeysets = walletKeysets.some(k => k.id === keyset.id);
+      const walletToUse = isInWalletKeysets ? wallet : msatWallet;
+      return { [keyset.id]: await walletToUse.getKeys(keyset.id) };
     }));
     keysLocal = keysLocal.concat(keys);
     return { keys: keysLocal };
@@ -137,6 +138,74 @@ export function getTokenAmount(token: string): number {
  * @returns Object indicating if exact change can be made and the selected proofs if possible
  */
 export function canMakeExactChange(
+  targetAmount: number,
+  denomCounts: Record<number, number>,
+  availableProofs: Proof[],
+  fees?: number
+): { canMake: boolean, selectedProofs?: Proof[] } {
+  // If fees are defined, we need to account for them
+  if (fees !== undefined && fees > 0) {
+    // We need to iteratively calculate the total amount needed including fees
+    // Start with the target amount and keep adding fees until we converge
+    let totalNeeded = targetAmount;
+    let previousProofCount = 0;
+    let iterations = 0;
+    const maxIterations = 100; // Prevent infinite loops
+    
+    // Keep track of denomination usage for fee calculation
+    const usedDenoms: Record<number, number> = {};
+    
+    while (iterations < maxIterations) {
+      iterations++;
+      
+      // Try to find a combination for the current totalNeeded
+      const result = findExactCombination(totalNeeded, denomCounts, availableProofs);
+      
+      if (!result.canMake) {
+        return { canMake: false };
+      }
+      
+      // Count the number of proofs in the solution
+      const currentProofCount = result.selectedProofs!.length;
+      
+      // Calculate the fee for this number of proofs
+      const requiredFee = currentProofCount * fees;
+      
+      // Check if we've converged (total amount covers both target and fees)
+      const currentTotal = result.selectedProofs!.reduce((sum, p) => sum + p.amount, 0);
+      if (currentTotal >= targetAmount + requiredFee) {
+        // Verify we have exactly the right amount
+        if (currentTotal === targetAmount + requiredFee) {
+          return { canMake: true, selectedProofs: result.selectedProofs };
+        }
+        // If we have too much, we can't make exact change
+        return { canMake: false };
+      }
+      
+      // Update totalNeeded for next iteration
+      totalNeeded = targetAmount + requiredFee;
+      
+      // Check if we're stuck in a loop
+      if (currentProofCount === previousProofCount) {
+        // We're not making progress, can't satisfy the fee requirement
+        return { canMake: false };
+      }
+      
+      previousProofCount = currentProofCount;
+    }
+    
+    // If we hit max iterations, we couldn't find a solution
+    return { canMake: false };
+  }
+  
+  // No fees, use the original logic
+  return findExactCombination(targetAmount, denomCounts, availableProofs);
+}
+
+/**
+ * Helper function to find exact combination using dynamic programming
+ */
+function findExactCombination(
   targetAmount: number,
   denomCounts: Record<number, number>,
   availableProofs: Proof[]
@@ -203,4 +272,21 @@ export function canMakeExactChange(
   }
   
   return { canMake: false };
+}
+
+/**
+ * Calculate fees using the Python reference implementation
+ * @param inputProofs The proofs to calculate fees for
+ * @param activeKeysets The active keysets from the mint
+ * @returns The calculated fees in satoshis
+ */
+export function calculateFees(inputProofs: Proof[], activeKeysets: MintKeyset[]): number {
+  let sumFees = 0;
+  for (const proof of inputProofs) {
+    const keyset = activeKeysets.find(k => k.id === proof.id);
+    if (keyset && keyset.input_fee_ppk !== undefined) {
+      sumFees += keyset.input_fee_ppk;
+    }
+  }
+  return Math.floor((sumFees + 999) / 1000);
 }

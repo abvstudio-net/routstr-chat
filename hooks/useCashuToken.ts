@@ -3,7 +3,7 @@ import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuWallet } from '@/hooks/useCashuWallet';
 import { useCashuHistory } from '@/hooks/useCashuHistory';
 import { CashuMint, CashuWallet, Proof, getDecodedToken, CheckStateEnum } from '@cashu/cashu-ts';
-import { CashuProof, CashuToken, canMakeExactChange } from '@/lib/cashu';
+import { CashuProof, CashuToken, canMakeExactChange, calculateFees } from '@/lib/cashu';
 import { hashToCurve } from "@cashu/crypto/modules/common";
 import { useNutzapStore } from '@/stores/nutzapStore';
 
@@ -87,19 +87,7 @@ export function useCashuToken() {
       // Get all proofs from store
       let proofs = await cashuStore.getMintProofs(mintUrl);
       
-      // Calculate fees using the Python reference implementation
-      const calculateFees = (inputProofs: Proof[]): number => {
-        let sumFees = 0;
-        for (const proof of inputProofs) {
-          const keyset = activeKeysets.find(k => k.id === proof.id);
-          if (keyset && keyset.input_fee_ppk !== undefined) {
-            sumFees += keyset.input_fee_ppk;
-          }
-        }
-        return Math.floor((sumFees + 999) / 1000);
-      };
-      
-      const fees = calculateFees(proofs);
+      const fees = calculateFees(proofs, activeKeysets);
       console.log("rdlogs: fees", fees, "for proofs:", proofs.length);
 
       const proofsAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
@@ -144,7 +132,7 @@ export function useCashuToken() {
           timestamp: Date.now()
         }));
 
-        const sendFees = calculateFees(proofsToSend);
+        const sendFees = calculateFees(proofsToSend, activeKeysets);
         console.log('rdlogs: fees to send ', amount, ' is ', sendFees);
 
         // Create new token for the proofs we're keeping
@@ -194,7 +182,7 @@ export function useCashuToken() {
           })),
           timestamp: Date.now()
         }));
-        const sendFees = calculateFees(proofsToSend);
+        const sendFees = calculateFees(proofsToSend, activeKeysets);
         console.log('rdlogs: fees to send ', amount, ' is ', sendFees)
 
         // Create new token for the proofs we're keeping

@@ -1,6 +1,6 @@
 import { useCashuStore } from '@/stores/cashuStore';
 import { CashuMint, CashuWallet, MeltQuoteResponse, MeltQuoteState, MintQuoteResponse, MintQuoteState, Proof } from '@cashu/cashu-ts';
-import { canMakeExactChange } from '@/lib/cashu';
+import { calculateFees, canMakeExactChange } from '@/lib/cashu';
 
 export interface MintQuote {
   mintUrl: string;
@@ -171,6 +171,8 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
     // Get preferred unit: msat over sat if both are active
     const activeKeysets = keysets.keysets.filter(k => k.active);
     const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const fees = [...new Array(activeKeysets.map(k => k.input_fee_ppk))]
+    console.log('rdlogs: lfees', fees)
     const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
     
     const wallet = new CashuWallet(mint, { unit: preferredUnit });
@@ -188,18 +190,30 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
     if (proofsAmount < amountToSend) {
       throw new Error(`Not enough funds on mint ${mintUrl}`);
     }
+    console.log('rdlogs: proofs lfees', calculateFees(proofs, activeKeysets));
+    const mintFees = calculateFees(proofs, activeKeysets) / proofs.length;
 
     // Check if we can make exact change first
     const denominationCounts = proofs.reduce((acc, p) => {
       acc[p.amount] = (acc[p.amount] || 0) + 1;
       return acc;
     }, {} as Record<number, number>);
+    console.log('rdlogs:', denominationCounts);
 
-    const exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs);
+    const exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees);
     
     let keep: Proof[], send: Proof[];
     
     if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
+      const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
+      const denominationCounts = selectedDenominations.reduce((acc, denom) => {
+        acc[denom] = (acc[denom] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      console.log('rdlogs: Can make exact change, using selected proofs directly');
+      console.log('rdlogs: Selected denominations:', selectedDenominations);
+      console.log('rdlogs: Denomination breakdown:', denominationCounts);
       console.log('Using exact change for melt quote payment');
       send = exactChangeResult.selectedProofs;
       keep = proofs.filter(p => !send.includes(p));
