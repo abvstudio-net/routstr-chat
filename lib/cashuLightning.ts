@@ -1,5 +1,6 @@
 import { useCashuStore } from '@/stores/cashuStore';
 import { CashuMint, CashuWallet, MeltQuoteResponse, MeltQuoteState, MintQuoteResponse, MintQuoteState, Proof } from '@cashu/cashu-ts';
+import { canMakeExactChange } from '@/lib/cashu';
 
 export interface MintQuote {
   mintUrl: string;
@@ -188,10 +189,29 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
       throw new Error(`Not enough funds on mint ${mintUrl}`);
     }
 
-    // Perform coin selection
-    const { keep, send } = await wallet.send(amountToSend, proofs, {
-      includeFees: true, privkey: useCashuStore.getState().privkey
-    });
+    // Check if we can make exact change first
+    const denominationCounts = proofs.reduce((acc, p) => {
+      acc[p.amount] = (acc[p.amount] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    const exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs);
+    
+    let keep: Proof[], send: Proof[];
+    
+    if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
+      console.log('Using exact change for melt quote payment');
+      send = exactChangeResult.selectedProofs;
+      keep = proofs.filter(p => !send.includes(p));
+    } else {
+      console.log('Cannot make exact change, using wallet.send() for melt quote');
+      // Perform coin selection
+      const result = await wallet.send(amountToSend, proofs, {
+        includeFees: true, privkey: useCashuStore.getState().privkey
+      });
+      keep = result.keep;
+      send = result.send;
+    }
 
     // Melt the selected proofs to pay the Lightning invoice
     let meltResponse;

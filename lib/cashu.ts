@@ -2,6 +2,7 @@
 
 import { useCashuStore } from "@/stores/cashuStore";
 import { CashuMint, Proof, CashuWallet, GetInfoResponse, MintKeyset, MintKeys, getDecodedToken } from "@cashu/cashu-ts";
+
 export interface CashuProof {
   id: string;
   amount: number;
@@ -125,4 +126,81 @@ export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Pr
 export function getTokenAmount(token: string): number {
   const tokenObj = getDecodedToken(token);
   return tokenObj.proofs.reduce((acc, proof) => acc + proof.amount, 0);
+}
+
+/**
+ * Check if we can make exact change using available denominations
+ * Uses a greedy approach with backtracking for optimal denomination selection
+ * @param targetAmount The amount we need to make
+ * @param denomCounts A map of denomination values to their counts
+ * @param availableProofs The actual proof objects available
+ * @returns Object indicating if exact change can be made and the selected proofs if possible
+ */
+export function canMakeExactChange(
+  targetAmount: number,
+  denomCounts: Record<number, number>,
+  availableProofs: Proof[]
+): { canMake: boolean, selectedProofs?: Proof[] } {
+  // Use dynamic programming with proper denomination counting
+  const denominations = Object.keys(denomCounts).map(Number).sort((a, b) => a - b); // Sort ascending for DP
+  
+  // Create a map to track which denominations are used to reach each amount
+  const dp: Map<number, Record<number, number>> = new Map();
+  dp.set(0, {}); // Base case: 0 can be made with no coins
+  
+  for (let amount = 1; amount <= targetAmount; amount++) {
+    for (const denom of denominations) {
+      if (amount >= denom) {
+        const prevAmount = amount - denom;
+        const prevSolution = dp.get(prevAmount);
+        
+        if (prevSolution !== undefined) {
+          const prevDenomCount = prevSolution[denom] || 0;
+          
+          // Check if we can use another coin of this denomination
+          if (prevDenomCount < denomCounts[denom]) {
+            const newSolution = { ...prevSolution };
+            newSolution[denom] = prevDenomCount + 1;
+            
+            // Only update if we haven't found a solution for this amount yet
+            // or if this solution uses fewer total coins
+            const currentSolution = dp.get(amount);
+            if (!currentSolution) {
+              dp.set(amount, newSolution);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  const finalSolution = dp.get(targetAmount);
+  if (finalSolution) {
+    // We found a solution! Now select the actual proofs
+    const selectedProofs: Proof[] = [];
+    
+    for (const [denomStr, count] of Object.entries(finalSolution)) {
+      const denom = Number(denomStr);
+      const proofsOfDenom = availableProofs.filter(p => p.amount === denom);
+      
+      // Make sure we have enough proofs of this denomination
+      if (proofsOfDenom.length < count) {
+        console.error(`Not enough proofs of denomination ${denom}: need ${count}, have ${proofsOfDenom.length}`);
+        return { canMake: false };
+      }
+      
+      selectedProofs.push(...proofsOfDenom.slice(0, count));
+    }
+    
+    // Verify the sum is correct
+    const totalSum = selectedProofs.reduce((sum, p) => sum + p.amount, 0);
+    if (totalSum !== targetAmount) {
+      console.error(`Sum mismatch: expected ${targetAmount}, got ${totalSum}`);
+      return { canMake: false };
+    }
+    
+    return { canMake: true, selectedProofs };
+  }
+  
+  return { canMake: false };
 }

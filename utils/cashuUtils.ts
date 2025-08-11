@@ -76,20 +76,6 @@ export const getBalanceFromStoredProofs = (): number => {
   }
 };
 
-/**
- * Store a wrapped Cashu token in local storage
- * @param wrappedToken The NIP-60 wrapped token event
- */
-export const storeWrappedToken = (wrappedToken: Event): void => {
-  try {
-    const storedTokens = localStorage.getItem("wrapped_cashu_tokens") || "[]";
-    const tokens = JSON.parse(storedTokens);
-    tokens.push(wrappedToken);
-    localStorage.setItem("wrapped_cashu_tokens", JSON.stringify(tokens));
-  } catch (error) {
-    console.error("Error storing wrapped token:", error);
-  }
-};
 
 /**
  * Get all stored wrapped tokens
