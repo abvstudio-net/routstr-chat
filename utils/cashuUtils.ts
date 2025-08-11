@@ -147,7 +147,14 @@ export const generateApiToken = async (
 
     // Initialize wallet for this mint
     const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
     await wallet.loadMint();
 
     // Generate the token using the wallet directly
@@ -266,7 +273,14 @@ export const fetchRefundToken = async (baseUrl: string, storedToken: string): Pr
 
 export const storeCashuToken = async (mintUrl: string, token: string): Promise<void> => {
   const mint = new CashuMint(mintUrl);
-  const wallet = new CashuWallet(mint);
+  const keysets = await mint.getKeySets();
+  
+  // Get preferred unit: msat over sat if both are active
+  const activeKeysets = keysets.keysets.filter(k => k.active);
+  const units = [...new Set(activeKeysets.map(k => k.unit))];
+  const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+  
+  const wallet = new CashuWallet(mint, { unit: preferredUnit });
   await wallet.loadMint();
 
   const result = await wallet.receive(token);
@@ -413,9 +427,13 @@ export const getPendingCashuTokenAmount = (): number => {
   allTokens.forEach((tokenEntry: CashuTokenEntry) => {
     try {
       const decodedToken = getDecodedToken(tokenEntry.token);
+      const msatOrSat = decodedToken.unit === 'msat' ? 1000 : 1;
       decodedToken.proofs.forEach((proof: { amount: number; }) => {
-        totalPendingAmount += proof.amount;
+        totalPendingAmount += (proof.amount/msatOrSat);
       });
+      if (decodedToken) {
+        
+      }
     } catch (error) {
       console.error(`Error decoding cashu token for baseUrl ${tokenEntry.baseUrl}:`, error);
     }

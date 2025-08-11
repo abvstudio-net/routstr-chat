@@ -86,15 +86,22 @@ export async function activateMint(mintUrl: string): Promise<{ mintInfo: GetInfo
   const wallet = new CashuWallet(mint);
   const msatWallet = new CashuWallet(mint, {'unit': 'msat'});
   const mintInfo = await wallet.getMintInfo();
-  const keysets = await wallet.getKeySets();
+  const walletKeysets = await wallet.getKeySets();
   const msatKeysets = await msatWallet.getKeySets();
-  const allKeysets = Array.from(new Set([...keysets, ...msatKeysets]));
+  const allKeysets = Array.from(new Set([...walletKeysets, ...msatKeysets]));
   return { mintInfo, keysets: allKeysets };
 }
 
 export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Promise<{ keys: Record<string, MintKeys>[] }> {
   const mint = new CashuMint(mintUrl);
-  const wallet = new CashuWallet(mint);
+  const mintKeysets = await mint.getKeySets();
+  
+  // Get preferred unit: msat over sat if both are active
+  const activeKeysets = mintKeysets.keysets.filter(k => k.active);
+  const units = [...new Set(activeKeysets.map(k => k.unit))];
+  const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+  
+  const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
   // get keysets from store
   const keysetsLocal = useCashuStore.getState().mints.find((m) => m.url === mintUrl)?.keysets;

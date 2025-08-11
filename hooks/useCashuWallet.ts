@@ -13,6 +13,15 @@ import { NSchema as n } from '@nostrify/nostrify';
 import { z } from 'zod';
 import { useNutzaps } from '@/hooks/useNutzaps';
 import { hexToBytes } from '@noble/hashes/utils';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+
+/**
+ * Type for storing deleted events with timestamp
+ */
+export interface DeletedEvents {
+  eventId: string;
+  timestamp: number;
+}
 
 /**
  * Hook to fetch and manage the user's Cashu wallet
@@ -25,6 +34,7 @@ export function useCashuWallet() {
   const { createNutzapInfo } = useNutzaps();
   const [showQueryTimeoutModal, setShowQueryTimeoutModal] = useState(false);
   const [didRelaysTimeout, setDidRelaysTimeout] = useState(false);
+    const [deletedEvents, setDeletedEvents] = useLocalStorage<DeletedEvents[]>('nip60-deleted-events', []);
 
   // Fetch wallet information (kind 17375)
   const walletQuery = useQuery<{ id: string; wallet: CashuWalletStruct; createdAt: number; } | null, Error, { id: string; wallet: CashuWalletStruct; createdAt: number; } | null, any[]>(
@@ -311,7 +321,9 @@ export function useCashuWallet() {
       }
 
       const nip60TokenEvents: Nip60TokenEvent[] = [];
+      const deletedEventsTemp = new Set<DeletedEvents>();
 
+      // First pass: collect all deleted event IDs from del arrays
       for (const event of events) {
         try {
           if (!user.signer.nip44) {
@@ -329,21 +341,51 @@ export function useCashuWallet() {
           }
           const tokenData = JSON.parse(decrypted) as CashuToken;
 
+          // Collect deleted event IDs
+          if (tokenData.del && Array.isArray(tokenData.del)) {
+            tokenData.del.forEach(id => deletedEventsTemp.add({
+              eventId: id,
+              timestamp: event.created_at
+          }));
+          }
+
           nip60TokenEvents.push({
             id: event.id,
             token: tokenData,
             createdAt: event.created_at
           });
-          // add proofs to store
-          cashuStore.addProofs(tokenData.proofs, event.id);
 
         } catch (error) {
           console.error('Failed to decrypt token data:', error);
         }
       }
-      console.log('rdlogs events: ', nip60TokenEvents);
 
-      return nip60TokenEvents;
+      // Get existing deleted events from local storage
+      const existingDeletedEvents = Array.isArray(deletedEvents) ? deletedEvents : [];
+      
+      const newDeletedEvents = Array.from(deletedEventsTemp);
+      
+      let allDeletedEvents = newDeletedEvents;
+      // Update local storage with combined events (existing + new)
+      if (newDeletedEvents.length > 0) {
+        allDeletedEvents = [...existingDeletedEvents, ...newDeletedEvents];
+        setDeletedEvents(allDeletedEvents);
+      }
+
+      // Second pass: filter out deleted events and add proofs to store
+      const deletedEventIds = new Set(allDeletedEvents.map(deletedEvent => deletedEvent.eventId));
+      const filteredEvents = nip60TokenEvents.filter(event => !deletedEventIds.has(event.id));
+      
+      // Add proofs to store only for non-deleted events
+      filteredEvents.forEach(event => {
+        cashuStore.addProofs(event.token.proofs, event.id);
+      });
+
+      // console.log('rdlogs events: \n' + filteredEvents.map(event =>
+      //   `eventId: ${event.id}\nproofsCount: ${event.token.proofs.length}\ncreatedAt: ${event.createdAt}`
+      // ).join('\n\n'));
+
+      return filteredEvents;
       } catch (error) {
         console.error('getNip60TokensQuery: Error in queryFn', error);
         if (error instanceof Error && error.message === 'Query timeout') {
@@ -381,6 +423,8 @@ export function useCashuWallet() {
       const newProofs = [...proofsToAdd, ...proofsToKeepWithEventIds];
 
       let eventToReturn: NostrEvent | null = null;
+
+
 
       if (newProofs.length) {
         // generate a new token event
@@ -438,7 +482,7 @@ export function useCashuWallet() {
 
         // publish deletion event
         try {
-          await nostr.event(deletionEvent);
+          const result = await nostr.event(deletionEvent);
         } catch (error) {
           console.error('Failed to publish deletion event:', error);
         }

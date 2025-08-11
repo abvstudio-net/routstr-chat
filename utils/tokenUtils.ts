@@ -67,7 +67,7 @@ export const getTokenForRequest = async (
       console.error("Missing required parameters for NIP-60 token creation");
       return null;
     }
-    return await getOrCreate60ApiToken(mintUrl, amount, sendToken, activeMintUrl, baseUrl); // Pass baseUrl
+    return await getOrCreate60ApiToken(activeMintUrl, amount, sendToken, activeMintUrl, baseUrl); // Pass baseUrl
   } else {
     return await getOrCreateApiToken(mintUrl, amount, baseUrl); // Pass baseUrl
   }

@@ -4,6 +4,7 @@ import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
 import { extractThinkingFromStream, isThinkingCapableModel } from './thinkingParser';
+import { getDecodedToken } from '@cashu/cashu-ts';
 
 export interface FetchAIResponseParams {
   messageHistory: Message[];
@@ -55,7 +56,10 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
   } = params;
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
-  const tokenAmount = getTokenAmountForModel(selectedModel);
+  let tokenAmount = getTokenAmountForModel(selectedModel);
+  if (usingNip60 && unit == 'msat') {
+    tokenAmount = tokenAmount * 1000;
+  }
   console.log("rdlogs: tokenAmount", tokenAmount, unit, 'asdfasdf')
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
@@ -68,14 +72,6 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       activeMintUrl
     );
     
-    if (token) {
-      let roundedTokenAmount = tokenAmount;
-      if (roundedTokenAmount % 1 !== 0) {
-        roundedTokenAmount = Math.ceil(roundedTokenAmount);
-      }
-      onTokenCreated(roundedTokenAmount);
-    }
-
     if (!token) {
       throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
     }
@@ -83,6 +79,21 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
       throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
     }
+
+    if (token && typeof token === 'string') {
+      const decodedToken = getDecodedToken(token)
+      if (decodedToken.unit == 'msat') {
+        onTokenCreated(tokenAmount)
+      }
+      else {
+        let roundedTokenAmount = tokenAmount;
+        if (roundedTokenAmount % 1 !== 0) {
+          roundedTokenAmount = Math.ceil(roundedTokenAmount);
+        }
+        onTokenCreated(roundedTokenAmount);
+      }
+    }
+
 
     // Convert messages to API format
     // Filter out system messages (error messages) before sending to API
@@ -125,8 +136,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
   };
 
   try {
-    // const response = await makeRequest();
-    const response = new Response();
+    const response = await makeRequest();
+    // const response = new Response();
 
     if (!response.body) {
       throw new Error('Response body is not available');

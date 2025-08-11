@@ -169,7 +169,6 @@ export const useChatActions = (): UseChatActionsReturn => {
       }
 
       if (!isWalletLoading) {
-        console.log('rdlogs: chat actions - didRelaysTimeout:', didRelaysTimeout, 'wallet:', !!wallet);
         
         if (didRelaysTimeout) {
           console.log('rdlogs: Skipping wallet creation due to relay timeout');
@@ -319,7 +318,7 @@ export const useChatActions = (): UseChatActionsReturn => {
         mintUrl,
         usingNip60,
         balance,
-        unit: mintUnits[mintUrl],
+        unit: mintUnits[cashuStore.activeMintUrl??mintUrl],
         sendToken: usingNip60 ? sendToken : undefined,
         receiveToken,
         activeMintUrl: cashuStore.activeMintUrl,
