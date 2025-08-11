@@ -206,7 +206,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const transactionHistoryStore = useTransactionHistoryStore();
 
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [currentMintUnit, setCurrentMintUnit] = useState<string | 'sat'>('sat');
   const [generatedToken, setGeneratedToken] = useState(''); // For send
   const [tokenToImport, setTokenToImport] = useState(''); // For receive
   const [sendAmount, setSendAmount] = useState(''); // For send
@@ -228,6 +228,10 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs]);
+
+  useEffect(() => {
+    setCurrentMintUnit(mintUnits[cashuStore.activeMintUrl??'']);
+  }, [mintUnits, cashuStore.activeMintUrl]);
 
   useEffect(() => {
     let totalBalance = 0;
@@ -357,6 +361,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
 
   // Handle lightning send invoice input
   const handleInvoiceInput = async (value: string) => {
+    console.log('rdlogs:gm', processingInvoiceRef.current, currentMeltQuoteId);
     if (!cashuStore.activeMintUrl) {
       setError(
         "No active mint selected. Please select a mint in your wallet settings."
@@ -365,7 +370,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     }
 
     // Prevent duplicate processing of the same invoice
-    if (processingInvoiceRef.current === value || currentMeltQuoteId) {
+    if (processingInvoiceRef.current === value) {
       return;
     }
 
@@ -458,7 +463,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           proofsToRemove: selectedProofs,
         });
 
-        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, 'sats')}!`);
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, `${currentMintUnit}s`)}!`);
         setSendInvoice("");
         setInvoiceAmount(null);
         setInvoiceFeeReserve(null);
@@ -793,7 +798,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                         className="flex-1 bg-white/5 border border-white/20 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 hover:border-white/30 transition-colors disabled:opacity-50 cursor-pointer"
                         type="button"
                       >
-                        {amount} sats
+                        {amount} {currentMintUnit}s
                       </button>
                     ))}
                   </div>
@@ -807,7 +812,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       value={receiveAmount}
                       onChange={(e) => setReceiveAmount(e.target.value)}
                       className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                      placeholder="Amount in sats"
+                      placeholder={`Amount in ${currentMintUnit}s`}
                     />
                     <button
                       onClick={() => handleCreateInvoice()}
@@ -901,7 +906,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   <div className="bg-white/5 border border-white/10 rounded-md p-4">
                     <p className="text-sm font-medium text-white/80">Invoice Amount</p>
                     <p className="text-2xl font-bold text-white">
-                      {formatBalance(invoiceAmount, 'sats')}
+                      {formatBalance(invoiceAmount, `${currentMintUnit}s `)}
                       {invoiceFeeReserve && (
                         <>
                           <span className="text-xs font-bold pl-2 text-white/50">
@@ -964,7 +969,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     value={sendAmount}
                     onChange={(e) => setSendAmount(e.target.value)}
                     className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                    placeholder="Amount in sats"
+                    placeholder={`Amount in ${currentMintUnit}s`}
                   />
                   <button
                     onClick={handlesendToken}
@@ -1008,6 +1013,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         showInvoiceModal={showInvoiceModal}
         mintInvoice={invoice}
         mintAmount={receiveAmount}
+        mintUnit={currentMintUnit}
         isAutoChecking={false}
         countdown={0}
         setShowInvoiceModal={setShowInvoiceModal}
