@@ -384,6 +384,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
 
   // Handle lightning send invoice input
   const handleInvoiceInput = async (value: string) => {
+    console.log('rdlogs:gm', processingInvoiceRef.current, currentMeltQuoteId);
     if (!cashuStore.activeMintUrl) {
       setError(
         "No active mint selected. Please select a mint in your wallet settings."
