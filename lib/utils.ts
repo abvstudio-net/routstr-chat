@@ -9,6 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 export const DEFAULT_BASE_URLS = [
   'https://api.routstr.com/',
   'https://privateprovider.xyz/',
+  'https://routstr.rewolf.dev/',
   'https://ai.redsh1ft.com/',
   'https://routstr.otrta.me/'
 ];
