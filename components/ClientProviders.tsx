@@ -5,6 +5,7 @@ import { ReactNode, useEffect } from 'react';
 import NostrProvider from '@/components/NostrProvider'
 import dynamic from 'next/dynamic';
 import { migrateStorageItems } from '@/utils/storageUtils';
+import useRelays from '@/hooks/useRelays';
 
 const DynamicNostrLoginProvider = dynamic(
   () => import('@nostrify/react/login').then((mod) => mod.NostrLoginProvider),
@@ -12,12 +13,6 @@ const DynamicNostrLoginProvider = dynamic(
 );
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-const defaultRelays = [
-    'wss://relay.chorus.community',
-    'wss://relay.damus.io',
-   'wss://relay.nostr.band',
-    'wss://nos.lol'
-  ];
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -35,9 +30,12 @@ export default function ClientProviders({ children }: { children: ReactNode }) {
     migrateStorageItems();
   }, []);
 
+  // Load user-configured relays (no hardcoded defaults)
+  const { relays } = useRelays();
+
   return (
     <DynamicNostrLoginProvider storageKey='nostr:login'>
-      <NostrProvider relays={defaultRelays}>
+      <NostrProvider relays={relays}>
         <QueryClientProvider client={queryClient}>
           {children}
         </QueryClientProvider>
