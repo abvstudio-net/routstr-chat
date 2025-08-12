@@ -364,6 +364,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     balance,
     currentMintUnit,
     mintBalances,
+    mintUnits,
     isBalanceLoading,
     uploadedImages,
     transactionHistory,

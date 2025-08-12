@@ -445,6 +445,7 @@ export function useCashuToken() {
 
       // Setup wallet for receiving
       const mint = new CashuMint(mintUrl);
+      console.log('rdlogs:  ---recevie- biew mind', mintUrl);
       const keysets = await mint.getKeySets();
       
       // Get preferred unit: msat over sat if both are active
@@ -489,6 +490,16 @@ export function useCashuToken() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setError(`Failed to receive token: ${message}`);
+      
+      // Check if it's a network error and add mintUrl to the error
+      if (message.includes("NetworkError when attempting to fetch resource.")) {
+        // Get the mintUrl from the decoded token
+        const decodedToken = getDecodedToken(token);
+        if (decodedToken && error instanceof Error) {
+          (error as any).mintUrl = decodedToken.mint;
+        }
+      }
+      
       throw error;
     } finally {
       setIsLoading(false);

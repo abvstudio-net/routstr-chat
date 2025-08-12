@@ -384,6 +384,7 @@ export const unifiedRefund = async (
     }
     
     try {
+
       const refundedToken = await fetchRefundToken(baseUrl, storedToken);
       const proofs = await receiveTokenFn(refundedToken);
       const totalAmount = proofs.reduce((sum: number, p: any) => sum + p.amount, 0);
@@ -396,6 +397,14 @@ export const unifiedRefund = async (
         refundedAmount: totalAmount
       };
     } catch (error) {
+      if (usingNip60) {
+        if (error instanceof Error && error.message.includes("NetworkError when attempting to fetch resource.")) {
+          return {
+            success: false,
+            message: "Failed to connect to the mint: " + ((error as any).mintUrl || mintUrl)
+          }
+        }
+      }
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Refund failed'

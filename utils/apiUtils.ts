@@ -478,6 +478,7 @@ async function handlePostResponseRefund(params: {
 
   let satsSpent: number;
 
+
   const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   if (refundStatus.success) {
     if (usingNip60 && refundStatus.refundedAmount !== undefined) {
@@ -492,6 +493,10 @@ async function handlePostResponseRefund(params: {
   } else {
     console.error("Refund failed:", refundStatus.message);
     if (refundStatus.message && refundStatus.message.includes("Balance too small to refund")) {
+      clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    }
+    else if (refundStatus.message && refundStatus.message.includes("Refund request failed with status 401")) {
+      handleApiResponseError("Refund failed: " + refundStatus.message + ". Clearing token. Pls retry. ", onMessageAppend);
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
     else {
