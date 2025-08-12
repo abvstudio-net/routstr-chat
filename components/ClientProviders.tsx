@@ -5,7 +5,6 @@ import { ReactNode, useEffect } from 'react';
 import NostrProvider from '@/components/NostrProvider'
 import dynamic from 'next/dynamic';
 import { migrateStorageItems } from '@/utils/storageUtils';
-import useRelays from '@/hooks/useRelays';
 
 const DynamicNostrLoginProvider = dynamic(
   () => import('@nostrify/react/login').then((mod) => mod.NostrLoginProvider),
@@ -46,9 +45,6 @@ export default function ClientProviders({ children }: { children: ReactNode }) {
   useEffect(() => {
     migrateStorageItems();
   }, []); 
-
-  // Load user-configured relays (no hardcoded defaults)
-  const { relays } = useRelays();
 
   return (
     <AppProvider storageKey="nostr:app-config" defaultConfig={defaultConfig} presetRelays={presetRelays}>
