@@ -49,8 +49,6 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   const [showNsec, setShowNsec] = useState<boolean>(false);
   const [nsecValue, setNsecValue] = useState<string>('');
   const [showNsecWarning, setShowNsecWarning] = useState<boolean>(false);
-  const [relays, setRelays] = useState<string[]>([]);
-  const [newRelayInput, setNewRelayInput] = useState<string>('');
 
   const toast = (message: string) => {
     alert(message); // Placeholder for a proper toast notification
@@ -58,7 +56,6 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
 
   useEffect(() => {
     setBaseUrls(loadBaseUrlsList());
-    setRelays(loadRelays());
   }, []); // Empty dependency array to run only once on mount
 
   useEffect(() => {
