@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertCircle, Copy, Loader2, QrCode, Zap, ArrowRight, Info } from "lucide-react";
-import { getEncodedTokenV4, Proof, MeltQuoteResponse, MintQuoteResponse } from "@cashu/cashu-ts";
+import { getEncodedTokenV4, Proof, MeltQuoteResponse, MintQuoteResponse, getDecodedToken } from "@cashu/cashu-ts";
 import { useCashuWallet } from "@/hooks/useCashuWallet";
 import { useCreateCashuWallet } from "@/hooks/useCreateCashuWallet";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -160,7 +160,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setPendingTransactionId(null);
 
-        setSuccessMessage(`Received ${formatBalance(amount)}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
         setInvoice("");
         setcurrentMeltQuoteId("");
         setReceiveAmount("");
@@ -206,7 +206,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const transactionHistoryStore = useTransactionHistoryStore();
 
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [currentMintUnit, setCurrentMintUnit] = useState<string | 'sat'>('sat');
   const [generatedToken, setGeneratedToken] = useState(''); // For send
   const [tokenToImport, setTokenToImport] = useState(''); // For receive
   const [sendAmount, setSendAmount] = useState(''); // For send
@@ -224,18 +224,28 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     }
   }, [hookError]);
 
-  const mintBalances = React.useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = React.useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs]);
 
   useEffect(() => {
-    const totalBalance = Object.values(mintBalances).reduce(
-      (sum, balance) => sum + balance,
-      0
-    );
+    setCurrentMintUnit(mintUnits[cashuStore.activeMintUrl??'']);
+  }, [mintUnits, cashuStore.activeMintUrl]);
+
+  useEffect(() => {
+    let totalBalance = 0;
+    for (const mintUrl in mintBalances) {
+      const balance = mintBalances[mintUrl];
+      const unit = mintUnits[mintUrl];
+      if (unit === 'msat') {
+        totalBalance += balance / 1000;
+      } else {
+        totalBalance += balance;
+      }
+    }
     setBalance(totalBalance);
-  }, [mintBalances]);
+  }, [mintBalances, mintUnits]);
 
   // Check for local wallet balance on component mount
   useEffect(() => {
@@ -293,10 +303,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setError(null);
       setSuccessMessage(null);
 
+      const unit = getDecodedToken(tokenToImport).unit;
       const proofs = await receiveToken(tokenToImport);
       const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-      setSuccessMessage(`Received ${formatBalance(totalAmount)} successfully!`);
+      setSuccessMessage(`Received ${formatBalance(totalAmount, unit != undefined ? unit+'s' : 'sats' )} successfully!`);
       setTokenToImport("");
     } catch (error) {
       console.error("Error receiving token:", error);
@@ -323,7 +334,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setGeneratedToken("");
 
       const amountValue = parseInt(sendAmount);
-      const proofs = await sendToken(cashuStore.activeMintUrl, amountValue);
+      const { proofs, unit } = await sendToken(cashuStore.activeMintUrl, amountValue);
       const token = getEncodedTokenV4({
         mint: cashuStore.activeMintUrl,
         proofs: proofs.map((p) => ({
@@ -332,6 +343,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           secret: p.secret || "",
           C: p.C || "",
         })),
+        unit: unit
       });
 
       // Clean up pending proofs after successful token creation
@@ -340,7 +352,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       }
 
       setGeneratedToken(token as string);
-      setSuccessMessage(`Token generated for ${formatBalance(amountValue)}`);
+      setSuccessMessage(`Token generated for ${formatBalance(amountValue, unit)}`);
     } catch (error) {
       console.error("Error generating token:", error);
       setError(error instanceof Error ? error.message : String(error));
@@ -357,7 +369,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     }
 
     // Prevent duplicate processing of the same invoice
-    if (processingInvoiceRef.current === value || currentMeltQuoteId) {
+    if (processingInvoiceRef.current === value) {
       return;
     }
 
@@ -428,8 +440,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       if (totalProofsAmount < invoiceAmount + (invoiceFeeReserve || 0)) {
         setError(
           `Insufficient balance: have ${formatBalance(
-            totalProofsAmount
-          )}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0))}`
+            totalProofsAmount, 'sats'
+          )}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0), 'sats')}`
         );
         setIsProcessing(false);
         return;
@@ -450,7 +462,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           proofsToRemove: selectedProofs,
         });
 
-        setSuccessMessage(`Paid ${formatBalance(invoiceAmount)}!`);
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, `${currentMintUnit}s`)}!`);
         setSendInvoice("");
         setInvoiceAmount(null);
         setInvoiceFeeReserve(null);
@@ -542,7 +554,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setLocalWalletBalance(0);
       setShowMigrationBanner(false);
 
-      setSuccessMessage(`Successfully migrated ${formatBalance(receivedAmount)} from local wallet to NIP-60 wallet!`);
+      setSuccessMessage(`Successfully migrated ${formatBalance(receivedAmount, 'sats')} from local wallet to NIP-60 wallet!`);
       
     } catch (error) {
       console.error("Error during migration:", error);
@@ -609,7 +621,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   Local Wallet Found - Migrate to Cloud Wallet
                 </h3>
                 <p className="text-xs text-white/70 mb-3">
-                  You have {formatBalance(localWalletBalance)} in your local device wallet.
+                  You have {formatBalance(localWalletBalance, 'sats')} in your local device wallet.
                   Migrate to the new NIP-60 cloud-based wallet for better security and sync across devices.
                 </p>
                 <div className="flex items-center space-x-2">
@@ -628,7 +640,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     ) : (
                       <>
                         <ArrowRight className="h-3 w-3 mr-1" />
-                        Migrate {formatBalance(localWalletBalance)}
+                        Migrate {formatBalance(localWalletBalance, 'sats')}
                       </>
                     )}
                   </button>
@@ -669,6 +681,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
               {wallet.mints.map((mint) => {
                 const mintBalance = mintBalances[mint] || 0;
                 const isActive = cashuStore.activeMintUrl === mint;
+                const unit = mintUnits[mint] || 'sat';
                 return (
                   <div key={mint} className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -693,7 +706,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       </button>
                     </div>
                     <span className={cn("text-sm font-medium", isActive ? "text-white" : "text-white/70")}>
-                      {formatBalance(mintBalance)}
+                      {formatBalance(mintBalance, unit+'s')}
                     </span>
                   </div>
                 );
@@ -784,7 +797,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                         className="flex-1 bg-white/5 border border-white/20 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 hover:border-white/30 transition-colors disabled:opacity-50 cursor-pointer"
                         type="button"
                       >
-                        {amount} sats
+                        {amount} {currentMintUnit}s
                       </button>
                     ))}
                   </div>
@@ -798,7 +811,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       value={receiveAmount}
                       onChange={(e) => setReceiveAmount(e.target.value)}
                       className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                      placeholder="Amount in sats"
+                      placeholder={`Amount in ${currentMintUnit}s`}
                     />
                     <button
                       onClick={() => handleCreateInvoice()}
@@ -892,11 +905,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   <div className="bg-white/5 border border-white/10 rounded-md p-4">
                     <p className="text-sm font-medium text-white/80">Invoice Amount</p>
                     <p className="text-2xl font-bold text-white">
-                      {formatBalance(invoiceAmount)}
+                      {formatBalance(invoiceAmount, `${currentMintUnit}s `)}
                       {invoiceFeeReserve && (
                         <>
                           <span className="text-xs font-bold pl-2 text-white/50">
-                            + max {formatBalance(invoiceFeeReserve)} fee
+                            + max {formatBalance(invoiceFeeReserve, 'sats')} fee
                           </span>
                         </>
                       )}
@@ -955,11 +968,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     value={sendAmount}
                     onChange={(e) => setSendAmount(e.target.value)}
                     className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                    placeholder="Amount in sats"
+                    placeholder={`Amount in ${currentMintUnit}s`}
                   />
                   <button
                     onClick={handlesendToken}
-                    disabled={isGeneratingSendToken || !sendAmount || parseInt(sendAmount) > balance}
+                    disabled={isGeneratingSendToken || !sendAmount}
                     className="bg-white/10 border border-white/10 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                     type="button"
                   >
@@ -999,6 +1012,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         showInvoiceModal={showInvoiceModal}
         mintInvoice={invoice}
         mintAmount={receiveAmount}
+        mintUnit={currentMintUnit}
         isAutoChecking={false}
         countdown={0}
         setShowInvoiceModal={setShowInvoiceModal}

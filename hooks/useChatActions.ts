@@ -19,6 +19,8 @@ export interface UseChatActionsReturn {
   streamingContent: string;
   thinkingContent: string;
   balance: number;
+  currentMintUnit: string;
+  mintBalances: Record<string, number>;
   isBalanceLoading: boolean;
   uploadedImages: string[];
   transactionHistory: TransactionHistory[];
@@ -75,6 +77,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const [streamingContent, setStreamingContent] = useState('');
   const [thinkingContent, setThinkingContent] = useState('');
   const [balance, setBalance] = useState(0);
+  const [currentMintUnit, setCurrentMintUnit] = useState('sat');
   const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [pendingCashuAmountState, setPendingCashuAmountState] = useState(0);
@@ -85,7 +88,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Cashu wallet hooks
-  const { wallet, isLoading: isWalletLoading } = useCashuWallet();
+  const { wallet, isLoading: isWalletLoading, didRelaysTimeout } = useCashuWallet();
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken, cleanSpentProofs } = useCashuToken();
   const { logins } = useAuth();
@@ -98,10 +101,14 @@ export const useChatActions = (): UseChatActionsReturn => {
   }, []);
 
   // Calculate mint balances
-  const mintBalances = React.useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = React.useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs, cashuStore.mints]);
+
+  useEffect(() => {
+    setCurrentMintUnit(mintUnits[cashuStore.activeMintUrl??'']);
+  }, [mintUnits, cashuStore.activeMintUrl]);
 
   // Update balance based on wallet type
   useEffect(() => {
@@ -112,10 +119,16 @@ export const useChatActions = (): UseChatActionsReturn => {
           setBalance(0);
         } else {
           setIsBalanceLoading(false);
-          const totalBalance = Object.values(mintBalances).reduce(
-            (sum, balance) => sum + balance,
-            0
-          );
+          let totalBalance = 0;
+          for (const mintUrl in mintBalances) {
+            const balance = mintBalances[mintUrl];
+            const unit = mintUnits[mintUrl];
+            if (unit === 'msat') {
+              totalBalance += balance / 1000;
+            } else {
+              totalBalance += balance;
+            }
+          }
           setBalance(totalBalance + pendingCashuAmountState);
         }
       } else {
@@ -125,7 +138,7 @@ export const useChatActions = (): UseChatActionsReturn => {
       }
     };
     fetchAndSetBalances();
-  }, [mintBalances, usingNip60, isWalletLoading, pendingCashuAmountState]);
+  }, [mintBalances, mintUnits, usingNip60, isWalletLoading, pendingCashuAmountState]);
 
   // Effect to listen for changes in localStorage for 'current_cashu_token'
   useEffect(() => {
@@ -163,6 +176,12 @@ export const useChatActions = (): UseChatActionsReturn => {
       }
 
       if (!isWalletLoading) {
+        
+        if (didRelaysTimeout) {
+          console.log('rdlogs: Skipping wallet creation due to relay timeout');
+          return;
+        }
+        
         if (wallet) {
           console.log('rdlogs: Wallet found: ', wallet);
           // Call cleanSpentProofs for each mint in the wallet
@@ -170,12 +189,14 @@ export const useChatActions = (): UseChatActionsReturn => {
             cleanSpentProofs(mint);
           });
         } else {
-          console.log('rdlogs: Creating new wallet');
+          console.log('rdlogs: No wallet found, creating new wallet');
           handleCreateWallet();
         }
+      } else {
+        console.log('rdlogs: Wallet still loading, skipping actions');
       }
     }
-  }, [wallet, isWalletLoading, logins, handleCreateWallet]);
+  }, [wallet, isWalletLoading, logins, handleCreateWallet, didRelaysTimeout]);
 
   // Scroll to bottom when messages or streaming content changes
   useEffect(() => {
@@ -304,6 +325,7 @@ export const useChatActions = (): UseChatActionsReturn => {
         mintUrl,
         usingNip60,
         balance,
+        unit: mintUnits[cashuStore.activeMintUrl??mintUrl],
         sendToken: usingNip60 ? sendToken : undefined,
         receiveToken,
         activeMintUrl: cashuStore.activeMintUrl,
@@ -340,6 +362,8 @@ export const useChatActions = (): UseChatActionsReturn => {
     streamingContent,
     thinkingContent,
     balance,
+    currentMintUnit,
+    mintBalances,
     isBalanceLoading,
     uploadedImages,
     transactionHistory,

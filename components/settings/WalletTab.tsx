@@ -373,6 +373,7 @@ const WalletTab: React.FC<WalletTabProps> = ({
         showInvoiceModal={showInvoiceModal}
         mintInvoice={mintInvoice}
         mintAmount={mintAmount}
+        mintUnit="sat"
         isAutoChecking={isAutoChecking}
         countdown={countdown}
         setShowInvoiceModal={setShowInvoiceModal}

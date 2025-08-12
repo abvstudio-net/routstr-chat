@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, Plus, XCircle, ChevronDown, ChevronUp, Search, Star, Eye, Copy } from 'lucide-react';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { Model } from '@/data/models';
-import { loadBaseUrlsList, saveBaseUrlsList, loadRelays, saveRelays, DEFAULT_RELAYS } from '@/utils/storageUtils';
+import { loadBaseUrlsList, saveBaseUrlsList } from '@/utils/storageUtils';
+import NostrRelayManager from './NostrRelayManager'; // Import the new component
 
 interface GeneralTabProps {
   publicKey: string | undefined;
@@ -76,7 +77,14 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   const handleAddBaseUrl = () => {
     const trimmedUrl = newBaseUrlInput.trim();
     if (trimmedUrl && !baseUrls.includes(trimmedUrl)) {
-      const formattedNewBaseUrl = trimmedUrl.endsWith('/') ? trimmedUrl : `${trimmedUrl}/`;
+      // Ensure URL has proper protocol (default to https)
+      let urlWithProtocol = trimmedUrl;
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        urlWithProtocol = `https://${trimmedUrl}`;
+      }
+      
+      // Ensure URL ends with slash
+      const formattedNewBaseUrl = urlWithProtocol.endsWith('/') ? urlWithProtocol : `${urlWithProtocol}/`;
       const updatedBaseUrls = [...baseUrls, formattedNewBaseUrl];
       setBaseUrls(updatedBaseUrls);
       saveBaseUrlsList(updatedBaseUrls); // Save to storage
@@ -287,6 +295,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Nostr Relays */}
+      <NostrRelayManager />
 
       {/* Model Preferences */}
       <div className="mb-6">

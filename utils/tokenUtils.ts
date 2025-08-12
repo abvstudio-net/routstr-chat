@@ -15,7 +15,7 @@ export const DEFAULT_TOKEN_AMOUNT = 50;
 export const getOrCreate60ApiToken = async (
   mintUrl: string,
   amount: number,
-  sendToken: (mintUrl: string, amount: number) => Promise<any[]>,
+  sendToken: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>,
   activeMintUrl: string | null,
   baseUrl: string // Add baseUrl parameter
 ): Promise<string | null | { hasTokens: false }> => {
@@ -59,7 +59,7 @@ export const getTokenForRequest = async (
   mintUrl: string,
   amount: number,
   baseUrl: string, // Move baseUrl to be a required parameter before optional ones
-  sendToken?: (mintUrl: string, amount: number) => Promise<any[]>,
+  sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>,
   activeMintUrl?: string | null
 ): Promise<string | null | { hasTokens: false }> => {
   if (usingNip60) {
@@ -67,7 +67,7 @@ export const getTokenForRequest = async (
       console.error("Missing required parameters for NIP-60 token creation");
       return null;
     }
-    return await getOrCreate60ApiToken(mintUrl, amount, sendToken, activeMintUrl, baseUrl); // Pass baseUrl
+    return await getOrCreate60ApiToken(activeMintUrl, amount, sendToken, activeMintUrl, baseUrl); // Pass baseUrl
   } else {
     return await getOrCreateApiToken(mintUrl, amount, baseUrl); // Pass baseUrl
   }

@@ -78,18 +78,24 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
     }
   }, [hookError]);
 
-  const mintBalances = React.useMemo(() => {
-    if (!cashuStore.proofs) return {};
+  const { balances: mintBalances, units: mintUnits } = React.useMemo(() => {
+    if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs]);
 
   useEffect(() => {
-    const totalBalance = Object.values(mintBalances).reduce(
-      (sum, balance) => sum + balance,
-      0
-    );
+    let totalBalance = 0;
+    for (const mintUrl in mintBalances) {
+      const balance = mintBalances[mintUrl];
+      const unit = mintUnits[mintUrl];
+      if (unit === 'msat') {
+        totalBalance += balance / 1000;
+      } else {
+        totalBalance += balance;
+      }
+    }
     setBalance(totalBalance);
-  }, [mintBalances, setBalance]);
+  }, [mintBalances, mintUnits, setBalance]);
 
   const handleCreateInvoice = async (quickMintAmount?: number) => {
     if (!cashuStore.activeMintUrl) {
@@ -175,7 +181,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setPendingTransactionId(null);
 
-        setSuccessMessage(`Received ${formatBalance(amount)}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
         setInvoice("");
         setcurrentMeltQuoteId("");
         setReceiveAmount("");
@@ -235,7 +241,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
       const proofs = await receiveToken(tokenToImport);
       const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-      setSuccessMessage(`Received ${formatBalance(totalAmount)} successfully!`);
+      setSuccessMessage(`Received ${formatBalance(totalAmount, 'sats')} successfully!`);
       setTokenToImport("");
     } catch (error) {
       console.error("Error receiving token:", error);

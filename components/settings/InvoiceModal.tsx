@@ -6,6 +6,7 @@ interface InvoiceModalProps {
   showInvoiceModal: boolean;
   mintInvoice: string;
   mintAmount: string;
+  mintUnit: string;
   isAutoChecking: boolean;
   countdown: number;
   setShowInvoiceModal: (show: boolean) => void;
@@ -21,6 +22,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
   showInvoiceModal,
   mintInvoice,
   mintAmount,
+  mintUnit,
   isAutoChecking,
   countdown,
   setShowInvoiceModal,
@@ -58,7 +60,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm text-white/70">Amount</span>
-              <span className="text-sm font-medium text-white">{mintAmount} sats</span>
+              <span className="text-sm font-medium text-white">{mintAmount} {mintUnit}s</span>
             </div>
 
             {isAutoChecking && (
