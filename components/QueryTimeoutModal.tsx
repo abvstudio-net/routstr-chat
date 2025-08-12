@@ -1,4 +1,5 @@
 import React from 'react';
+import NostrRelayManager from './settings/NostrRelayManager';
 
 interface QueryTimeoutModalProps {
   isOpen: boolean;
@@ -17,8 +18,9 @@ export const QueryTimeoutModal: React.FC<QueryTimeoutModalProps> = ({ isOpen, on
       <div className="bg-black border border-white/10 rounded-xl max-w-sm w-full p-5 relative">
         <h2 className='text-xl font-semibold text-center text-white mb-4'>Connection Timeout</h2>
         <p className="text-sm text-gray-400 mb-4 text-center">
-          It looks like there was a problem connecting to the server. Please refresh the page to try again.
+          It looks like there was a problem connecting to the relays. Please add/remove relays and refresh the page to try again.
         </p>
+        <NostrRelayManager/>
         <div className="flex justify-center">
           <button
             onClick={handleRefresh}

@@ -4,6 +4,7 @@ import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
 import { extractThinkingFromStream, isThinkingCapableModel } from './thinkingParser';
+import { getDecodedToken } from '@cashu/cashu-ts';
 
 export interface FetchAIResponseParams {
   messageHistory: Message[];
@@ -12,7 +13,8 @@ export interface FetchAIResponseParams {
   mintUrl: string;
   usingNip60: boolean;
   balance: number;
-  sendToken?: (mintUrl: string, amount: number) => Promise<any[]>;
+  unit: string;
+  sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>;
   receiveToken: (token: string) => Promise<any[]>;
   activeMintUrl?: string | null;
   onStreamingUpdate: (content: string) => void;
@@ -39,6 +41,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     mintUrl,
     usingNip60,
     balance,
+    unit,
     sendToken,
     receiveToken,
     activeMintUrl,
@@ -53,26 +56,19 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
   } = params;
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
-  const tokenAmount = getTokenAmountForModel(selectedModel);
+  let tokenAmount = getTokenAmountForModel(selectedModel);
+  console.log("rdlogs: tokenAmount", tokenAmount, unit, 'asdfasdf')
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
     const token = await getTokenForRequest(
       usingNip60,
       mintUrl,
-      tokenAmount,
+      usingNip60 && unit == 'msat'? tokenAmount*1000 : tokenAmount,
       baseUrl, // Add baseUrl here
       sendToken,
       activeMintUrl
     );
     
-    if (token) {
-      let roundedTokenAmount = tokenAmount;
-      if (roundedTokenAmount % 1 !== 0) {
-        roundedTokenAmount = Math.ceil(roundedTokenAmount);
-      }
-      onTokenCreated(roundedTokenAmount);
-    }
-
     if (!token) {
       throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
     }
@@ -80,6 +76,21 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
       throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
     }
+
+    if (token && typeof token === 'string') {
+      const decodedToken = getDecodedToken(token)
+      if (decodedToken.unit == 'msat') {
+        onTokenCreated(tokenAmount)
+      }
+      else {
+        let roundedTokenAmount = tokenAmount;
+        if (roundedTokenAmount % 1 !== 0) {
+          roundedTokenAmount = Math.ceil(roundedTokenAmount);
+        }
+        onTokenCreated(roundedTokenAmount);
+      }
+    }
+
 
     // Convert messages to API format
     // Filter out system messages (error messages) before sending to API
@@ -123,6 +134,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
 
   try {
     const response = await makeRequest();
+    // const response = new Response();
 
     if (!response.body) {
       throw new Error('Response body is not available');
@@ -165,7 +177,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       messageHistory,
       onMessagesUpdate,
       onMessageAppend,
-      estimatedCosts // Pass estimatedCosts here
+      estimatedCosts, // Pass estimatedCosts here
+      unit // Pass unit here
     });
     console.log("rdlogs:rdlogs: respon 23242342", response)
 
@@ -187,7 +200,7 @@ async function handleApiError(
     receiveToken: (token: string) => Promise<any[]>;
     tokenAmount: number;
     selectedModel: any;
-    sendToken?: (mintUrl: string, amount: number) => Promise<any[]>;
+    sendToken?: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>;
     activeMintUrl?: string | null;
     retryOnInsufficientBalance: boolean;
     messageHistory: Message[];
@@ -443,6 +456,7 @@ async function handlePostResponseRefund(params: {
   onMessagesUpdate: (messages: Message[]) => void;
   onMessageAppend: (message: Message) => void;
   estimatedCosts: number; // Add estimatedCosts here
+  unit: string; // Add unit here
 }): Promise<void> {
   const {
     mintUrl,
@@ -458,15 +472,18 @@ async function handlePostResponseRefund(params: {
     messageHistory,
     onMessagesUpdate,
     onMessageAppend,
-    estimatedCosts // Destructure estimatedCosts here
+    estimatedCosts, // Destructure estimatedCosts here
+    unit // Destructure unit here
   } = params;
 
   let satsSpent: number;
 
+
   const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   if (refundStatus.success) {
     if (usingNip60 && refundStatus.refundedAmount !== undefined) {
-      satsSpent = Math.ceil(tokenAmount) - refundStatus.refundedAmount;
+      // For msats, keep decimal precision; for sats, use Math.ceil
+      satsSpent = (unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount)) - refundStatus.refundedAmount;
       onBalanceUpdate(initialBalance - satsSpent);
     } else {
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
@@ -478,15 +495,25 @@ async function handlePostResponseRefund(params: {
     if (refundStatus.message && refundStatus.message.includes("Balance too small to refund")) {
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
+    else if (refundStatus.message && refundStatus.message.includes("Refund request failed with status 401")) {
+      handleApiResponseError("Refund failed: " + refundStatus.message + ". Clearing token. Pls retry. ", onMessageAppend);
+      clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    }
     else {
       handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
     }
-    satsSpent = Math.ceil(tokenAmount);
+    // For msats, keep decimal precision; for sats, use Math.ceil
+    satsSpent = unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount);
   }
   console.log("spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
-  if (netCosts > 1){
-    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + Math.ceil(estimatedCosts) +". Actual Costs: " + satsSpent, onMessageAppend);
+  
+  // Use different thresholds based on unit
+  const overchargeThreshold = unit === 'msat' ? 0.05 : 1;
+  if (netCosts > overchargeThreshold){
+    const estimatedDisplay = unit === 'msat' ? estimatedCosts.toFixed(3) : Math.ceil(estimatedCosts).toString();
+    const actualDisplay = unit === 'msat' ? satsSpent.toFixed(3) : satsSpent.toString();
+    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + estimatedDisplay +". Actual Costs: " + actualDisplay, onMessageAppend);
   }
 
   const newTransaction: TransactionHistory = {

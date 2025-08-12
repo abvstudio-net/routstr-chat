@@ -43,7 +43,14 @@ export function useWalletOperations({
   const initWallet = useCallback(async () => {
     try {
       const mint = new CashuMint(mintUrl);
-      const wallet = new CashuWallet(mint);
+      const keysets = await mint.getKeySets();
+      
+      // Get preferred unit: msat over sat if both are active
+      const activeKeysets = keysets.keysets.filter(k => k.active);
+      const units = [...new Set(activeKeysets.map(k => k.unit))];
+      const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+      
+      const wallet = new CashuWallet(mint, { unit: preferredUnit });
       await wallet.loadMint();
       cashuWalletRef.current = wallet;
       return wallet;

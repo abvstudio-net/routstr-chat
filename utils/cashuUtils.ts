@@ -76,20 +76,6 @@ export const getBalanceFromStoredProofs = (): number => {
   }
 };
 
-/**
- * Store a wrapped Cashu token in local storage
- * @param wrappedToken The NIP-60 wrapped token event
- */
-export const storeWrappedToken = (wrappedToken: Event): void => {
-  try {
-    const storedTokens = localStorage.getItem("wrapped_cashu_tokens") || "[]";
-    const tokens = JSON.parse(storedTokens);
-    tokens.push(wrappedToken);
-    localStorage.setItem("wrapped_cashu_tokens", JSON.stringify(tokens));
-  } catch (error) {
-    console.error("Error storing wrapped token:", error);
-  }
-};
 
 /**
  * Get all stored wrapped tokens
@@ -147,7 +133,14 @@ export const generateApiToken = async (
 
     // Initialize wallet for this mint
     const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
     await wallet.loadMint();
 
     // Generate the token using the wallet directly
@@ -266,7 +259,14 @@ export const fetchRefundToken = async (baseUrl: string, storedToken: string): Pr
 
 export const storeCashuToken = async (mintUrl: string, token: string): Promise<void> => {
   const mint = new CashuMint(mintUrl);
-  const wallet = new CashuWallet(mint);
+  const keysets = await mint.getKeySets();
+  
+  // Get preferred unit: msat over sat if both are active
+  const activeKeysets = keysets.keysets.filter(k => k.active);
+  const units = [...new Set(activeKeysets.map(k => k.unit))];
+  const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+  
+  const wallet = new CashuWallet(mint, { unit: preferredUnit });
   await wallet.loadMint();
 
   const result = await wallet.receive(token);
@@ -318,7 +318,7 @@ export const invalidateApiToken = (baseUrl: string) => { // Add baseUrl paramete
 
 export const create60CashuToken = async (
   activeMintUrl: string,
-  sendToken: (mintUrl: string, amount: number) => Promise<any[]>,
+  sendToken: (mintUrl: string, amount: number) => Promise<{ proofs: any[], unit: string }>,
   amount: number
 ): Promise<string | undefined> => {
   // Check if amount is a decimal and round up if necessary
@@ -339,7 +339,8 @@ export const create60CashuToken = async (
   }
 
   try {
-    const proofs = await sendToken(activeMintUrl, amount);
+    const result = await sendToken(activeMintUrl, amount);
+    const proofs = result.proofs;
     const token = getEncodedTokenV4({
       mint: activeMintUrl,
       proofs: proofs.map((p) => ({
@@ -348,6 +349,7 @@ export const create60CashuToken = async (
         secret: p.secret || "",
         C: p.C || "",
       })),
+      unit: result.unit
     });
     
     // Clean up pending proofs after successful token creation
@@ -382,6 +384,7 @@ export const unifiedRefund = async (
     }
     
     try {
+
       const refundedToken = await fetchRefundToken(baseUrl, storedToken);
       const proofs = await receiveTokenFn(refundedToken);
       const totalAmount = proofs.reduce((sum: number, p: any) => sum + p.amount, 0);
@@ -394,6 +397,14 @@ export const unifiedRefund = async (
         refundedAmount: totalAmount
       };
     } catch (error) {
+      if (usingNip60) {
+        if (error instanceof Error && error.message.includes("NetworkError when attempting to fetch resource.")) {
+          return {
+            success: false,
+            message: "Failed to connect to the mint: " + ((error as any).mintUrl || mintUrl)
+          }
+        }
+      }
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Refund failed'
@@ -411,9 +422,13 @@ export const getPendingCashuTokenAmount = (): number => {
   allTokens.forEach((tokenEntry: CashuTokenEntry) => {
     try {
       const decodedToken = getDecodedToken(tokenEntry.token);
+      const msatOrSat = decodedToken.unit === 'msat' ? 1000 : 1;
       decodedToken.proofs.forEach((proof: { amount: number; }) => {
-        totalPendingAmount += proof.amount;
+        totalPendingAmount += (proof.amount/msatOrSat);
       });
+      if (decodedToken) {
+        
+      }
     } catch (error) {
       console.error(`Error decoding cashu token for baseUrl ${tokenEntry.baseUrl}:`, error);
     }

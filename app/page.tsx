@@ -57,7 +57,7 @@ function ChatPageContent() {
   } = useChat();
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
-  const { showQueryTimeoutModal, setShowQueryTimeoutModal } = useCashuWallet();
+  const { showQueryTimeoutModal, setShowQueryTimeoutModal, didRelaysTimeout, isLoading: isWalletLoading } = useCashuWallet();
 
   useEffect(() => {
     if (!isBalanceLoading && balance === 0 && isAuthenticated && !isSettingsOpen && !usingNip60) {
@@ -133,7 +133,7 @@ function ChatPageContent() {
       )}
 
       <QueryTimeoutModal
-        isOpen={showQueryTimeoutModal}
+        isOpen={showQueryTimeoutModal || (didRelaysTimeout && !isWalletLoading)}
         onClose={() => setShowQueryTimeoutModal(false)}
       />
     </div>

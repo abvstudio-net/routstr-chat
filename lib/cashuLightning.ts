@@ -1,5 +1,6 @@
 import { useCashuStore } from '@/stores/cashuStore';
 import { CashuMint, CashuWallet, MeltQuoteResponse, MeltQuoteState, MintQuoteResponse, MintQuoteState, Proof } from '@cashu/cashu-ts';
+import { calculateFees, canMakeExactChange } from '@/lib/cashu';
 
 export interface MintQuote {
   mintUrl: string;
@@ -26,7 +27,14 @@ export interface MeltQuote {
 export async function createLightningInvoice(mintUrl: string, amount: number): Promise<MintQuote> {
   try {
     const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
     // Load mint keysets
     await wallet.loadMint();
@@ -59,7 +67,14 @@ export async function createLightningInvoice(mintUrl: string, amount: number): P
 export async function mintTokensFromPaidInvoice(mintUrl: string, quoteId: string, amount: number, maxAttempts: number = 40): Promise<Proof[]> {
   try {
     const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
     // Load mint keysets
     await wallet.loadMint();
@@ -118,7 +133,14 @@ export async function mintTokensFromPaidInvoice(mintUrl: string, quoteId: string
 export async function createMeltQuote(mintUrl: string, paymentRequest: string): Promise<MeltQuoteResponse> {
   try {
     const mint = new CashuMint(mintUrl);
-    const wallet = new CashuWallet(mint);
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
     // Load mint keysets
     await wallet.loadMint();
@@ -144,14 +166,16 @@ export async function createMeltQuote(mintUrl: string, paymentRequest: string): 
 export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Proof[]) {
   try {
     const mint = new CashuMint(mintUrl);
-    // const mintInStore = useCashuStore.getState().getMint(mintUrl);
-    // const keysArray = mintInStore.keys?.flatMap(obj => Object.values(obj)) || [];
-    // const wallet = new CashuWallet(mint, {
-    //   keys: keysArray,
-    //   keysets: mintInStore.keysets,
-    //   mintInfo: mintInStore.mintInfo
-    // });
-    const wallet = new CashuWallet(mint)
+    const keysets = await mint.getKeySets();
+    
+    // Get preferred unit: msat over sat if both are active
+    const activeKeysets = keysets.keysets.filter(k => k.active);
+    const units = [...new Set(activeKeysets.map(k => k.unit))];
+    const fees = [...new Array(activeKeysets.map(k => k.input_fee_ppk))]
+    console.log('rdlogs: lfees', fees)
+    const preferredUnit = units.includes('msat') ? 'msat' : (units.includes('sat') ? 'sat' : 'not supported');
+    
+    const wallet = new CashuWallet(mint, { unit: preferredUnit });
 
     // Load mint keysets
     await wallet.loadMint();
@@ -166,11 +190,70 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
     if (proofsAmount < amountToSend) {
       throw new Error(`Not enough funds on mint ${mintUrl}`);
     }
+    console.log('rdlogs: proofs lfees', calculateFees(proofs, activeKeysets));
+    const mintFees = calculateFees(proofs, activeKeysets) / proofs.length;
 
-    // Perform coin selection
-    const { keep, send } = await wallet.send(amountToSend, proofs, {
-      includeFees: true, privkey: useCashuStore.getState().privkey
-    });
+    let keep: Proof[], send: Proof[];
+    
+    try {
+      // First, try wallet.send()
+      console.log('Attempting wallet.send() for melt quote');
+      const result = await wallet.send(amountToSend, proofs, {
+        includeFees: true, privkey: useCashuStore.getState().privkey
+      });
+      keep = result.keep;
+      send = result.send;
+      console.log('Successfully used wallet.send() for melt quote');
+    } catch (error: any) {
+      // Check if the error is "Not enough funds available for swap"
+      if (error?.message?.includes('Not enough funds available for swap')) {
+        console.log('wallet.send() failed with insufficient funds, trying exact change methods');
+        
+        // Get denomination counts for exact change attempts
+        const denominationCounts = proofs.reduce((acc, p) => {
+          acc[p.amount] = (acc[p.amount] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>);
+        console.log('rdlogs:', denominationCounts);
+        
+        // Try with 0% error tolerance first
+        let exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees, 0);
+        
+        if (!exactChangeResult.canMake || !exactChangeResult.selectedProofs) {
+          console.log('Cannot make exact change with 0% tolerance, trying with 5% tolerance');
+          // Try with 5% error tolerance
+          exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees, 0.05);
+        }
+        
+        if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
+          const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
+          const denominationBreakdown = selectedDenominations.reduce((acc, denom) => {
+            acc[denom] = (acc[denom] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          const actualAmount = exactChangeResult.actualAmount || 0;
+          const overpayment = actualAmount - amountToSend;
+          const overpaymentPercent = (overpayment / amountToSend) * 100;
+          
+          console.log('rdlogs: Can make change within tolerance, using selected proofs directly');
+          console.log('rdlogs: Target amount:', amountToSend);
+          console.log('rdlogs: Actual amount:', actualAmount);
+          console.log('rdlogs: Overpayment:', overpayment, `(${overpaymentPercent.toFixed(2)}%)`);
+          console.log('rdlogs: Selected denominations:', selectedDenominations);
+          console.log('rdlogs: Denomination breakdown:', denominationBreakdown);
+          console.log('Using proofs within tolerance for melt quote payment');
+          send = exactChangeResult.selectedProofs;
+          keep = proofs.filter(p => !send.includes(p));
+        } else {
+          // If all methods fail, re-throw the original error
+          throw error;
+        }
+      } else {
+        // Re-throw if it's a different error
+        throw error;
+      }
+    }
 
     // Melt the selected proofs to pay the Lightning invoice
     let meltResponse;
