@@ -100,9 +100,20 @@ export function useCashuToken() {
         throw new Error(`Not enough funds on mint ${mintUrl}`);
       }
 
-      // Check if we can make exact change
-      const exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs);
+      // Check if we can make exact change (first with 0% tolerance)
+      let exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs);
       console.log('rdlogs: Exact change check for amount', amount, ':', exactChangeResult.canMake);
+      
+      // If exact change fails, try with 5% error tolerance
+      if (!exactChangeResult.canMake) {
+        console.log('rdlogs: Cannot make exact change with 0% tolerance, trying with 5% tolerance');
+        exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs, fees, 0.05);
+        if (exactChangeResult.canMake && exactChangeResult.actualAmount) {
+          const overpayment = exactChangeResult.actualAmount - amount;
+          const overpaymentPercent = (overpayment / amount) * 100;
+          console.log(`rdlogs: Can make change with 5% tolerance - overpayment: ${overpayment} (${overpaymentPercent.toFixed(2)}%)`);
+        }
+      }
       
       if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
         const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
@@ -131,9 +142,6 @@ export function useCashuToken() {
           })),
           timestamp: Date.now()
         }));
-
-        const sendFees = calculateFees(proofsToSend, activeKeysets);
-        console.log('rdlogs: fees to send ', amount, ' is ', sendFees);
 
         // Create new token for the proofs we're keeping
         if (proofsToKeep.length > 0) {
@@ -166,8 +174,6 @@ export function useCashuToken() {
       console.log('rdlogs: Cannot make exact change, using wallet.send()');
 
       try {
-
-        
         const { keep: proofsToKeep, send: proofsToSend } = await wallet.send(amount, proofs, { pubkey: p2pkPubkey, privkey: cashuStore.privkey});
 
         // Store proofs temporarily before updating wallet state
@@ -301,6 +307,87 @@ export function useCashuToken() {
           return { proofs: proofsToSend, unit: preferredUnit };
         }
         else if(message.includes("Not enough funds available")) {
+          console.log('rdlogs: wallet.send() failed with insufficient funds, trying exact change with tolerance');
+          
+          // Get fresh denomination counts
+          const freshDenominationCounts = proofs.reduce((acc, p) => {
+            acc[p.amount] = (acc[p.amount] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          // Try with 0% tolerance first
+          let toleranceResult = canMakeExactChange(amount, freshDenominationCounts, proofs);
+          
+          // If 0% fails, try with 5% tolerance
+          if (!toleranceResult.canMake || !toleranceResult.selectedProofs) {
+            console.log('rdlogs: Cannot make exact change with 0% tolerance, trying with 5% tolerance');
+            const fees = calculateFees(proofs, activeKeysets);
+            toleranceResult = canMakeExactChange(amount, freshDenominationCounts, proofs, fees, 0.05);
+          }
+          
+          if (toleranceResult.canMake && toleranceResult.selectedProofs) {
+            const selectedDenominations = toleranceResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
+            const denominationBreakdown = selectedDenominations.reduce((acc, denom) => {
+              acc[denom] = (acc[denom] || 0) + 1;
+              return acc;
+            }, {} as Record<number, number>);
+            
+            const actualAmount = toleranceResult.actualAmount || 0;
+            const overpayment = actualAmount - amount;
+            const overpaymentPercent = (overpayment / amount) * 100;
+            
+            console.log('rdlogs: Can make change within tolerance after wallet.send() failure');
+            console.log('rdlogs: Target amount:', amount);
+            console.log('rdlogs: Actual amount:', actualAmount);
+            console.log('rdlogs: Overpayment:', overpayment, `(${overpaymentPercent.toFixed(2)}%)`);
+            console.log('rdlogs: Selected denominations:', selectedDenominations);
+            console.log('rdlogs: Denomination breakdown:', denominationBreakdown);
+            
+            const proofsToSend = toleranceResult.selectedProofs;
+            const proofsToKeep = proofs.filter(p => !proofsToSend.includes(p));
+            
+            // Store proofs temporarily before updating wallet state
+            const pendingProofsKey = `pending_send_proofs_${Date.now()}`;
+            localStorage.setItem(pendingProofsKey, JSON.stringify({
+              mintUrl,
+              proofsToSend: proofsToSend.map(p => ({
+                id: p.id || '',
+                amount: p.amount,
+                secret: p.secret || '',
+                C: p.C || ''
+              })),
+              timestamp: Date.now()
+            }));
+            
+            // Create new token for the proofs we're keeping
+            if (proofsToKeep.length > 0) {
+              const keepTokenData: CashuToken = {
+                mint: mintUrl,
+                proofs: proofsToKeep.map(p => ({
+                  id: p.id || '',
+                  amount: p.amount,
+                  secret: p.secret || '',
+                  C: p.C || ''
+                }))
+              };
+              
+              // update proofs
+              await updateProofs({ mintUrl, proofsToAdd: keepTokenData.proofs, proofsToRemove: [...proofsToSend, ...proofs] });
+              
+              // Create history event
+              await createHistory({
+                direction: 'out',
+                amount: amount.toString(),
+              });
+            }
+            
+            // Store the pending proofs key with the returned proofs for cleanup
+            (proofsToSend as any).pendingProofsKey = pendingProofsKey;
+            
+            return { proofs: proofsToSend, unit: preferredUnit };
+          }
+          
+          // If all attempts fail, throw the original error
           setError(`Failed to generate token: ${message}`);
           throw error;
         }

@@ -193,38 +193,66 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
     console.log('rdlogs: proofs lfees', calculateFees(proofs, activeKeysets));
     const mintFees = calculateFees(proofs, activeKeysets) / proofs.length;
 
-    // Check if we can make exact change first
-    const denominationCounts = proofs.reduce((acc, p) => {
-      acc[p.amount] = (acc[p.amount] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-    console.log('rdlogs:', denominationCounts);
-
-    const exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees);
-    
     let keep: Proof[], send: Proof[];
     
-    if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
-      const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
-      const denominationCounts = selectedDenominations.reduce((acc, denom) => {
-        acc[denom] = (acc[denom] || 0) + 1;
-        return acc;
-      }, {} as Record<number, number>);
-      
-      console.log('rdlogs: Can make exact change, using selected proofs directly');
-      console.log('rdlogs: Selected denominations:', selectedDenominations);
-      console.log('rdlogs: Denomination breakdown:', denominationCounts);
-      console.log('Using exact change for melt quote payment');
-      send = exactChangeResult.selectedProofs;
-      keep = proofs.filter(p => !send.includes(p));
-    } else {
-      console.log('Cannot make exact change, using wallet.send() for melt quote');
-      // Perform coin selection
+    try {
+      // First, try wallet.send()
+      console.log('Attempting wallet.send() for melt quote');
       const result = await wallet.send(amountToSend, proofs, {
         includeFees: true, privkey: useCashuStore.getState().privkey
       });
       keep = result.keep;
       send = result.send;
+      console.log('Successfully used wallet.send() for melt quote');
+    } catch (error: any) {
+      // Check if the error is "Not enough funds available for swap"
+      if (error?.message?.includes('Not enough funds available for swap')) {
+        console.log('wallet.send() failed with insufficient funds, trying exact change methods');
+        
+        // Get denomination counts for exact change attempts
+        const denominationCounts = proofs.reduce((acc, p) => {
+          acc[p.amount] = (acc[p.amount] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>);
+        console.log('rdlogs:', denominationCounts);
+        
+        // Try with 0% error tolerance first
+        let exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees, 0);
+        
+        if (!exactChangeResult.canMake || !exactChangeResult.selectedProofs) {
+          console.log('Cannot make exact change with 0% tolerance, trying with 5% tolerance');
+          // Try with 5% error tolerance
+          exactChangeResult = canMakeExactChange(amountToSend, denominationCounts, proofs, mintFees, 0.05);
+        }
+        
+        if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
+          const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
+          const denominationBreakdown = selectedDenominations.reduce((acc, denom) => {
+            acc[denom] = (acc[denom] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          const actualAmount = exactChangeResult.actualAmount || 0;
+          const overpayment = actualAmount - amountToSend;
+          const overpaymentPercent = (overpayment / amountToSend) * 100;
+          
+          console.log('rdlogs: Can make change within tolerance, using selected proofs directly');
+          console.log('rdlogs: Target amount:', amountToSend);
+          console.log('rdlogs: Actual amount:', actualAmount);
+          console.log('rdlogs: Overpayment:', overpayment, `(${overpaymentPercent.toFixed(2)}%)`);
+          console.log('rdlogs: Selected denominations:', selectedDenominations);
+          console.log('rdlogs: Denomination breakdown:', denominationBreakdown);
+          console.log('Using proofs within tolerance for melt quote payment');
+          send = exactChangeResult.selectedProofs;
+          keep = proofs.filter(p => !send.includes(p));
+        } else {
+          // If all methods fail, re-throw the original error
+          throw error;
+        }
+      } else {
+        // Re-throw if it's a different error
+        throw error;
+      }
     }
 
     // Melt the selected proofs to pay the Lightning invoice

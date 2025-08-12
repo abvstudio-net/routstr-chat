@@ -141,8 +141,12 @@ export function canMakeExactChange(
   targetAmount: number,
   denomCounts: Record<number, number>,
   availableProofs: Proof[],
-  fees?: number
-): { canMake: boolean, selectedProofs?: Proof[] } {
+  fees?: number,
+  errorTolerance?: number
+): { canMake: boolean, selectedProofs?: Proof[], actualAmount?: number } {
+  // Default error tolerance to 0 (exact change) if not specified
+  const tolerance = errorTolerance || 0;
+  
   // If fees are defined, we need to account for them
   if (fees !== undefined && fees > 0) {
     // We need to iteratively calculate the total amount needed including fees
@@ -152,14 +156,12 @@ export function canMakeExactChange(
     let iterations = 0;
     const maxIterations = 100; // Prevent infinite loops
     
-    // Keep track of denomination usage for fee calculation
-    const usedDenoms: Record<number, number> = {};
-    
     while (iterations < maxIterations) {
       iterations++;
       
-      // Try to find a combination for the current totalNeeded
-      const result = findExactCombination(totalNeeded, denomCounts, availableProofs);
+      // Try to find a combination for the current totalNeeded, allowing for error tolerance
+      const maxAcceptableAmount = Math.ceil(totalNeeded * (1 + tolerance));
+      const result = findCombinationWithTolerance(totalNeeded, maxAcceptableAmount, denomCounts, availableProofs);
       
       if (!result.canMake) {
         return { canMake: false };
@@ -169,24 +171,27 @@ export function canMakeExactChange(
       const currentProofCount = result.selectedProofs!.length;
       
       // Calculate the fee for this number of proofs
-      const requiredFee = currentProofCount * fees;
+      const requiredFee = Math.ceil(currentProofCount * fees);
       
       // Check if we've converged (total amount covers both target and fees)
       const currentTotal = result.selectedProofs!.reduce((sum, p) => sum + p.amount, 0);
-      if (currentTotal >= targetAmount + requiredFee) {
-        // Verify we have exactly the right amount
-        if (currentTotal === targetAmount + requiredFee) {
-          return { canMake: true, selectedProofs: result.selectedProofs };
-        }
-        // If we have too much, we can't make exact change
-        return { canMake: false };
+      const minimumRequired = targetAmount + requiredFee;
+      const maximumAcceptable = Math.ceil(minimumRequired * (1 + tolerance));
+      
+      if (currentTotal >= minimumRequired && currentTotal <= maximumAcceptable) {
+        // We found an acceptable solution within tolerance
+        return {
+          canMake: true,
+          selectedProofs: result.selectedProofs,
+          actualAmount: currentTotal
+        };
       }
       
       // Update totalNeeded for next iteration
-      totalNeeded = targetAmount + requiredFee;
+      totalNeeded = minimumRequired;
       
       // Check if we're stuck in a loop
-      if (currentProofCount === previousProofCount) {
+      if (currentProofCount === previousProofCount && currentTotal < minimumRequired) {
         // We're not making progress, can't satisfy the fee requirement
         return { canMake: false };
       }
@@ -198,8 +203,46 @@ export function canMakeExactChange(
     return { canMake: false };
   }
   
-  // No fees, use the original logic
-  return findExactCombination(targetAmount, denomCounts, availableProofs);
+  // No fees, but still apply error tolerance
+  const maxAcceptableAmount = Math.ceil(targetAmount * (1 + tolerance));
+  const result = findCombinationWithTolerance(targetAmount, maxAcceptableAmount, denomCounts, availableProofs);
+  
+  if (result.canMake && result.selectedProofs) {
+    const actualAmount = result.selectedProofs.reduce((sum, p) => sum + p.amount, 0);
+    return {
+      canMake: true,
+      selectedProofs: result.selectedProofs,
+      actualAmount
+    };
+  }
+  
+  return { canMake: false };
+}
+
+/**
+ * Helper function to find combination with error tolerance
+ */
+function findCombinationWithTolerance(
+  targetAmount: number,
+  maxAmount: number,
+  denomCounts: Record<number, number>,
+  availableProofs: Proof[]
+): { canMake: boolean, selectedProofs?: Proof[] } {
+  // First try exact amount
+  let result = findExactCombination(targetAmount, denomCounts, availableProofs);
+  if (result.canMake) {
+    return result;
+  }
+  
+  // If exact amount doesn't work, try amounts within tolerance
+  for (let amount = targetAmount + 1; amount <= maxAmount; amount++) {
+    result = findExactCombination(amount, denomCounts, availableProofs);
+    if (result.canMake) {
+      return result;
+    }
+  }
+  
+  return { canMake: false };
 }
 
 /**

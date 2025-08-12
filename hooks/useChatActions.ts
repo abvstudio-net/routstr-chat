@@ -19,6 +19,7 @@ export interface UseChatActionsReturn {
   streamingContent: string;
   thinkingContent: string;
   balance: number;
+  currentMintUnit: string;
   isBalanceLoading: boolean;
   uploadedImages: string[];
   transactionHistory: TransactionHistory[];
@@ -75,6 +76,7 @@ export const useChatActions = (): UseChatActionsReturn => {
   const [streamingContent, setStreamingContent] = useState('');
   const [thinkingContent, setThinkingContent] = useState('');
   const [balance, setBalance] = useState(0);
+  const [currentMintUnit, setCurrentMintUnit] = useState('sat');
   const [isBalanceLoading, setIsBalanceLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [pendingCashuAmountState, setPendingCashuAmountState] = useState(0);
@@ -102,6 +104,10 @@ export const useChatActions = (): UseChatActionsReturn => {
     if (!cashuStore.proofs) return { balances: {}, units: {} };
     return calculateBalance(cashuStore.proofs);
   }, [cashuStore.proofs, cashuStore.mints]);
+
+  useEffect(() => {
+    setCurrentMintUnit(mintUnits[cashuStore.activeMintUrl??'']);
+  }, [mintUnits, cashuStore.activeMintUrl]);
 
   // Update balance based on wallet type
   useEffect(() => {
@@ -355,6 +361,8 @@ export const useChatActions = (): UseChatActionsReturn => {
     streamingContent,
     thinkingContent,
     balance,
+    currentMintUnit,
+    mintBalances,
     isBalanceLoading,
     uploadedImages,
     transactionHistory,

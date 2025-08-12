@@ -74,7 +74,14 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   const handleAddBaseUrl = () => {
     const trimmedUrl = newBaseUrlInput.trim();
     if (trimmedUrl && !baseUrls.includes(trimmedUrl)) {
-      const formattedNewBaseUrl = trimmedUrl.endsWith('/') ? trimmedUrl : `${trimmedUrl}/`;
+      // Ensure URL has proper protocol (default to https)
+      let urlWithProtocol = trimmedUrl;
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        urlWithProtocol = `https://${trimmedUrl}`;
+      }
+      
+      // Ensure URL ends with slash
+      const formattedNewBaseUrl = urlWithProtocol.endsWith('/') ? urlWithProtocol : `${urlWithProtocol}/`;
       const updatedBaseUrls = [...baseUrls, formattedNewBaseUrl];
       setBaseUrls(updatedBaseUrls);
       saveBaseUrlsList(updatedBaseUrls); // Save to storage

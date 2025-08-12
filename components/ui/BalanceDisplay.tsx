@@ -39,7 +39,7 @@ interface BalanceDisplayProps {
 
 const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setInitialSettingsTab, usingNip60 }) => {
   const { isAuthenticated } = useAuth();
-  const { balance, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
+  const { balance, currentMintUnit, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
   const { publicKey } = useNostr();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'activity' | 'invoice'>('overview');
@@ -332,7 +332,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
         transactionHistoryStore.removePendingTransaction(pendingTxId);
         setNip60PendingTxId(null);
-        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
+        setSuccessMessage(`Received ${formatBalance(amount, currentMintUnit)}s!`);
         setNip60Invoice("");
         setNip60QuoteId("");
         setMintAmount("");
@@ -432,7 +432,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       const totalProofsAmount = selectedProofs.reduce((sum, p) => sum + p.amount, 0);
 
       if (totalProofsAmount < invoiceAmount + (invoiceFeeReserve || 0)) {
-        setError(`Insufficient balance: have ${formatBalance(totalProofsAmount, 'sats')}, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0), 'sats')}`);
+        setError(`Insufficient balance: have ${formatBalance(totalProofsAmount, currentMintUnit)}s, need ${formatBalance(invoiceAmount + (invoiceFeeReserve || 0), currentMintUnit)}s`);
         setIsNip60Processing(false);
         return;
       }
@@ -448,7 +448,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           proofsToRemove: selectedProofs,
         });
 
-        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, 'sats')}!`);
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, currentMintUnit)}s!`);
         handleNip60PaymentCancel();
         setTimeout(() => setSuccessMessage(""), 5000);
       }
@@ -499,6 +499,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
             secret: p.secret || "",
             C: p.C || "",
           })),
+          unit: unit
         });
 
         setGeneratedToken(token as string);
@@ -588,7 +589,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         const proofs = await receiveToken(tokenToImport);
         const totalAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
 
-        setSuccessMessage(`Received ${formatBalance(totalAmount, unit ?? 'sat')} successfully!`);
+        setSuccessMessage(`Received ${formatBalance(totalAmount, unit ? `${unit}s` : 'sats')} successfully!`);
         setTokenToImport("");
       } catch (error) {
         console.error("Error receiving NIP-60 token:", error);
@@ -693,7 +694,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
     }
   };
 
-  const isValidSendAmount = sendAmount && parseInt(sendAmount) > 0 && parseInt(sendAmount) <= balance;
+  const isValidSendAmount = sendAmount && parseInt(sendAmount) > 0 && parseInt(sendAmount) <= (currentMintUnit === 'msat' ? balance * 1000 : balance);
   const isValidReceiveAmount = mintAmount && parseInt(mintAmount) > 0;
 
   const getTabTitle = () => {
@@ -867,6 +868,14 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           {activeTab === 'send' && (
             <div className="p-4 space-y-3">
               {/* Sub-tabs for Token/Lightning */}
+                            {/* Note about msats if using msat unit */}
+              {currentMintUnit === 'msat' && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
+                  <div className="text-blue-200 text-sm text-center">
+                    Note: You are using msats (millisats). 1 sat = 1000 msats
+                  </div>
+                </div>
+              )}
               <div className="flex bg-white/5 rounded-lg p-1">
                 <button
                   onClick={() => setSendTab('token')}
@@ -896,12 +905,12 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                   {/* Balance context */}
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="text-white/60 text-xs">Available Balance</div>
-                    <div className="text-white text-lg font-bold">{balance} sats</div>
+                    <div className="text-white text-lg font-bold">{currentMintUnit === 'msat' ? balance * 1000 : balance} {currentMintUnit === 'msat' ? 'msats' : 'sats'}</div>
                   </div>
 
                   <div>
                     <label className="block text-white/70 text-xs font-medium mb-2">
-                      Amount (sats)
+                      Amount ({currentMintUnit}s)
                     </label>
                     <input
                       type="text"
@@ -911,7 +920,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       placeholder="0"
                       autoFocus
                     />
-                    {sendAmount && parseInt(sendAmount) > balance && (
+                    {sendAmount && parseInt(sendAmount) > (currentMintUnit === 'msat' ? balance * 1000 : balance) && (
                       <p className="text-red-400 text-xs mt-1">
                         Amount exceeds available balance
                       </p>
@@ -923,14 +932,14 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       <button
                         key={amount}
                         onClick={() => setSendAmount(amount.toString())}
-                        disabled={amount > balance}
+                        disabled={amount > (currentMintUnit === 'msat' ? balance * 1000 : balance)}
                         className="py-1.5 px-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded-md text-white/70 text-xs transition-colors cursor-pointer"
                       >
                         {amount}
                       </button>
                     ))}
                     <button
-                      onClick={() => setSendAmount(balance.toString())}
+                      onClick={() => setSendAmount((currentMintUnit === 'msat' ? balance * 1000 : balance).toString())}
                       disabled={balance === 0}
                       className="py-1.5 px-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded-md text-white/70 text-xs transition-colors cursor-pointer"
                     >
@@ -978,7 +987,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                         </button>
                       </div>
                       <div className="text-white/50 text-xs text-center">
-                        Share this token to send {sendAmount} sats
+                        Share this token to send {sendAmount} {currentMintUnit}s
                       </div>
                     </div>
                   )}
@@ -1004,7 +1013,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                     <div className="bg-white/5 border border-white/20 rounded-lg p-3">
                       <div className="text-white/70 text-xs mb-1">Invoice Amount</div>
                       <div className="text-white text-lg font-bold">
-                        {invoiceAmount} sats
+                        {invoiceAmount} {currentMintUnit}s
                         {invoiceFeeReserve && (
                           <span className="text-xs font-normal text-white/50 ml-2">
                             + {invoiceFeeReserve} fee
@@ -1014,28 +1023,42 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                     </div>
                   )}
 
-                  <button
-                    onClick={handlePayLightningInvoice}
-                    disabled={!(usingNip60 ? nip60SendInvoice.trim() : lightningInvoice.trim()) || (usingNip60 ? isNip60Processing || isNip60LoadingInvoice : isPayingInvoice)}
-                    className="w-full bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/20 text-white py-2 px-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {(usingNip60 ? isNip60Processing : isPayingInvoice) ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-                        Paying...
-                      </>
-                    ) : (usingNip60 && isNip60LoadingInvoice) ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-4 w-4" />
-                        Pay Invoice
-                      </>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handlePayLightningInvoice}
+                      disabled={!(usingNip60 ? nip60SendInvoice.trim() : lightningInvoice.trim()) || (usingNip60 ? isNip60Processing || isNip60LoadingInvoice : isPayingInvoice)}
+                      className="flex-1 bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/20 text-white py-2 px-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {(usingNip60 ? isNip60Processing : isPayingInvoice) ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                          Paying...
+                        </>
+                      ) : (usingNip60 && isNip60LoadingInvoice) ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4" />
+                          Pay Invoice
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Cancel button - only show when there's an invoice being processed */}
+                    {usingNip60 && (nip60SendInvoice.trim() || nip60MeltQuoteId) && (
+                      <button
+                        onClick={handleNip60PaymentCancel}
+                        disabled={isNip60Processing}
+                        className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/30 text-red-200 rounded-lg font-medium transition-colors cursor-pointer"
+                        title="Cancel and clear invoice"
+                      >
+                        ✕
+                      </button>
                     )}
-                  </button>
+                  </div>
 
                   <div className="text-white/50 text-xs text-center">
                     Paste a lightning invoice to pay it instantly
@@ -1048,6 +1071,15 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           {/* Receive Tab Content */}
           {activeTab === 'receive' && (
             <div className="p-4 space-y-3">
+              {/* Note about msats if using msat unit */}
+              {currentMintUnit === 'msat' && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
+                  <div className="text-blue-200 text-sm text-center">
+                    Note: You are using msats (millisats). 1 sat = 1000 msats
+                  </div>
+                </div>
+              )}
+              
               {/* Sub-tabs for Lightning/Token */}
               <div className="flex bg-white/5 rounded-lg p-1">
                 <button
@@ -1077,7 +1109,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                 <div className="space-y-3">
                   <div>
                     <label className="block text-white/70 text-xs font-medium mb-2">
-                      Amount (sats)
+                      Amount ({currentMintUnit}s)
                     </label>
                     <input
                       type="text"
@@ -1238,7 +1270,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                 <div className="space-y-3">
                   {/* Amount Display */}
                   <div className="text-center">
-                    <div className="text-white/60 text-sm">{mintAmount} sats</div>
+                    <div className="text-white/60 text-sm">{mintAmount} {currentMintUnit}s</div>
                   </div>
 
                   {/* QR Code Display */}

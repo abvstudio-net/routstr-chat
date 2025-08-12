@@ -57,16 +57,13 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
   let tokenAmount = getTokenAmountForModel(selectedModel);
-  if (usingNip60 && unit == 'msat') {
-    tokenAmount = tokenAmount * 1000;
-  }
   console.log("rdlogs: tokenAmount", tokenAmount, unit, 'asdfasdf')
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
     const token = await getTokenForRequest(
       usingNip60,
       mintUrl,
-      tokenAmount,
+      usingNip60 && unit == 'msat'? tokenAmount*1000 : tokenAmount,
       baseUrl, // Add baseUrl here
       sendToken,
       activeMintUrl
@@ -180,7 +177,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       messageHistory,
       onMessagesUpdate,
       onMessageAppend,
-      estimatedCosts // Pass estimatedCosts here
+      estimatedCosts, // Pass estimatedCosts here
+      unit // Pass unit here
     });
     console.log("rdlogs:rdlogs: respon 23242342", response)
 
@@ -458,6 +456,7 @@ async function handlePostResponseRefund(params: {
   onMessagesUpdate: (messages: Message[]) => void;
   onMessageAppend: (message: Message) => void;
   estimatedCosts: number; // Add estimatedCosts here
+  unit: string; // Add unit here
 }): Promise<void> {
   const {
     mintUrl,
@@ -473,7 +472,8 @@ async function handlePostResponseRefund(params: {
     messageHistory,
     onMessagesUpdate,
     onMessageAppend,
-    estimatedCosts // Destructure estimatedCosts here
+    estimatedCosts, // Destructure estimatedCosts here
+    unit // Destructure unit here
   } = params;
 
   let satsSpent: number;
@@ -481,7 +481,8 @@ async function handlePostResponseRefund(params: {
   const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   if (refundStatus.success) {
     if (usingNip60 && refundStatus.refundedAmount !== undefined) {
-      satsSpent = Math.ceil(tokenAmount) - refundStatus.refundedAmount;
+      // For msats, keep decimal precision; for sats, use Math.ceil
+      satsSpent = (unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount)) - refundStatus.refundedAmount;
       onBalanceUpdate(initialBalance - satsSpent);
     } else {
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
@@ -496,12 +497,18 @@ async function handlePostResponseRefund(params: {
     else {
       handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
     }
-    satsSpent = Math.ceil(tokenAmount);
+    // For msats, keep decimal precision; for sats, use Math.ceil
+    satsSpent = unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount);
   }
   console.log("spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
-  if (netCosts > 1){
-    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + Math.ceil(estimatedCosts) +". Actual Costs: " + satsSpent, onMessageAppend);
+  
+  // Use different thresholds based on unit
+  const overchargeThreshold = unit === 'msat' ? 0.05 : 1;
+  if (netCosts > overchargeThreshold){
+    const estimatedDisplay = unit === 'msat' ? estimatedCosts.toFixed(3) : Math.ceil(estimatedCosts).toString();
+    const actualDisplay = unit === 'msat' ? satsSpent.toFixed(3) : satsSpent.toString();
+    handleApiResponseError("ATTENTION: Looks like this provider is overcharging you for your query. Estimated Costs: " + estimatedDisplay +". Actual Costs: " + actualDisplay, onMessageAppend);
   }
 
   const newTransaction: TransactionHistory = {
