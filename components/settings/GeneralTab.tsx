@@ -279,7 +279,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
             </button>
             <button
               onClick={() => { setRelays([...DEFAULT_RELAYS]); saveRelays([...DEFAULT_RELAYS]); }}
-              className="px-3 py-2 rounded-md text-sm border border-white/20 text-white/80 hover:bg-white/10 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-md text-xs border border-white/20 text-white/80 hover:bg-white/10 cursor-pointer"
               type="button"
             >
               Reset
