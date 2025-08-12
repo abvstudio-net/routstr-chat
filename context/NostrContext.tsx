@@ -6,11 +6,11 @@ import {
   getPublicKey, 
   isNostrExtensionAvailable, 
   createPool, 
-  getDefaultRelays,
   decodePrivateKey,
   getPublicKeyFromPrivateKey,
   signEventWithPrivateKey
 } from '@/lib/nostr';
+import { loadRelays } from '@/utils/storageUtils';
 import type { Event } from 'nostr-tools';
 
 type NostrContextType = {
@@ -74,7 +74,8 @@ export function NostrProvider({ children }: { children: ReactNode }) {
     // Cleanup on unmount
     return () => {
       if (pool) {
-        pool.close(getDefaultRelays());
+        const relays = loadRelays();
+        if (relays.length > 0) pool.close(relays);
       }
     };
   }, []);
@@ -148,7 +149,9 @@ export function NostrProvider({ children }: { children: ReactNode }) {
       
       // Publish to relays
       if (signedEvent) {
-        await Promise.any(pool.publish(getDefaultRelays(), signedEvent));
+        const relays = loadRelays();
+        if (relays.length === 0) return signedEvent; // no relays configured
+        await Promise.any(pool.publish(relays, signedEvent));
         return signedEvent;
       }
       

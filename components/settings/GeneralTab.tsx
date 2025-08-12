@@ -49,6 +49,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
   const [showNsec, setShowNsec] = useState<boolean>(false);
   const [nsecValue, setNsecValue] = useState<string>('');
   const [showNsecWarning, setShowNsecWarning] = useState<boolean>(false);
+  const [relays, setRelays] = useState<string[]>([]);
+  const [newRelayInput, setNewRelayInput] = useState<string>('');
 
   const toast = (message: string) => {
     alert(message); // Placeholder for a proper toast notification
@@ -56,6 +58,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
 
   useEffect(() => {
     setBaseUrls(loadBaseUrlsList());
+    setRelays(loadRelays());
   }, []); // Empty dependency array to run only once on mount
 
   useEffect(() => {
@@ -103,6 +106,13 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
 
   const normalizeUrl = (url: string) => url.endsWith('/') ? url : `${url}/`;
 
+  const isValidRelay = (url: string) => {
+    try {
+      const u = new URL(url.trim());
+      return u.protocol === 'wss:';
+    } catch { return false; }
+  };
+
   const handleRadioChange = (url: string) => {
     const normalizedUrl = normalizeUrl(url);
     setBaseUrl(normalizedUrl);
@@ -140,7 +150,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
           </p>
           <button
             onClick={handleCloseNsecWarning}
-            className="absolute top-2 right-2 text-red-400 hover:text-red-500 transition-colors"
+            className="absolute top-2 right-2 text-red-400 hover:text-red-500 transition-colors cursor-pointer"
             type="button"
             title="Dismiss warning"
           >
@@ -162,9 +172,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
 
       {/* Base URL */}
       <div className="mb-6">
-        <h3 className="text-sm font-medium text-white/80 mb-2">Base URL</h3>
+        <h3 className="text-sm font-medium text-white/80">Base URL</h3>
+        <p className="text-xs text-white/50 mb-2">Choose your preferred Routstr API base URL</p>
         <div className="bg-white/5 border border-white/10 rounded-md p-4">
-          <p className="text-sm text-white mb-3">Choose your preferred Routstr API base URL</p>
           <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
             {baseUrls.map((url, index) => (
               <div className="flex items-center justify-between" key={index}>
@@ -181,7 +191,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
                 </div>
                 <button
                   onClick={() => handleRemoveBaseUrl(url)}
-                  className="text-red-400 hover:text-red-500 transition-colors"
+                  className="text-red-400 hover:text-red-500 transition-colors cursor-pointer"
                   type="button"
                 >
                   <XCircle className="h-4 w-4" />
@@ -192,7 +202,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
           <div className="flex items-center gap-2">
             <input
               type="text"
-              className="flex-grow bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+              className="flex-grow bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:border-white/30 focus:outline-none"
               placeholder="Add new base URL"
               value={newBaseUrlInput}
               onChange={(e) => setNewBaseUrlInput(e.target.value)}
@@ -204,10 +214,83 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
             />
             <button
               onClick={handleAddBaseUrl}
-              className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1"
+              className="bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-md text-xs transition-colors flex items-center gap-1 cursor-pointer"
               type="button"
             >
-              <Plus className="h-4 w-4" /> Add
+              <Plus className="h-3.5 w-3.5" /> Add
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Nostr Relays */}
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-white/80">Nostr Relays</h3>
+        <p className="text-xs text-white/50 mb-2">Manage relays used for Nostr features</p>
+        <div className="bg-white/5 border border-white/10 rounded-md p-4">
+          <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+            {relays.length === 0 ? (
+              <div className="text-sm text-white/50">No relays configured.</div>
+            ) : (
+              relays.map((r) => (
+                <div key={r} className="flex items-center justify-between">
+                  <span className="text-sm text-white break-all">{r}</span>
+                  <button
+                    onClick={() => {
+                      const next = relays.filter((x) => x !== r);
+                      setRelays(next);
+                      saveRelays(next);
+                    }}
+                    className="text-red-400 hover:text-red-500 transition-colors cursor-pointer"
+                    type="button"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-grow bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:border-white/30 focus:outline-none"
+              placeholder="wss://relay.example.com"
+              value={newRelayInput}
+              onChange={(e) => setNewRelayInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && isValidRelay(newRelayInput)) {
+                  const trimmed = newRelayInput.trim();
+                  if (!relays.includes(trimmed)) {
+                    const next = [...relays, trimmed];
+                    setRelays(next);
+                    saveRelays(next);
+                  }
+                  setNewRelayInput('');
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!isValidRelay(newRelayInput)) return;
+                const trimmed = newRelayInput.trim();
+                if (!relays.includes(trimmed)) {
+                  const next = [...relays, trimmed];
+                  setRelays(next);
+                  saveRelays(next);
+                }
+                setNewRelayInput('');
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-md text-xs transition-colors flex items-center gap-1 cursor-pointer"
+              type="button"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add
+            </button>
+            <button
+              onClick={() => { setRelays([...DEFAULT_RELAYS]); saveRelays([...DEFAULT_RELAYS]); }}
+              className="px-2.5 py-1.5 rounded-md text-xs border border-white/20 text-white/80 hover:bg-white/10 cursor-pointer"
+              type="button"
+            >
+              Reset
             </button>
           </div>
         </div>
@@ -230,7 +313,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
             </div>
             <button
               onClick={() => setIsModelSelectorOpen(!isModelSelectorOpen)}
-              className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1"
+              className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1 cursor-pointer"
               type="button"
             >
               {isModelSelectorOpen ? (
@@ -268,7 +351,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
                       <button
                         key={model.id}
                         className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 ${selectedModel?.id === model.id ? 'bg-white/10 text-white' : 'text-white/80'
-                          }`}
+                          } cursor-pointer`}
                         onClick={() => {
                           handleModelChange(model.id);
                           setIsModelSelectorOpen(false);
@@ -307,7 +390,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
             </div>
             <button
               onClick={() => setIsFavoritesManagerOpen(!isFavoritesManagerOpen)}
-              className="text-white/70 hover:text-white px-2 py-1 rounded text-xs border border-white/20 transition-colors flex items-center gap-1"
+              className="text-white/70 hover:text-white px-2 py-1 rounded text-xs border border-white/20 transition-colors flex items-center gap-1 cursor-pointer"
               type="button"
             >
               {isFavoritesManagerOpen ? (
@@ -343,7 +426,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
                     </div>
                     <button
                       onClick={() => toggleFavoriteModel(modelId)}
-                      className="text-white/40 hover:text-red-400 transition-colors"
+                      className="text-white/40 hover:text-red-400 transition-colors cursor-pointer"
                       type="button"
                       title="Remove from favorites"
                     >
@@ -402,7 +485,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
                           className={`p-1 rounded-sm transition-colors ${isFavorite
                               ? 'text-yellow-400 hover:text-yellow-300'
                               : 'text-white/30 hover:text-yellow-400'
-                            }`}
+                            } cursor-pointer`}
                           type="button"
                           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                         >

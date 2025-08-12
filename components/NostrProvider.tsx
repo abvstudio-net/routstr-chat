@@ -30,9 +30,14 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
 
   const { config, presetRelays } = useAppContext(); // Keep presetRelays even if not used directly here
 
-  // Create NPool instance only once
-  const pool = useRef<NPool | undefined>(undefined);
+  // Keep relays in a ref so routers use the latest without recreating pool
+  const relaysRef = useRef<string[]>(relays);
+  useEffect(() => {
+    relaysRef.current = relays;
+  }, [relays]);
 
+  // NPool instance created once
+  const pool = useRef<NPool | undefined>(undefined);
   // Use ref for relayUrls to ensure the pool always has the latest config
   const currentRelayUrls = useRef<string[]>(config.relayUrls);
 

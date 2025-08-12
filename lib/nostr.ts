@@ -137,10 +137,6 @@ export const createPool = (): SimplePool => {
 
 // Get a list of default relays
 export const getDefaultRelays = (): string[] => {
-  return [
-    'wss://relay.damus.io',
-    'wss://relay.nostr.band',
-    'wss://nos.lol',
-    'wss://nostr.mutinywallet.com'
-  ];
-}; 
+  // Deprecated: relays are now user-configurable. This returns an empty list to avoid hardcoded connections.
+  return [];
+};

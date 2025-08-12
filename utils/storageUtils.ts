@@ -3,6 +3,13 @@ import { DEFAULT_BASE_URLS } from '../lib/utils';
 import { useCashuStore } from '../stores/cashuStore';
 
 /**
+ * SSR-safe check for localStorage availability
+ */
+const canUseLocalStorage = (): boolean => {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+};
+
+/**
  * Interface for a stored Cashu token entry
  */
 export interface CashuTokenEntry {
@@ -16,6 +23,7 @@ export interface CashuTokenEntry {
  * @param value Value to store (will be JSON stringified)
  */
 export const setStorageItem = <T>(key: string, value: T): void => {
+  if (!canUseLocalStorage()) return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
@@ -30,6 +38,7 @@ export const setStorageItem = <T>(key: string, value: T): void => {
  * @returns Parsed value or default value
  */
 export const getStorageItem = <T>(key: string, defaultValue: T): T => {
+  if (!canUseLocalStorage()) return defaultValue;
   try {
     const item = localStorage.getItem(key);
     if (item === null) return defaultValue;
@@ -48,10 +57,12 @@ export const getStorageItem = <T>(key: string, defaultValue: T): T => {
   } catch (error) {
     console.error(`Error retrieving item with key "${key}":`, error);
     // Clear the corrupted item from storage
-    try {
-      localStorage.removeItem(key);
-    } catch (removeError) {
-      console.error(`Error removing corrupted item with key "${key}":`, removeError);
+    if (canUseLocalStorage()) {
+      try {
+        localStorage.removeItem(key);
+      } catch (removeError) {
+        console.error(`Error removing corrupted item with key "${key}":`, removeError);
+      }
     }
     return defaultValue;
   }
@@ -62,6 +73,7 @@ export const getStorageItem = <T>(key: string, defaultValue: T): T => {
  * @param key Storage key to remove
  */
 export const removeStorageItem = (key: string): void => {
+  if (!canUseLocalStorage()) return;
   try {
     localStorage.removeItem(key);
   } catch (error) {
@@ -75,6 +87,7 @@ export const removeStorageItem = (key: string): void => {
  * @returns True if key exists, false otherwise
  */
 export const hasStorageItem = (key: string): boolean => {
+  if (!canUseLocalStorage()) return false;
   try {
     return localStorage.getItem(key) !== null;
   } catch (error) {
@@ -87,6 +100,7 @@ export const hasStorageItem = (key: string): boolean => {
  * Clear all localStorage items and Cashu store (use with caution)
  */
 export const clearAllStorage = (): void => {
+  if (!canUseLocalStorage()) return;
   try {
     localStorage.clear();
     // Also clear the Cashu store
@@ -101,11 +115,14 @@ export const clearAllStorage = (): void => {
  * This function checks for common storage keys and ensures they're properly JSON formatted
  */
 export const migrateStorageItems = (): void => {
+  if (!canUseLocalStorage()) return;
   const keysToMigrate = [
     { key: 'base_url', defaultValue: 'https://api.routstr.com/' },
     { key: 'mint_url', defaultValue: 'https://mint.minibits.cash/Bitcoin' },
     { key: 'lastUsedModel', defaultValue: null },
-    { key: 'usingNip60', defaultValue: 'true' }
+    { key: 'usingNip60', defaultValue: 'true' },
+    // Initialize relays list if missing
+    { key: 'nostr_relays', defaultValue: [] as string[] }
   ];
 
   keysToMigrate.forEach(({ key, defaultValue }) => {
@@ -272,10 +289,35 @@ export const saveBaseUrlsList = (baseUrls: string[]): void => {
  };
 
 /**
+ * Load configured Nostr relays from storage
+ */
+export const loadRelays = (): string[] => {
+  return getStorageItem<string[]>(STORAGE_KEYS.RELAYS, []);
+};
+
+/**
+ * Save Nostr relays to storage
+ */
+export const saveRelays = (relays: string[]): void => {
+  setStorageItem(STORAGE_KEYS.RELAYS, relays);
+};
+
+/**
+ * Default relays for reset-to-default action
+ */
+export const DEFAULT_RELAYS: readonly string[] = [
+  'wss://relay.chorus.community',
+  'wss://relay.damus.io',
+  'wss://relay.nostr.band',
+  'wss://nos.lol',
+];
+
+/**
  * Load NIP-60 usage preference from localStorage
  * @returns True if using NIP-60, defaults to true if not set
  */
 export const loadUsingNip60 = (): boolean => {
+  if (!canUseLocalStorage()) return true;
   const storedValue = localStorage.getItem('usingNip60');
   if (storedValue === null) return true;
   try {
@@ -361,7 +403,8 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'sidebar_collapsed',
   LOCAL_CASHU_TOKENS: 'local_cashu_tokens',
   CASHU_PROOFS: 'cashu_proofs',
-  WRAPPED_CASHU_TOKENS: 'wrapped_cashu_tokens'
+  WRAPPED_CASHU_TOKENS: 'wrapped_cashu_tokens',
+  RELAYS: 'nostr_relays'
 } as const;
 
 /**
@@ -418,6 +461,7 @@ export const removeLocalCashuToken = (baseUrl: string): void => {
  * @param baseUrl The base URL to associate with the migrated token.
  */
 export const migrateCurrentCashuToken = (baseUrl: string): void => {
+  if (!canUseLocalStorage()) return;
   try {
     const currentToken = localStorage.getItem('current_cashu_token');
     if (currentToken) {
