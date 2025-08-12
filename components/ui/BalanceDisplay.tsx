@@ -39,7 +39,7 @@ interface BalanceDisplayProps {
 
 const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setInitialSettingsTab, usingNip60 }) => {
   const { isAuthenticated } = useAuth();
-  const { balance, currentMintUnit, mintBalances, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
+  const { balance, currentMintUnit, mintBalances, mintUnits, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
   const { publicKey } = useNostr();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'activity' | 'invoice'>('overview');
@@ -839,7 +839,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                             >
                               <div className="truncate">{truncateMintUrl(mintUrl)}</div>
                               <div className="text-xs text-white/50">
-                                {formatBalance(mintBalances[mintUrl] || 0, currentMintUnit)}s
+                                {formatBalance(mintBalances[mintUrl] || 0, mintUnits[mintUrl] || 'sat')}s
                               </div>
                             </button>
                           ))}
@@ -914,7 +914,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                             >
                               <div className="truncate">{truncateMintUrl(mintUrl)}</div>
                               <div className="text-xs text-white/50">
-                                {formatBalance(mintBalances[mintUrl] || 0, currentMintUnit)}s
+                                {formatBalance(mintBalances[mintUrl] || 0, mintUnits[mintUrl] || 'sat')}s
                               </div>
                             </button>
                           ))}
