@@ -20,6 +20,7 @@ export interface UseChatActionsReturn {
   thinkingContent: string;
   balance: number;
   currentMintUnit: string;
+  mintBalances: Record<string, number>;
   isBalanceLoading: boolean;
   uploadedImages: string[];
   transactionHistory: TransactionHistory[];

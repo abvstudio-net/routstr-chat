@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink, Settings } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink, Settings, ChevronDown } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { getDecodedToken, getEncodedTokenV4 } from "@cashu/cashu-ts";
 import { useChat } from '@/context/ChatProvider';
@@ -39,7 +39,7 @@ interface BalanceDisplayProps {
 
 const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setInitialSettingsTab, usingNip60 }) => {
   const { isAuthenticated } = useAuth();
-  const { balance, currentMintUnit, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
+  const { balance, currentMintUnit, mintBalances, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
   const { publicKey } = useNostr();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'activity' | 'invoice'>('overview');
@@ -65,6 +65,9 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   const [countdown, setCountdown] = useState(3);
   const [tokenToImport, setTokenToImport] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  
+  // Mint selector state
+  const [isMintSelectorOpen, setIsMintSelectorOpen] = useState(false);
   
   // Common state
   const [error, setError] = useState('');
@@ -119,6 +122,40 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   // Get formatted npub
   const npub = publicKey ? formatPublicKey(publicKey) : '';
   const truncatedNpub = npub ? truncateNpub(npub) : '';
+
+  // Helper function to truncate mint URL for display
+  const truncateMintUrl = (url: string): string => {
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname;
+      if (domain.length <= 20) return domain;
+      return `${domain.slice(0, 15)}...`;
+    } catch {
+      return url.length <= 20 ? url : `${url.slice(0, 15)}...`;
+    }
+  };
+
+  // Get current mint balance
+  const getCurrentMintBalance = (): number => {
+    if (!cashuStore.activeMintUrl || !mintBalances) return 0;
+    return mintBalances[cashuStore.activeMintUrl] || 0;
+  };
+
+  // Handle mint selection
+  const handleMintSelection = (mintUrl: string) => {
+    cashuStore.setActiveMintUrl(mintUrl);
+    setIsMintSelectorOpen(false);
+    setError(''); // Clear any previous errors
+  };
+
+  // Get available mints from mintBalances
+  const availableMints = Object.keys(mintBalances || {});
+
+  // Check if user has any mints available
+  const hasMints = availableMints.length > 0;
+
+  // Check if current mint is valid
+  const isCurrentMintValid = cashuStore.activeMintUrl && availableMints.includes(cashuStore.activeMintUrl);
 
   // Stop auto-checking
   const stopAutoChecking = useCallback(() => {
@@ -190,6 +227,8 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       setIsImporting(false);
       setIsPayingInvoice(false);
       setIsTransitioning(false);
+      // Clear mint selector state
+      setIsMintSelectorOpen(false);
       // Clear NIP-60 state
       setNip60Invoice("");
       setNip60QuoteId("");
@@ -694,7 +733,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
     }
   };
 
-  const isValidSendAmount = sendAmount && parseInt(sendAmount) > 0 && parseInt(sendAmount) <= (currentMintUnit === 'msat' ? balance * 1000 : balance);
+  const isValidSendAmount = sendAmount && parseInt(sendAmount) > 0 && parseInt(sendAmount) <= (usingNip60 ? getCurrentMintBalance() : (currentMintUnit === 'msat' ? balance * 1000 : balance));
   const isValidReceiveAmount = mintAmount && parseInt(mintAmount) > 0;
 
   const getTabTitle = () => {
@@ -759,8 +798,8 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10">
           {activeTab !== 'overview' && activeTab !== 'invoice' ? (
-            <div className="flex items-center gap-3">
-    <button
+            <div className="flex items-center gap-3 flex-1">
+              <button
                 onClick={() => navigateToTab('overview')}
                 className="text-white/70 hover:text-white transition-colors p-1 -ml-1 cursor-pointer"
               >
@@ -769,6 +808,53 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
               <h3 className="text-lg font-semibold text-white">
                 {getTabTitle()}
               </h3>
+              
+              {/* Mint Selector in Header - for Send and Receive tabs */}
+              {usingNip60 && (activeTab === 'send' || activeTab === 'receive') && (
+                <div className="ml-auto relative">
+                  {hasMints ? (
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsMintSelectorOpen(!isMintSelectorOpen)}
+                        className={`bg-white/5 border rounded-md px-2 py-1 text-white text-xs focus:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 flex items-center gap-1 cursor-pointer min-w-[120px] ${
+                          !isCurrentMintValid ? 'border-red-500/50' : 'border-white/20'
+                        }`}
+                        title={cashuStore.activeMintUrl || 'Select a mint'}
+                      >
+                        <span className="truncate flex-1 text-left">
+                          {cashuStore.activeMintUrl ? truncateMintUrl(cashuStore.activeMintUrl) : 'Select mint'}
+                        </span>
+                        <ChevronDown className={`h-3 w-3 transition-transform flex-shrink-0 ${isMintSelectorOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isMintSelectorOpen && (
+                        <div className="absolute top-full right-0 mt-1 bg-black/95 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
+                          {availableMints.map((mintUrl) => (
+                            <button
+                              key={mintUrl}
+                              onClick={() => handleMintSelection(mintUrl)}
+                              className={`w-full px-3 py-2 text-left text-sm hover:bg-white/10 transition-colors cursor-pointer ${
+                                cashuStore.activeMintUrl === mintUrl ? 'bg-white/5 text-white' : 'text-white/70'
+                              }`}
+                            >
+                              <div className="truncate">{truncateMintUrl(mintUrl)}</div>
+                              <div className="text-xs text-white/50">
+                                {formatBalance(mintBalances[mintUrl] || 0, currentMintUnit)}s
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md px-2 py-1">
+                      <div className="text-yellow-200 text-xs">
+                        No mints
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-3">
@@ -798,6 +884,53 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="p-4">
+              {/* Mint Selector for Overview - Top Right */}
+              {usingNip60 && (
+                <div className="flex justify-end mb-3">
+                  {hasMints ? (
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsMintSelectorOpen(!isMintSelectorOpen)}
+                        className={`bg-white/5 border rounded-md px-2 py-1 text-white text-xs focus:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 flex items-center gap-1 cursor-pointer min-w-[120px] ${
+                          !isCurrentMintValid ? 'border-red-500/50' : 'border-white/20'
+                        }`}
+                        title={cashuStore.activeMintUrl || 'Select a mint'}
+                      >
+                        <span className="truncate flex-1 text-left">
+                          {cashuStore.activeMintUrl ? truncateMintUrl(cashuStore.activeMintUrl) : 'Select mint'}
+                        </span>
+                        <ChevronDown className={`h-3 w-3 transition-transform flex-shrink-0 ${isMintSelectorOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isMintSelectorOpen && (
+                        <div className="absolute top-full right-0 mt-1 bg-black/95 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
+                          {availableMints.map((mintUrl) => (
+                            <button
+                              key={mintUrl}
+                              onClick={() => handleMintSelection(mintUrl)}
+                              className={`w-full px-3 py-2 text-left text-sm hover:bg-white/10 transition-colors cursor-pointer ${
+                                cashuStore.activeMintUrl === mintUrl ? 'bg-white/5 text-white' : 'text-white/70'
+                              }`}
+                            >
+                              <div className="truncate">{truncateMintUrl(mintUrl)}</div>
+                              <div className="text-xs text-white/50">
+                                {formatBalance(mintBalances[mintUrl] || 0, currentMintUnit)}s
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md px-2 py-1">
+                      <div className="text-yellow-200 text-xs">
+                        No mints
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Balance Display */}
               <div className="text-center mb-4">
                 <div className="text-white/60 text-sm font-medium mb-1">
@@ -805,7 +938,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                 </div>
                 <div className="text-white/60 text-sm mb-2">Balance</div>
                 <div className="text-white text-2xl font-bold">
-      {isBalanceLoading ? 'loading' : `${balance} sats`}
+                  {isBalanceLoading ? 'loading' : `${balance} sats`}
                 </div>
               </div>
 
@@ -905,7 +1038,27 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                   {/* Balance context */}
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="text-white/60 text-xs">Available Balance</div>
-                    <div className="text-white text-lg font-bold">{currentMintUnit === 'msat' ? balance * 1000 : balance} {currentMintUnit === 'msat' ? 'msats' : 'sats'}</div>
+                    <div className="text-white text-lg font-bold">
+                      {usingNip60 ? (
+                        <>
+                          {currentMintUnit === 'msat' ? getCurrentMintBalance() : getCurrentMintBalance()} {currentMintUnit === 'msat' ? 'msats' : 'sats'}
+                        </>
+                      ) : (
+                        <>
+                          {currentMintUnit === 'msat' ? balance * 1000 : balance} {currentMintUnit === 'msat' ? 'msats' : 'sats'}
+                        </>
+                      )}
+                    </div>
+                    {usingNip60 && !isCurrentMintValid && (
+                      <div className="text-red-400 text-xs mt-1">
+                        Invalid mint selected
+                      </div>
+                    )}
+                    {usingNip60 && isCurrentMintValid && getCurrentMintBalance() === 0 && (
+                      <div className="text-yellow-400 text-xs mt-1">
+                        No balance available in selected mint
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -920,7 +1073,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       placeholder="0"
                       autoFocus
                     />
-                    {sendAmount && parseInt(sendAmount) > (currentMintUnit === 'msat' ? balance * 1000 : balance) && (
+                    {sendAmount && parseInt(sendAmount) > (usingNip60 ? getCurrentMintBalance() : (currentMintUnit === 'msat' ? balance * 1000 : balance)) && (
                       <p className="text-red-400 text-xs mt-1">
                         Amount exceeds available balance
                       </p>
@@ -932,15 +1085,15 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       <button
                         key={amount}
                         onClick={() => setSendAmount(amount.toString())}
-                        disabled={amount > (currentMintUnit === 'msat' ? balance * 1000 : balance)}
+                        disabled={amount > (usingNip60 ? getCurrentMintBalance() : (currentMintUnit === 'msat' ? balance * 1000 : balance))}
                         className="py-1.5 px-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded-md text-white/70 text-xs transition-colors cursor-pointer"
                       >
                         {amount}
                       </button>
                     ))}
                     <button
-                      onClick={() => setSendAmount((currentMintUnit === 'msat' ? balance * 1000 : balance).toString())}
-                      disabled={balance === 0}
+                      onClick={() => setSendAmount((usingNip60 ? getCurrentMintBalance() : (currentMintUnit === 'msat' ? balance * 1000 : balance)).toString())}
+                      disabled={usingNip60 ? getCurrentMintBalance() === 0 : balance === 0}
                       className="py-1.5 px-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded-md text-white/70 text-xs transition-colors cursor-pointer"
                     >
                       Max
@@ -949,7 +1102,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
                   <button
                     onClick={generateSendToken}
-                    disabled={!isValidSendAmount || isGeneratingSendToken}
+                    disabled={!isValidSendAmount || isGeneratingSendToken || (usingNip60 && (!hasMints || !isCurrentMintValid))}
                     className="w-full bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed border border-white/20 text-white py-2 px-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isGeneratingSendToken ? (
