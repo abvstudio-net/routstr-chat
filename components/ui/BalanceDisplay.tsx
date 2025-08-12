@@ -500,6 +500,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           proofsToRemove: selectedProofs,
         });
 
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, currentMintUnit)}s!`);
         // Update invoice status to paid
         await updateInvoice(nip60MeltQuoteId, {
           state: MeltQuoteState.PAID,
