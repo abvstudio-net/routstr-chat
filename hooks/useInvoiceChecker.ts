@@ -22,6 +22,9 @@ export function useInvoiceChecker() {
       await wallet.loadMint();
 
       const quoteStatus = await wallet.checkMintQuote(invoice.quoteId);
+      if (quoteStatus.amount == 12){
+        console.log('rdlogs: QUOTE STATUS', quoteStatus);
+      }
       
       if (quoteStatus.state === MintQuoteState.PAID && (invoice.state as string) !== 'PAID') {
         // Invoice has been paid, mint the tokens
@@ -40,7 +43,7 @@ export function useInvoiceChecker() {
             
             // Show success notification
             toast.success(
-              `Lightning invoice paid! Received ${formatBalance(invoice.amount)}`,
+              `Lightning invoice paid! Received ${formatBalance(invoice.amount, 'sats')}`,
               { duration: 5000 }
             );
             
@@ -80,7 +83,7 @@ export function useInvoiceChecker() {
         });
         
         toast.success(
-          `Lightning payment sent successfully! Amount: ${formatBalance(invoice.amount)}`,
+          `Lightning payment sent successfully! Amount: ${formatBalance(invoice.amount, 'sats')}`,
           { duration: 5000 }
         );
         
@@ -106,6 +109,7 @@ export function useInvoiceChecker() {
     if (now - lastCheckRef.current < 10000) return;
     
     const pending = getPendingInvoices();
+    console.log('rdlogs: ', pending);
     if (pending.length === 0) return;
     
     setIsChecking(true);
@@ -121,10 +125,11 @@ export function useInvoiceChecker() {
       });
       
       const results = await Promise.allSettled(checkPromises);
+      // console.log('rdlogs: RESULSTS',results);
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
       
       if (successCount > 0) {
-        console.log(`Successfully processed ${successCount} invoice(s)`);
+        console.log(`rdlogs: Successfully processed ${successCount} invoice(s)`);
       }
     } catch (error) {
       console.error('Error checking pending invoices:', error);

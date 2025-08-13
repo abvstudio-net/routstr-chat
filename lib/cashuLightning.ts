@@ -89,6 +89,7 @@ export async function mintTokensFromPaidInvoice(mintUrl: string, quoteId: string
       try {
         // Check the status of the quote
         mintQuoteChecked = await wallet.checkMintQuote(quoteId);
+        console.log('rdlogs: THE MAIN ONE, ', mintQuoteChecked);
 
         if (mintQuoteChecked.state === MintQuoteState.PAID) {
           break; // Exit the loop if the invoice is paid

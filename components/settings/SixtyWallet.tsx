@@ -218,7 +218,6 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   };
 
 
-
   const { user } = useCurrentUser();
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();

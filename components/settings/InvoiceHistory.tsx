@@ -129,7 +129,7 @@ const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({ mintUrl }) => {
                     {invoice.type === 'mint' ? 'Receive' : 'Send'}
                   </span>
                   <span className="text-sm text-white/70">
-                    {formatBalance(invoice.amount)}
+                    {formatBalance(invoice.amount, 'sats')}
                   </span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     getStatusText(invoice) === 'Paid' 
@@ -153,7 +153,7 @@ const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({ mintUrl }) => {
                   {invoice.fee !== undefined && invoice.fee > 0 && (
                     <>
                       <span>•</span>
-                      <span>Fee: {formatBalance(invoice.fee)}</span>
+                      <span>Fee: {formatBalance(invoice.fee, 'sats')}</span>
                     </>
                   )}
                 </div>
