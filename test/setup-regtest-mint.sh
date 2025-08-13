@@ -11,9 +11,9 @@ echo "Waiting for cashu containers..."
 MAX_WAIT=60
 WAIT_COUNT=0
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    # Check for either cashu-lnd-2 or cashu-lnd-2-1 (docker-compose naming)
-    if docker ps | grep -qE "cashu-lnd-2($|-1)"; then
-        echo "cashu-lnd-2 container found"
+    # Check for either cashu-lnd-2 or cashu-lnd-2-1 or cashu-regtest-lnd-2-1 (docker-compose naming)
+    if docker ps | grep -qE "(cashu-lnd-2($|-1)|cashu-regtest-lnd-2-1)"; then
+        echo "lnd-2 container found"
         break
     fi
     echo "Waiting for cashu-lnd-2 container... ($WAIT_COUNT/$MAX_WAIT)"
@@ -42,22 +42,25 @@ mkdir -p /tmp/cashu-lnd
 # Try direct copy first (for local dev)
 if cp "$REGTEST_DIR/data/lnd-2/tls.cert" /tmp/cashu-lnd/ 2>/dev/null; then
     cp "$REGTEST_DIR/data/lnd-2/data/chain/bitcoin/regtest/admin.macaroon" /tmp/cashu-lnd/ 2>/dev/null || {
-        # Try docker cp as fallback for macaroon (try both container names)
+        # Try docker cp as fallback for macaroon (try multiple container names)
         docker cp cashu-lnd-2:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ 2>/dev/null || \
-        docker cp cashu-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ || {
+        docker cp cashu-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ 2>/dev/null || \
+        docker cp cashu-regtest-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ || {
             echo "Could not copy admin.macaroon. Check regtest is running."
             exit 1
         }
     }
 else
-    # Use docker cp (for CI) - try both container names
+    # Use docker cp (for CI) - try multiple container names
     (docker cp cashu-lnd-2:/root/.lnd/tls.cert /tmp/cashu-lnd/ 2>/dev/null || \
-     docker cp cashu-lnd-2-1:/root/.lnd/tls.cert /tmp/cashu-lnd/) || {
+     docker cp cashu-lnd-2-1:/root/.lnd/tls.cert /tmp/cashu-lnd/ 2>/dev/null || \
+     docker cp cashu-regtest-lnd-2-1:/root/.lnd/tls.cert /tmp/cashu-lnd/) || {
         echo "Could not copy tls.cert. Check regtest is running."
         exit 1
     }
     (docker cp cashu-lnd-2:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ 2>/dev/null || \
-     docker cp cashu-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/) || {
+     docker cp cashu-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/ 2>/dev/null || \
+     docker cp cashu-regtest-lnd-2-1:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon /tmp/cashu-lnd/) || {
         echo "Could not copy admin.macaroon. Check regtest is running."
         exit 1
     }

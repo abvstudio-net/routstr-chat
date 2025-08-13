@@ -25,7 +25,16 @@ cd cashu-regtest
 
 Provides Bitcoin regtest, 3 LND nodes, 2 CLN nodes.
 
-### 2. Start Cashu mint
+### 2. Initialize Bitcoin (first time only)
+
+After starting fresh regtest:
+```bash
+# Create wallet and mine blocks for LND sync
+docker exec cashu-regtest-bitcoind-1 bitcoin-cli -regtest -rpcuser=cashu -rpcpassword=cashu createwallet "test"
+docker exec cashu-regtest-bitcoind-1 bitcoin-cli -regtest -rpcuser=cashu -rpcpassword=cashu -generate 150
+```
+
+### 3. Start Cashu mint
 
 ```bash
 # From the project directory
@@ -34,7 +43,7 @@ Provides Bitcoin regtest, 3 LND nodes, 2 CLN nodes.
 
 Runs mint on http://localhost:3338, connects to LND, creates regtest invoices.
 
-### 3. Configure app
+### 4. Configure app
 
 ```bash
 # Set test mode in .env.local
@@ -45,7 +54,7 @@ echo "NEXT_PUBLIC_LOCAL_MINT_URL=http://localhost:3338" >> .env.local
 npm run dev
 ```
 
-### 4. Set mint URL
+### 5. Set mint URL
 
 In browser console at http://localhost:3000:
 

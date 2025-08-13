@@ -96,8 +96,8 @@ export function useInvoiceSync() {
       // Filter out expired invoices older than 7 days
       const cutoffTime = Date.now() - (7 * 24 * 60 * 60 * 1000);
       const relevantInvoices = invoices.filter(inv => {
-        if ((inv.state as string) === 'PAID') {
-          return true; // Keep all paid invoices
+        if ((inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED') {
+          return true; // Keep all paid/issued invoices
         }
         return inv.createdAt > cutoffTime;
       });
@@ -213,8 +213,8 @@ export function useInvoiceSync() {
     const now = Date.now();
     
     return invoices.filter(inv => {
-      // Skip if already paid
-      if ((inv.state as string) === 'PAID') {
+      // Skip if already paid or issued
+      if ((inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED') {
         return false;
       }
       
@@ -236,8 +236,8 @@ export function useInvoiceSync() {
     const cutoffTime = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 days
     
     const cleaned = invoices.filter(inv => {
-      // Keep all paid invoices from last 30 days
-      if ((inv.state as string) === 'PAID') {
+      // Keep all paid/issued invoices from last 30 days
+      if ((inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED') {
         return inv.createdAt > cutoffTime;
       }
       // Keep unpaid invoices from last 24 hours

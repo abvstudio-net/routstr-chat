@@ -26,7 +26,7 @@ const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({ mintUrl }) => {
   }, [invoices, mintUrl]);
 
   const getStatusIcon = (invoice: StoredInvoice) => {
-    const isPaid = (invoice.state as string) === 'PAID';
+    const isPaid = (invoice.state as string) === 'PAID' || (invoice.state as string) === 'ISSUED';
     const isExpired = invoice.expiresAt && Date.now() > invoice.expiresAt;
     
     if (isPaid) {
@@ -39,7 +39,7 @@ const InvoiceHistory: React.FC<InvoiceHistoryProps> = ({ mintUrl }) => {
   };
 
   const getStatusText = (invoice: StoredInvoice) => {
-    const isPaid = (invoice.state as string) === 'PAID';
+    const isPaid = (invoice.state as string) === 'PAID' || (invoice.state as string) === 'ISSUED';
     const isExpired = invoice.expiresAt && Date.now() > invoice.expiresAt;
     
     if (isPaid) {
