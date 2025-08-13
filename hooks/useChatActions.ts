@@ -125,12 +125,12 @@ export const useChatActions = (): UseChatActionsReturn => {
             const balance = mintBalances[mintUrl];
             const unit = mintUnits[mintUrl];
             if (unit === 'msat') {
-              totalBalance += Math.round((balance / 1000) * 100) / 100;
+              totalBalance += (balance / 1000);
             } else {
               totalBalance += balance;
             }
           }
-          setBalance(totalBalance + pendingCashuAmountState);
+          setBalance(Math.round((totalBalance + pendingCashuAmountState)*100)/100);
         }
       } else {
         // Legacy wallet balance calculation would go here
