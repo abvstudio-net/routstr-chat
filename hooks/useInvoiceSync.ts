@@ -213,10 +213,13 @@ export function useInvoiceSync() {
     const now = Date.now();
     
     return invoices.filter(inv => {
-      // Skip if already paid or issued
-      if ((inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED') {
+      // Skip if already successfully issued (tokens minted)
+      if ((inv.state as string) === 'ISSUED') {
         return false;
       }
+      
+      // Include PAID invoices for retry (in case minting failed)
+      // They will be checked to see if they can be converted to ISSUED
       
       // Skip if expired (assuming 1 hour expiry if not specified)
       const expiryTime = inv.expiresAt || (inv.createdAt + 3600000);
@@ -234,11 +237,16 @@ export function useInvoiceSync() {
   const cleanupOldInvoices = useCallback(async () => {
     const invoices = getLocalInvoices();
     const cutoffTime = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 days
+    const recentCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000); // 7 days for PAID
     
     const cleaned = invoices.filter(inv => {
-      // Keep all paid/issued invoices from last 30 days
-      if ((inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED') {
+      // Keep all ISSUED invoices from last 30 days
+      if ((inv.state as string) === 'ISSUED') {
         return inv.createdAt > cutoffTime;
+      }
+      // Keep PAID invoices from last 7 days (might need token recovery)
+      if ((inv.state as string) === 'PAID') {
+        return inv.createdAt > recentCutoff;
       }
       // Keep unpaid invoices from last 24 hours
       return inv.createdAt > (Date.now() - 86400000);

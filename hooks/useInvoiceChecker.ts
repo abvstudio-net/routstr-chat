@@ -22,36 +22,77 @@ export function useInvoiceChecker() {
       await wallet.loadMint();
 
       const quoteStatus = await wallet.checkMintQuote(invoice.quoteId);
-      if (quoteStatus.amount == 12){
-        console.log('rdlogs: QUOTE STATUS', quoteStatus);
-      }
       
       if ((quoteStatus.state === MintQuoteState.PAID || quoteStatus.state === MintQuoteState.ISSUED) && (invoice.state as string) !== 'PAID' && (invoice.state as string) !== 'ISSUED') {
-        // Invoice has been paid, mint the tokens
-        try {
-          const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
-          
-          if (proofs.length > 0) {
-            // Add proofs to store
-            cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
+        // Invoice has been paid, update state first
+        await updateInvoice(invoice.id, {
+          state: quoteStatus.state,
+          paidAt: Date.now()
+        });
+        
+        // Only try to mint if state is PAID (not ISSUED, which means tokens already exist)
+        if (quoteStatus.state === MintQuoteState.PAID) {
+          try {
+            const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
             
-            // Update invoice status
-            await updateInvoice(invoice.id, {
-              state: quoteStatus.state,
-              paidAt: Date.now()
-            });
+            if (proofs.length > 0) {
+              // Add proofs to store
+              cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
+              
+              // Update to ISSUED state after successful minting
+              await updateInvoice(invoice.id, {
+                state: MintQuoteState.ISSUED
+              });
+              
+              // Show success notification
+              toast.success(
+                `Lightning invoice paid! Received ${formatBalance(invoice.amount, 'sats')}`,
+                { duration: 5000 }
+              );
+              
+              return true;
+            }
+          } catch (mintError) {
+            console.error('Error minting tokens for paid invoice:', mintError);
             
-            // Show success notification
-            toast.success(
-              `Lightning invoice paid! Received ${formatBalance(invoice.amount, 'sats')}`,
-              { duration: 5000 }
-            );
+            // Check if tokens were already issued (in case of race condition)
+            try {
+              const recheckStatus = await wallet.checkMintQuote(invoice.quoteId);
+              if (recheckStatus.state === MintQuoteState.ISSUED) {
+                // Tokens were already issued, try to recover them
+                const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
+                if (proofs.length > 0) {
+                  cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
+                  await updateInvoice(invoice.id, { state: MintQuoteState.ISSUED });
+                  toast.success(
+                    `Lightning invoice paid! Recovered ${formatBalance(invoice.amount, 'sats')}`,
+                    { duration: 5000 }
+                  );
+                  return true;
+                }
+              }
+            } catch (recoveryError) {
+              console.error('Failed to recover tokens:', recoveryError);
+            }
             
-            return true;
+            toast.error('Invoice paid but failed to mint tokens. Will retry automatically.');
           }
-        } catch (mintError) {
-          console.error('Error minting tokens for paid invoice:', mintError);
-          toast.error('Invoice paid but failed to mint tokens. Please check your wallet.');
+        } else if (quoteStatus.state === MintQuoteState.ISSUED) {
+          // Tokens were already issued, try to recover them
+          try {
+            const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
+            if (proofs.length > 0) {
+              cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
+              toast.success(
+                `Lightning invoice paid! Recovered ${formatBalance(invoice.amount, 'sats')}`,
+                { duration: 5000 }
+              );
+              return true;
+            }
+          } catch (recoveryError) {
+            console.error('Failed to recover issued tokens:', recoveryError);
+            toast.warning('Invoice was paid but tokens need manual recovery.');
+          }
         }
       } else if (quoteStatus.state !== invoice.state) {
         // Just update the state if it changed
@@ -109,7 +150,6 @@ export function useInvoiceChecker() {
     if (now - lastCheckRef.current < 10000) return;
     
     const pending = getPendingInvoices();
-    console.log('rdlogs: ', pending);
     if (pending.length === 0) return;
     
     setIsChecking(true);
@@ -125,11 +165,9 @@ export function useInvoiceChecker() {
       });
       
       const results = await Promise.allSettled(checkPromises);
-      // console.log('rdlogs: RESULSTS',results);
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
       
       if (successCount > 0) {
-        console.log(`rdlogs: Successfully processed ${successCount} invoice(s)`);
       }
     } catch (error) {
       console.error('Error checking pending invoices:', error);
