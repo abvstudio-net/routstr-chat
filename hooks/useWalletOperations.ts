@@ -152,7 +152,7 @@ export function useWalletOperations({
         setIsAutoChecking(false);
       }
     }
-  }, [mintUrl, baseUrl, setBalance, transactionHistory, setTransactionHistory]);
+  }, [mintUrl, baseUrl, setBalance, transactionHistory, setTransactionHistory, updateInvoice]);
 
   // Create mint quote
   const createMintQuote = useCallback(async (setIsMinting: (minting: boolean) => void, setError: (error: string) => void, setSuccessMessage: (message: string) => void, setShowInvoiceModal: (show: boolean) => void, mintAmount: string, setMintQuote: (quote: MintQuoteResponse | null) => void, setMintInvoice: (invoice: string) => void, amountOverride?: number) => {
@@ -192,7 +192,7 @@ export function useWalletOperations({
     } finally {
       setIsMinting(false);
     }
-  }, []);
+  }, [mintUrl, addInvoice]);
 
   // Import token
   const importToken = useCallback(async (setIsImporting: (importing: boolean) => void, setError: (error: string) => void, setSuccessMessage: (message: string) => void, tokenToImport: string, setTokenToImport: (token: string) => void) => {
