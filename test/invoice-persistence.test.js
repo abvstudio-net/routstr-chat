@@ -134,7 +134,7 @@ async function testPaymentDetection(quoteId) {
   
   // Skip payment detection test in CI environment
   if (process.env.CI) {
-    console.log(`⚠️ Skipping ${testName} in CI environment`);
+    console.log(`Skipping ${testName} in CI environment`);
     return true;
   }
   
