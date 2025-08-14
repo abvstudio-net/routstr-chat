@@ -244,7 +244,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         totalBalance += balance;
       }
     }
-    setBalance(totalBalance);
+    setBalance(Math.round(totalBalance*1000)/1000);
   }, [mintBalances, mintUnits]);
 
   // Check for local wallet balance on component mount
