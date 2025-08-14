@@ -15,6 +15,12 @@ LND1_CONTAINER="cashu-regtest-lnd-1-1"
 LND2_CONTAINER="cashu-regtest-lnd-2-1"
 BITCOIN_CONTAINER="cashu-regtest-bitcoind-1"
 
+# Check if containers exist
+if ! docker ps | grep -q $LND1_CONTAINER; then
+    echo "Error: Container $LND1_CONTAINER not found"
+    exit 1
+fi
+
 echo "Checking LND-1 wallet balance..."
 BALANCE=$(docker exec $LND1_CONTAINER lncli --network=regtest --rpcserver=lnd-1:10009 walletbalance 2>/dev/null | grep confirmed_balance | grep -o '[0-9]*' | head -1)
 
