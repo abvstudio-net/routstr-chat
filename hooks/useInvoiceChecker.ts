@@ -80,7 +80,8 @@ export function useInvoiceChecker() {
         } else if (quoteStatus.state === MintQuoteState.ISSUED) {
           // Tokens were already issued, check if we need to recover them
           // Check if we already have these tokens by checking our balance before attempting recovery
-          const balanceBefore = cashuStore.getBalance();
+          const proofsBefore = cashuStore.proofs;
+          const balanceBefore = proofsBefore.reduce((sum, p) => sum + p.amount, 0);
           
           try {
             const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
@@ -88,7 +89,8 @@ export function useInvoiceChecker() {
               cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
               
               // Only show success if balance actually increased (tokens were recovered)
-              const balanceAfter = cashuStore.getBalance();
+              const proofsAfter = cashuStore.proofs;
+              const balanceAfter = proofsAfter.reduce((sum, p) => sum + p.amount, 0);
               if (balanceAfter > balanceBefore) {
                 toast.success(
                   `Lightning invoice paid! Recovered ${formatBalance(invoice.amount, 'sats')}`,
