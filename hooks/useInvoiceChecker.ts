@@ -78,20 +78,32 @@ export function useInvoiceChecker() {
             toast.error('Invoice paid but failed to mint tokens. Will retry automatically.');
           }
         } else if (quoteStatus.state === MintQuoteState.ISSUED) {
-          // Tokens were already issued, try to recover them
+          // Tokens were already issued, check if we need to recover them
+          // Check if we already have these tokens by checking our balance before attempting recovery
+          const balanceBefore = cashuStore.getBalance();
+          
           try {
             const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
             if (proofs.length > 0) {
               cashuStore.addProofs(proofs, `invoice-${invoice.id}`);
-              toast.success(
-                `Lightning invoice paid! Recovered ${formatBalance(invoice.amount, 'sats')}`,
-                { duration: 5000 }
-              );
+              
+              // Only show success if balance actually increased (tokens were recovered)
+              const balanceAfter = cashuStore.getBalance();
+              if (balanceAfter > balanceBefore) {
+                toast.success(
+                  `Lightning invoice paid! Recovered ${formatBalance(invoice.amount, 'sats')}`,
+                  { duration: 5000 }
+                );
+              }
               return true;
             }
-          } catch (recoveryError) {
-            console.error('Failed to recover issued tokens:', recoveryError);
-            toast.warning('Invoice was paid but tokens need manual recovery.');
+          } catch (recoveryError: any) {
+            // Silently ignore "already issued" errors - this is normal
+            if (!recoveryError?.message?.includes('already issued')) {
+              console.error('Failed to recover issued tokens:', recoveryError);
+              // Only show warning for actual recovery failures, not for already-claimed tokens
+              toast.warning('Invoice was paid but tokens need manual recovery.');
+            }
           }
         }
       } else if (quoteStatus.state !== invoice.state) {
