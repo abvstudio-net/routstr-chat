@@ -48,7 +48,7 @@ export const InvoiceRecoveryProvider: React.FC<InvoiceRecoveryProviderProps> = (
       if (!document.hidden) {
         // Check if any invoices were recently paid
         const recentlyPaid = invoices.filter(inv => {
-          const isPaid = (inv.state as string) === 'PAID';
+          const isPaid = (inv.state as string) === 'PAID' || (inv.state as string) === 'ISSUED';
           const wasRecentlyPaid = inv.paidAt && (Date.now() - inv.paidAt) < 60000; // Within last minute
           return isPaid && wasRecentlyPaid;
         });

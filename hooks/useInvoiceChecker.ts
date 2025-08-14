@@ -26,7 +26,7 @@ export function useInvoiceChecker() {
         console.log('rdlogs: QUOTE STATUS', quoteStatus);
       }
       
-      if (quoteStatus.state === MintQuoteState.PAID && (invoice.state as string) !== 'PAID') {
+      if ((quoteStatus.state === MintQuoteState.PAID || quoteStatus.state === MintQuoteState.ISSUED) && (invoice.state as string) !== 'PAID' && (invoice.state as string) !== 'ISSUED') {
         // Invoice has been paid, mint the tokens
         try {
           const proofs = await wallet.mintProofs(invoice.amount, invoice.quoteId);
@@ -37,7 +37,7 @@ export function useInvoiceChecker() {
             
             // Update invoice status
             await updateInvoice(invoice.id, {
-              state: MintQuoteState.PAID,
+              state: quoteStatus.state,
               paidAt: Date.now()
             });
             
