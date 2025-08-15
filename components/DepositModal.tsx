@@ -72,7 +72,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, mintUrl, b
 
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const cashuStore = useCashuStore();
-  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError } = useCashuToken();
+  const { receiveToken, isLoading: isTokenLoading, error: hookError } = useCashuToken();
   const transactionHistoryStore = useTransactionHistoryStore();
   const { addInvoice, updateInvoice } = useInvoiceSync();
   const { triggerCheck } = useInvoiceChecker();

@@ -96,7 +96,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
   // NIP-60 wallet hooks
   const { wallet, isLoading: isNip60Loading, updateProofs } = useCashuWallet();
-  const { sendToken: nip60SendToken, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
+  const { sendToken: nip60SendToken, cleanupPendingProofs, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
   const cashuStore = useCashuStore();
   const transactionHistoryStore = useTransactionHistoryStore();
 
@@ -563,6 +563,12 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
         setGeneratedToken(token as string);
         setSuccessMessage(`Token generated for ${formatBalance(amountValue, unit)}`);
+
+        // Clean up pending proofs after successful token creation
+        if ((proofs as any).pendingProofsKey) {
+          cleanupPendingProofs((proofs as any).pendingProofsKey);
+        }
+
       } catch (error) {
         console.error("Error generating NIP-60 token:", error);
         setError(error instanceof Error ? error.message : String(error));

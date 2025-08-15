@@ -7,6 +7,10 @@ import { CashuProof, CashuToken, canMakeExactChange, calculateFees } from '@/lib
 import { hashToCurve } from "@cashu/crypto/modules/common";
 import { useNutzapStore } from '@/stores/nutzapStore';
 
+// Global flag to track if recovery has been initiated in this session
+let recoveryInitiated = false;
+let recoveryPromise: Promise<void> | null = null;
+
 export function useCashuToken() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,12 +30,22 @@ export function useCashuToken() {
       
       for (const key of keys) {
         try {
+          // Check if this specific proof has already been processed
+          const recoveryKey = `recovery_processed_${key}`;
+          if (sessionStorage.getItem(recoveryKey)) {
+            console.log('rdlogs: Skipping already processed pending proof:', key);
+            continue;
+          }
+          
           const pendingData = JSON.parse(localStorage.getItem(key) || '{}');
           const { mintUrl, proofsToSend, timestamp } = pendingData;
           
           // Only recover proofs that are less than 1 hour old to avoid stale data
           if (Date.now() - timestamp < 60 * 60 * 1000 && mintUrl && proofsToSend) {
             console.log('rdlogs: Recovering pending proofs:', key);
+            
+            // Mark this proof as being processed
+            sessionStorage.setItem(recoveryKey, 'true');
             
             // Add the proofs back to the wallet
             await updateProofs({
@@ -54,9 +68,32 @@ export function useCashuToken() {
     }
   };
 
-  // Recover pending proofs on hook initialization
+  // Recover pending proofs on hook initialization - ensure it only runs once globally
   useEffect(() => {
-    recoverPendingProofs();
+    const initRecovery = async () => {
+      // If recovery is already in progress, wait for it to complete
+      if (recoveryPromise) {
+        await recoveryPromise;
+        return;
+      }
+      
+      // If recovery has already been initiated in this session, skip
+      if (recoveryInitiated) {
+        return;
+      }
+      
+      // Mark recovery as initiated and create the promise
+      recoveryInitiated = true;
+      recoveryPromise = recoverPendingProofs();
+      
+      try {
+        await recoveryPromise;
+      } finally {
+        recoveryPromise = null;
+      }
+    };
+    
+    initRecovery();
   }, []);
 
   /**
@@ -535,6 +572,7 @@ export function useCashuToken() {
           (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
         )
       );
+      console.log('rdlogs pd', spentProofs)
 
       await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 
@@ -560,13 +598,26 @@ export function useCashuToken() {
     }
   };
 
+  /**
+   * Reset the recovery state to allow re-running recovery
+   * Useful for testing or manual recovery triggers
+   */
+  const resetRecoveryState = () => {
+    recoveryInitiated = false;
+    recoveryPromise = null;
+    // Clear all recovery processed flags from sessionStorage
+    const keys = Object.keys(sessionStorage).filter(key => key.startsWith('recovery_processed_'));
+    keys.forEach(key => sessionStorage.removeItem(key));
+  };
+
   return {
     sendToken,
     receiveToken,
     cleanSpentProofs,
     cleanupPendingProofs,
     addMintIfNotExists,
+    resetRecoveryState,
     isLoading,
     error
   };
-} 
+}

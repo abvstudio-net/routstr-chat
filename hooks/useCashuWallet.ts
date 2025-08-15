@@ -381,9 +381,11 @@ export function useCashuWallet() {
         cashuStore.addProofs(event.token.proofs, event.id);
       });
 
-      // console.log('rdlogs events: \n' + filteredEvents.map(event =>
-      //   `eventId: ${event.id}\nproofsCount: ${event.token.proofs.length}\ncreatedAt: ${event.createdAt}`
-      // ).join('\n\n'));
+      console.log('rdlogs ', deletedEventIds);
+
+      console.log('rdlogs events: \n' + filteredEvents.map(event =>
+        `eventId: ${event.id}\nproofsCount: ${event.token.proofs.length}\ncreatedAt: ${event.createdAt}`
+      ).join('\n\n'));
 
       return filteredEvents;
       } catch (error) {
@@ -479,10 +481,11 @@ export function useCashuWallet() {
         // remove proofs from store
         const proofsToRemoveFiltered = proofsToRemove.filter(proof => !newProofs.map(p => p.secret).includes(proof.secret));
         cashuStore.removeProofs(proofsToRemoveFiltered);
+        console.log('rdlogs dleted ', deletionEvent)
 
         // publish deletion event
         try {
-          const result = await nostr.event(deletionEvent);
+          await nostr.event(deletionEvent);
         } catch (error) {
           console.error('Failed to publish deletion event:', error);
         }
