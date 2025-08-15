@@ -892,7 +892,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     <p className="text-sm font-medium text-white/80">Invoice Amount</p>
                     <p className="text-2xl font-bold text-white">
                       {formatBalance(invoiceAmount, `${currentMintUnit}s `)}
-                      {invoiceFeeReserve && (
+                      {invoiceFeeReserve && invoiceFeeReserve !== 0 && (
                         <>
                           <span className="text-xs font-bold pl-2 text-white/50">
                             + max {formatBalance(invoiceFeeReserve, 'sats')} fee

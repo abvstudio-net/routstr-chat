@@ -1204,9 +1204,9 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       <div className="text-white/70 text-xs mb-1">Invoice Amount</div>
                       <div className="text-white text-lg font-bold">
                         {invoiceAmount} {currentMintUnit}s
-                        {invoiceFeeReserve && (
+                        {invoiceFeeReserve !== 0 && (
                           <span className="text-xs font-normal text-white/50 ml-2">
-                            + {invoiceFeeReserve} fee
+                            + max {invoiceFeeReserve} fee
                           </span>
                         )}
                       </div>
