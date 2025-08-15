@@ -1,6 +1,6 @@
 import { useCashuStore } from '@/stores/cashuStore';
 import { CashuMint, CashuWallet, MeltQuoteResponse, MeltQuoteState, MintQuoteResponse, MintQuoteState, Proof } from '@cashu/cashu-ts';
-import { calculateFees, canMakeExactChange } from '@/lib/cashu';
+import { calculateFees, canMakeExactChange, CashuToken } from '@/lib/cashu';
 
 export interface MintQuote {
   mintUrl: string;
@@ -167,7 +167,7 @@ export async function createMeltQuote(mintUrl: string, paymentRequest: string): 
  * @param proofs The proofs to spend
  * @returns The fee and change proofs
  */
-export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Proof[]) {
+export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Proof[], cleanSpentProofs: (mintUrl: string) => Promise<Proof[]>) {
   try {
     const mint = new CashuMint(mintUrl);
     const keysets = await mint.getKeySets();
@@ -209,8 +209,50 @@ export async function payMeltQuote(mintUrl: string, quoteId: string, proofs: Pro
       send = result.send;
       console.log('Successfully used wallet.send() for melt quote');
     } catch (error: any) {
+      // Check if error is "Token already spent"
+      if (error?.message?.includes("Token already spent")) {
+        console.log("Detected spent tokens, cleaning up and retrying...");
+        
+        // Clean spent proofs
+        await cleanSpentProofs(mintUrl);
+        
+        // Check if we still have enough funds after cleanup
+        const newProofsAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
+        if (newProofsAmount < amountToSend) {
+          throw new Error(`Not enough funds on mint ${mintUrl} after cleaning spent proofs`);
+        }
+        
+        // Check exact change again with fresh proofs
+        const freshDenominationCounts = proofs.reduce((acc, p) => {
+          acc[p.amount] = (acc[p.amount] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>);
+        
+        const exactChangeRetryResult = canMakeExactChange(amountToSend, freshDenominationCounts, proofs);
+        
+        if (exactChangeRetryResult.canMake && exactChangeRetryResult.selectedProofs) {
+          const selectedDenominations = exactChangeRetryResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
+          const denominationCounts = selectedDenominations.reduce((acc, denom) => {
+            acc[denom] = (acc[denom] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+          
+          console.log('rdlogs: Can make exact change on retry, using selected proofs directly');
+          console.log('rdlogs: Selected denominations on retry:', selectedDenominations);
+          console.log('rdlogs: Denomination breakdown on retry:', denominationCounts);
+          
+          send = exactChangeRetryResult.selectedProofs;
+          keep = proofs.filter(p => !keep.includes(p));
+        } else {
+          console.log('rdlogs: Cannot make exact change on retry, using wallet.send()');
+          const result = await wallet.send(amountToSend, proofs, { includeFees: true, privkey: useCashuStore.getState().privkey });
+          keep = result.keep;
+          send = result.send;
+        }
+
+      }
       // Check if the error is "Not enough funds available for swap"
-      if (error?.message?.includes('Not enough funds available for swap')) {
+      else if (error?.message?.includes('Not enough funds available for swap')) {
         console.log('wallet.send() failed with insufficient funds, trying exact change methods');
         
         // Get denomination counts for exact change attempts

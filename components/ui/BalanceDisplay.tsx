@@ -96,7 +96,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
   // NIP-60 wallet hooks
   const { wallet, isLoading: isNip60Loading, updateProofs } = useCashuWallet();
-  const { sendToken: nip60SendToken, cleanupPendingProofs, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
+  const { sendToken: nip60SendToken, cleanSpentProofs, cleanupPendingProofs, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
   const cashuStore = useCashuStore();
   const transactionHistoryStore = useTransactionHistoryStore();
 
@@ -501,7 +501,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       }
 
       // Pay the invoice
-      const result = await payMeltQuote(mintUrl, nip60MeltQuoteId, selectedProofs);
+      const result = await payMeltQuote(mintUrl, nip60MeltQuoteId, selectedProofs, cleanSpentProofs);
 
       if (result.success) {
         // Remove spent proofs from the store

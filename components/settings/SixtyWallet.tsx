@@ -419,7 +419,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       const result = await payMeltQuote(
         mintUrl,
         currentMeltQuoteId,
-        selectedProofs
+        selectedProofs,
+        cleanSpentProofs
       );
 
       if (result.success) {

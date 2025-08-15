@@ -12,9 +12,6 @@ import { cn } from "@/lib/utils";
 import {
   createLightningInvoice,
   mintTokensFromPaidInvoice,
-  payMeltQuote,
-  parseInvoiceAmount,
-  createMeltQuote,
 } from "@/lib/cashuLightning";
 import {
   useTransactionHistoryStore,
