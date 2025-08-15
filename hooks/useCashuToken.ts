@@ -137,79 +137,6 @@ export function useCashuToken() {
         throw new Error(`Not enough funds on mint ${mintUrl}`);
       }
 
-      // Check if we can make exact change (first with 0% tolerance)
-      let exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs);
-      console.log('rdlogs: Exact change check for amount', amount, ':', exactChangeResult.canMake);
-      
-      // If exact change fails, try with 5% error tolerance
-      if (!exactChangeResult.canMake) {
-        console.log('rdlogs: Cannot make exact change with 0% tolerance, trying with 5% tolerance');
-        exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs, fees, 0.05);
-        if (exactChangeResult.canMake && exactChangeResult.actualAmount) {
-          const overpayment = exactChangeResult.actualAmount - amount;
-          const overpaymentPercent = (overpayment / amount) * 100;
-          console.log(`rdlogs: Can make change with 5% tolerance - overpayment: ${overpayment} (${overpaymentPercent.toFixed(2)}%)`);
-        }
-      }
-      
-      if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
-        const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
-        const denominationCounts = selectedDenominations.reduce((acc, denom) => {
-          acc[denom] = (acc[denom] || 0) + 1;
-          return acc;
-        }, {} as Record<number, number>);
-        
-        console.log('rdlogs: Can make exact change, using selected proofs directly');
-        console.log('rdlogs: Selected denominations:', selectedDenominations);
-        console.log('rdlogs: Denomination breakdown:', denominationCounts);
-        
-        // Use the selected proofs directly without calling wallet.send
-        const proofsToSend = exactChangeResult.selectedProofs;
-        const proofsToKeep = proofs.filter(p => !proofsToSend.includes(p));
-
-        // Store proofs temporarily before updating wallet state
-        const pendingProofsKey = `pending_send_proofs_${Date.now()}`;
-        localStorage.setItem(pendingProofsKey, JSON.stringify({
-          mintUrl,
-          proofsToSend: proofsToSend.map(p => ({
-            id: p.id || '',
-            amount: p.amount,
-            secret: p.secret || '',
-            C: p.C || ''
-          })),
-          timestamp: Date.now()
-        }));
-
-        // Create new token for the proofs we're keeping
-        if (proofsToKeep.length > 0) {
-          const keepTokenData: CashuToken = {
-            mint: mintUrl,
-            proofs: proofsToKeep.map(p => ({
-              id: p.id || '',
-              amount: p.amount,
-              secret: p.secret || '',
-              C: p.C || ''
-            }))
-          };
-
-          // update proofs
-          await updateProofs({ mintUrl, proofsToAdd: keepTokenData.proofs, proofsToRemove: [...proofsToSend, ...proofs] });
-
-          // Create history event
-          await createHistory({
-            direction: 'out',
-            amount: amount.toString(),
-          });
-        }
-        
-        // Store the pending proofs key with the returned proofs for cleanup
-        (proofsToSend as any).pendingProofsKey = pendingProofsKey;
-        
-        return { proofs: proofsToSend, unit: preferredUnit };
-      }
-
-      console.log('rdlogs: Cannot make exact change, using wallet.send()');
-
       try {
         const { keep: proofsToKeep, send: proofsToSend } = await wallet.send(amount, proofs, { pubkey: p2pkPubkey, privkey: cashuStore.privkey});
 
@@ -345,6 +272,9 @@ export function useCashuToken() {
         }
         else if(message.includes("Not enough funds available")) {
           console.log('rdlogs: wallet.send() failed with insufficient funds, trying exact change with tolerance');
+          
+          // Clean spent proofs
+          await cleanSpentProofs(mintUrl);
           
           // Get fresh denomination counts
           const freshDenominationCounts = proofs.reduce((acc, p) => {

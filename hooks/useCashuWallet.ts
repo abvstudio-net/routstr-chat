@@ -34,7 +34,7 @@ export function useCashuWallet() {
   const { createNutzapInfo } = useNutzaps();
   const [showQueryTimeoutModal, setShowQueryTimeoutModal] = useState(false);
   const [didRelaysTimeout, setDidRelaysTimeout] = useState(false);
-    const [deletedEvents, setDeletedEvents] = useLocalStorage<DeletedEvents[]>('nip60-deleted-events', []);
+  const [deletedEvents, setDeletedEvents] = useLocalStorage<DeletedEvents[]>('nip60-deleted-events', []);
 
   // Fetch wallet information (kind 17375)
   const walletQuery = useQuery<{ id: string; wallet: CashuWalletStruct; createdAt: number; } | null, Error, { id: string; wallet: CashuWalletStruct; createdAt: number; } | null, any[]>(
