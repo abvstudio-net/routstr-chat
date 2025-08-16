@@ -379,7 +379,7 @@ export function useCashuToken() {
     // Validate URL
     new URL(mintUrl);
     if (!wallet) {
-      throw new Error('Wallet not found');
+      throw new Error('Wallet not found, trying to add mint URL: '+mintUrl);
     }
     // Add mint to wallet
     createWallet({
