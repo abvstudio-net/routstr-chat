@@ -21,6 +21,10 @@ import {
   PendingTransaction,
 } from "@/stores/transactionHistoryStore";
 import { getBalanceFromStoredProofs } from "@/utils/cashuUtils";
+import { useInvoiceSync } from "@/hooks/useInvoiceSync";
+import { useInvoiceChecker } from "@/hooks/useInvoiceChecker";
+import { MintQuoteState, MeltQuoteState } from "@cashu/cashu-ts";
+import InvoiceHistory from './InvoiceHistory';
 
 // Helper function to generate unique IDs
 const generateId = () => crypto.randomUUID();
@@ -30,7 +34,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const popularAmounts = [100, 500, 1000];
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'deposit' | 'send'>('deposit');
+  const [activeTab, setActiveTab] = useState<'deposit' | 'send' | 'history'>('deposit');
 
   // Lightning state variables (from Chorus)
   const [receiveAmount, setReceiveAmount] = useState("");
@@ -96,6 +100,17 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setPaymentRequest(invoiceData.paymentRequest);
       setShowInvoiceModal(true); // Automatically show QR code modal
 
+      // Store invoice persistently
+      await addInvoice({
+        type: 'mint',
+        mintUrl: cashuStore.activeMintUrl,
+        quoteId: invoiceData.quoteId,
+        paymentRequest: invoiceData.paymentRequest,
+        amount: amount,
+        state: MintQuoteState.UNPAID,
+        expiresAt: invoiceData.expiresAt
+      });
+
       // Create pending transaction
       const pendingTxId = generateId();
       const pendingTransaction: PendingTransaction = {
@@ -113,13 +128,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       transactionHistoryStore.addPendingTransaction(pendingTransaction);
       setPendingTransactionId(pendingTxId);
 
-      // Start polling for payment status
-      checkPaymentStatus(
-        cashuStore.activeMintUrl,
-        invoiceData.quoteId,
-        amount,
-        pendingTxId
-      );
+      // Invoice checker will handle payment status automatically
     } catch (error) {
       console.error("Error creating invoice:", error);
       setError(
@@ -137,66 +146,6 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     await handleCreateInvoice(amount);
   };
 
-  // Poll for payment status
-  const checkPaymentStatus = async (
-    mintUrl: string,
-    quoteId: string,
-    amount: number,
-    pendingTxId: string
-  ) => {
-    try {
-      // Check if payment has been received
-      const proofs = await mintTokensFromPaidInvoice(mintUrl, quoteId, amount);
-
-      if (proofs.length > 0) {
-        // update proofs
-        await updateProofs({
-          mintUrl,
-          proofsToAdd: proofs,
-          proofsToRemove: [],
-        });
-
-        // Remove the pending transaction
-        transactionHistoryStore.removePendingTransaction(pendingTxId);
-        setPendingTransactionId(null);
-
-        setSuccessMessage(`Received ${formatBalance(amount, 'sats')}!`);
-        setInvoice("");
-        setcurrentMeltQuoteId("");
-        setReceiveAmount("");
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        // If payment not received yet, check again in 5 seconds
-        setTimeout(() => {
-          if (currentMeltQuoteId === quoteId) {
-            // Only continue if we're still waiting for this payment
-            checkPaymentStatus(mintUrl, quoteId, amount, pendingTxId);
-          }
-        }, 5000);
-      }
-    } catch (error) {
-      // If it's not a "not paid yet" error, show the error
-      if (
-        !(error instanceof Error && error.message.includes("not been paid"))
-      ) {
-        console.error("Error checking payment status:", error);
-        setError(
-          "Failed to check payment status: " +
-            (error instanceof Error ? error.message : String(error))
-        );
-      } else {
-        // Keep polling if it's just not paid yet
-        setTimeout(() => {
-          if (currentMeltQuoteId === quoteId) {
-            // Only continue if we're still waiting for this payment
-            checkPaymentStatus(mintUrl, quoteId, amount, pendingTxId);
-          }
-        }, 5000);
-      }
-    }
-  };
-
-
 
   const { user } = useCurrentUser();
   const { wallet, isLoading, updateProofs } = useCashuWallet();
@@ -204,6 +153,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const cashuStore = useCashuStore();
   const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError, addMintIfNotExists } = useCashuToken();
   const transactionHistoryStore = useTransactionHistoryStore();
+  const { addInvoice, updateInvoice } = useInvoiceSync();
+  const { triggerCheck } = useInvoiceChecker();
 
   const [error, setError] = useState<string | null>(null);
   const [currentMintUnit, setCurrentMintUnit] = useState<string | 'sat'>('sat');
@@ -261,6 +212,11 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
     const interval = setInterval(checkLocalBalance, 5000);
     return () => clearInterval(interval);
   }, [usingNip60]);
+
+  // Check invoices when wallet opens
+  useEffect(() => {
+    triggerCheck();
+  }, []); // Run once on mount
 
   const handleAddCustomMint = async () => {
     if (!customMintUrl.trim()) {
@@ -361,6 +317,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
 
   // Handle lightning send invoice input
   const handleInvoiceInput = async (value: string) => {
+    console.log('rdlogs:gm', processingInvoiceRef.current, currentMeltQuoteId);
     if (!cashuStore.activeMintUrl) {
       setError(
         "No active mint selected. Please select a mint in your wallet settings."
@@ -447,14 +404,33 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
         return;
       }
 
+      // Store melt invoice persistently before payment attempt
+      await addInvoice({
+        type: 'melt',
+        mintUrl: mintUrl,
+        quoteId: currentMeltQuoteId,
+        paymentRequest: sendInvoice,
+        amount: invoiceAmount,
+        state: MeltQuoteState.UNPAID,
+        fee: invoiceFeeReserve || undefined
+      });
+
       // Pay the invoice
       const result = await payMeltQuote(
         mintUrl,
         currentMeltQuoteId,
-        selectedProofs
+        selectedProofs,
+        cleanSpentProofs
       );
 
       if (result.success) {
+        // Update invoice status
+        await updateInvoice(currentMeltQuoteId, {
+          state: MeltQuoteState.PAID,
+          paidAt: Date.now(),
+          fee: result.fee
+        });
+
         // Remove spent proofs from the store
         await updateProofs({
           mintUrl,
@@ -775,6 +751,17 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
           >
             Send
           </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'history'
+                ? 'text-white bg-white/5 border-b-2 border-white/30'
+                : 'text-white/70 hover:text-white/90 hover:bg-white/5'
+            }`}
+            type="button"
+          >
+            Invoices
+          </button>
         </div>
 
         {/* Tab Content Container with Fixed Height */}
@@ -906,7 +893,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                     <p className="text-sm font-medium text-white/80">Invoice Amount</p>
                     <p className="text-2xl font-bold text-white">
                       {formatBalance(invoiceAmount, `${currentMintUnit}s `)}
-                      {invoiceFeeReserve && (
+                      {invoiceFeeReserve !== null && invoiceFeeReserve !== 0 && (
                         <>
                           <span className="text-xs font-bold pl-2 text-white/50">
                             + max {formatBalance(invoiceFeeReserve, 'sats')} fee
@@ -1002,6 +989,13 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                   Share your generated token with others to send them eCash.
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* History Tab Content */}
+          {activeTab === 'history' && (
+            <div className="h-full">
+              <InvoiceHistory mintUrl={cashuStore.activeMintUrl} />
             </div>
           )}
         </div>

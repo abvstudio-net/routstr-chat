@@ -7,6 +7,10 @@ import { CashuProof, CashuToken, canMakeExactChange, calculateFees } from '@/lib
 import { hashToCurve } from "@cashu/crypto/modules/common";
 import { useNutzapStore } from '@/stores/nutzapStore';
 
+// Global flag to track if recovery has been initiated in this session
+let recoveryInitiated = false;
+let recoveryPromise: Promise<void> | null = null;
+
 export function useCashuToken() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,12 +30,22 @@ export function useCashuToken() {
       
       for (const key of keys) {
         try {
+          // Check if this specific proof has already been processed
+          const recoveryKey = `recovery_processed_${key}`;
+          if (sessionStorage.getItem(recoveryKey)) {
+            console.log('rdlogs: Skipping already processed pending proof:', key);
+            continue;
+          }
+          
           const pendingData = JSON.parse(localStorage.getItem(key) || '{}');
           const { mintUrl, proofsToSend, timestamp } = pendingData;
           
           // Only recover proofs that are less than 1 hour old to avoid stale data
           if (Date.now() - timestamp < 60 * 60 * 1000 && mintUrl && proofsToSend) {
             console.log('rdlogs: Recovering pending proofs:', key);
+            
+            // Mark this proof as being processed
+            sessionStorage.setItem(recoveryKey, 'true');
             
             // Add the proofs back to the wallet
             await updateProofs({
@@ -54,9 +68,32 @@ export function useCashuToken() {
     }
   };
 
-  // Recover pending proofs on hook initialization
+  // Recover pending proofs on hook initialization - ensure it only runs once globally
   useEffect(() => {
-    recoverPendingProofs();
+    const initRecovery = async () => {
+      // If recovery is already in progress, wait for it to complete
+      if (recoveryPromise) {
+        await recoveryPromise;
+        return;
+      }
+      
+      // If recovery has already been initiated in this session, skip
+      if (recoveryInitiated) {
+        return;
+      }
+      
+      // Mark recovery as initiated and create the promise
+      recoveryInitiated = true;
+      recoveryPromise = recoverPendingProofs();
+      
+      try {
+        await recoveryPromise;
+      } finally {
+        recoveryPromise = null;
+      }
+    };
+    
+    initRecovery();
   }, []);
 
   /**
@@ -99,79 +136,6 @@ export function useCashuToken() {
       if (proofsAmount < amount) {
         throw new Error(`Not enough funds on mint ${mintUrl}`);
       }
-
-      // Check if we can make exact change (first with 0% tolerance)
-      let exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs);
-      console.log('rdlogs: Exact change check for amount', amount, ':', exactChangeResult.canMake);
-      
-      // If exact change fails, try with 5% error tolerance
-      if (!exactChangeResult.canMake) {
-        console.log('rdlogs: Cannot make exact change with 0% tolerance, trying with 5% tolerance');
-        exactChangeResult = canMakeExactChange(amount, denominationCounts, proofs, fees, 0.05);
-        if (exactChangeResult.canMake && exactChangeResult.actualAmount) {
-          const overpayment = exactChangeResult.actualAmount - amount;
-          const overpaymentPercent = (overpayment / amount) * 100;
-          console.log(`rdlogs: Can make change with 5% tolerance - overpayment: ${overpayment} (${overpaymentPercent.toFixed(2)}%)`);
-        }
-      }
-      
-      if (exactChangeResult.canMake && exactChangeResult.selectedProofs) {
-        const selectedDenominations = exactChangeResult.selectedProofs.map(p => p.amount).sort((a, b) => b - a);
-        const denominationCounts = selectedDenominations.reduce((acc, denom) => {
-          acc[denom] = (acc[denom] || 0) + 1;
-          return acc;
-        }, {} as Record<number, number>);
-        
-        console.log('rdlogs: Can make exact change, using selected proofs directly');
-        console.log('rdlogs: Selected denominations:', selectedDenominations);
-        console.log('rdlogs: Denomination breakdown:', denominationCounts);
-        
-        // Use the selected proofs directly without calling wallet.send
-        const proofsToSend = exactChangeResult.selectedProofs;
-        const proofsToKeep = proofs.filter(p => !proofsToSend.includes(p));
-
-        // Store proofs temporarily before updating wallet state
-        const pendingProofsKey = `pending_send_proofs_${Date.now()}`;
-        localStorage.setItem(pendingProofsKey, JSON.stringify({
-          mintUrl,
-          proofsToSend: proofsToSend.map(p => ({
-            id: p.id || '',
-            amount: p.amount,
-            secret: p.secret || '',
-            C: p.C || ''
-          })),
-          timestamp: Date.now()
-        }));
-
-        // Create new token for the proofs we're keeping
-        if (proofsToKeep.length > 0) {
-          const keepTokenData: CashuToken = {
-            mint: mintUrl,
-            proofs: proofsToKeep.map(p => ({
-              id: p.id || '',
-              amount: p.amount,
-              secret: p.secret || '',
-              C: p.C || ''
-            }))
-          };
-
-          // update proofs
-          await updateProofs({ mintUrl, proofsToAdd: keepTokenData.proofs, proofsToRemove: [...proofsToSend, ...proofs] });
-
-          // Create history event
-          await createHistory({
-            direction: 'out',
-            amount: amount.toString(),
-          });
-        }
-        
-        // Store the pending proofs key with the returned proofs for cleanup
-        (proofsToSend as any).pendingProofsKey = pendingProofsKey;
-        
-        return { proofs: proofsToSend, unit: preferredUnit };
-      }
-
-      console.log('rdlogs: Cannot make exact change, using wallet.send()');
 
       try {
         const { keep: proofsToKeep, send: proofsToSend } = await wallet.send(amount, proofs, { pubkey: p2pkPubkey, privkey: cashuStore.privkey});
@@ -309,6 +273,9 @@ export function useCashuToken() {
         else if(message.includes("Not enough funds available")) {
           console.log('rdlogs: wallet.send() failed with insufficient funds, trying exact change with tolerance');
           
+          // Clean spent proofs
+          await cleanSpentProofs(mintUrl);
+          
           // Get fresh denomination counts
           const freshDenominationCounts = proofs.reduce((acc, p) => {
             acc[p.amount] = (acc[p.amount] || 0) + 1;
@@ -412,7 +379,7 @@ export function useCashuToken() {
     // Validate URL
     new URL(mintUrl);
     if (!wallet) {
-      throw new Error('Wallet not found');
+      throw new Error('Wallet not found, trying to add mint URL: '+mintUrl);
     }
     // Add mint to wallet
     createWallet({
@@ -535,6 +502,7 @@ export function useCashuToken() {
           (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
         )
       );
+      console.log('rdlogs pd', spentProofs)
 
       await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 
@@ -560,13 +528,26 @@ export function useCashuToken() {
     }
   };
 
+  /**
+   * Reset the recovery state to allow re-running recovery
+   * Useful for testing or manual recovery triggers
+   */
+  const resetRecoveryState = () => {
+    recoveryInitiated = false;
+    recoveryPromise = null;
+    // Clear all recovery processed flags from sessionStorage
+    const keys = Object.keys(sessionStorage).filter(key => key.startsWith('recovery_processed_'));
+    keys.forEach(key => sessionStorage.removeItem(key));
+  };
+
   return {
     sendToken,
     receiveToken,
     cleanSpentProofs,
     cleanupPendingProofs,
     addMintIfNotExists,
+    resetRecoveryState,
     isLoading,
     error
   };
-} 
+}

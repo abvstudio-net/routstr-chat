@@ -3,7 +3,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Copy, Check, Zap, ArrowLeft, Clock, Trash2, QrCode, ExternalLink, Settings, ChevronDown } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { getDecodedToken, getEncodedTokenV4 } from "@cashu/cashu-ts";
+import { getDecodedToken, getEncodedTokenV4, MeltQuoteState, MintQuoteState } from "@cashu/cashu-ts";
+import { useInvoiceSync } from '@/hooks/useInvoiceSync';
 import { useChat } from '@/context/ChatProvider';
 import { useAuth } from '@/context/AuthProvider';
 import { useNostr } from '@/context/NostrContext';
@@ -41,6 +42,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   const { isAuthenticated } = useAuth();
   const { balance, currentMintUnit, mintBalances, mintUnits, isBalanceLoading, setIsLoginModalOpen, mintUrl, baseUrl, transactionHistory, setTransactionHistory, setBalance } = useChat();
   const { publicKey } = useNostr();
+  const { addInvoice, updateInvoice } = useInvoiceSync();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'receive' | 'activity' | 'invoice'>('overview');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -94,7 +96,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
   // NIP-60 wallet hooks
   const { wallet, isLoading: isNip60Loading, updateProofs } = useCashuWallet();
-  const { sendToken: nip60SendToken, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
+  const { sendToken: nip60SendToken, cleanSpentProofs, cleanupPendingProofs, receiveToken, isLoading: isTokenLoading, error: nip60Error } = useCashuToken();
   const cashuStore = useCashuStore();
   const transactionHistoryStore = useTransactionHistoryStore();
 
@@ -331,6 +333,17 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       setNip60Invoice(invoiceData.paymentRequest);
       setNip60QuoteId(invoiceData.quoteId);
 
+      // Store invoice persistently for recovery
+      await addInvoice({
+        type: 'mint',
+        mintUrl: cashuStore.activeMintUrl,
+        quoteId: invoiceData.quoteId,
+        paymentRequest: invoiceData.paymentRequest,
+        amount: amount,
+        state: MintQuoteState.UNPAID,
+        expiresAt: invoiceData.expiresAt
+      });
+
       // Create pending transaction
       const pendingTxId = generateId();
       const pendingTransaction: PendingTransaction = {
@@ -424,6 +437,17 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       // Parse amount from invoice
       setInvoiceAmount(meltQuote.amount);
       setInvoiceFeeReserve(meltQuote.fee_reserve);
+      
+      // Store melt invoice persistently
+      await addInvoice({
+        type: 'melt',
+        mintUrl: mintUrl,
+        quoteId: meltQuote.quote,
+        paymentRequest: value,
+        amount: meltQuote.amount,
+        state: MeltQuoteState.UNPAID,
+        fee: meltQuote.fee_reserve
+      });
     } catch (error) {
       console.error("Error creating NIP-60 melt quote:", error);
       setError("Failed to create melt quote: " + (error instanceof Error ? error.message : String(error)));
@@ -477,7 +501,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       }
 
       // Pay the invoice
-      const result = await payMeltQuote(mintUrl, nip60MeltQuoteId, selectedProofs);
+      const result = await payMeltQuote(mintUrl, nip60MeltQuoteId, selectedProofs, cleanSpentProofs);
 
       if (result.success) {
         // Remove spent proofs from the store
@@ -485,6 +509,13 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
           mintUrl,
           proofsToAdd: [...result.keep, ...result.change],
           proofsToRemove: selectedProofs,
+        });
+
+        setSuccessMessage(`Paid ${formatBalance(invoiceAmount, currentMintUnit)}s!`);
+        // Update invoice status to paid
+        await updateInvoice(nip60MeltQuoteId, {
+          state: MeltQuoteState.PAID,
+          paidAt: Date.now()
         });
 
         setSuccessMessage(`Paid ${formatBalance(invoiceAmount, currentMintUnit)}s!`);
@@ -543,6 +574,12 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
         setGeneratedToken(token as string);
         setSuccessMessage(`Token generated for ${formatBalance(amountValue, unit)}`);
+
+        // Clean up pending proofs after successful token creation
+        if ((proofs as any).pendingProofsKey) {
+          cleanupPendingProofs((proofs as any).pendingProofsKey);
+        }
+
       } catch (error) {
         console.error("Error generating NIP-60 token:", error);
         setError(error instanceof Error ? error.message : String(error));
@@ -1167,9 +1204,9 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       <div className="text-white/70 text-xs mb-1">Invoice Amount</div>
                       <div className="text-white text-lg font-bold">
                         {invoiceAmount} {currentMintUnit}s
-                        {invoiceFeeReserve && (
+                        {invoiceFeeReserve !== 0 && (
                           <span className="text-xs font-normal text-white/50 ml-2">
-                            + {invoiceFeeReserve} fee
+                            + max {invoiceFeeReserve} fee
                           </span>
                         )}
                       </div>
