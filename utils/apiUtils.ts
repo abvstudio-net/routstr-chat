@@ -225,7 +225,14 @@ async function handleApiError(
 
   if (response.status === 401 || response.status === 403) {
     console.log(response.body)
-    handleApiResponseError(response.statusText + ". Trying to get a refund. ", onMessageAppend);
+    const requestId = response.headers.get('x-routstr-request-id');
+    const mainMessage = response.statusText + ". Trying to get a refund.";
+    const requestIdText = requestId ? `Request ID: ${requestId}` : '';
+    const providerText = `Provider: ${baseUrl}`;
+    const fullMessage = requestId
+      ? `${mainMessage}\n${requestIdText}\n${providerText}`
+      : `${mainMessage} | ${providerText}`;
+    handleApiResponseError(fullMessage, onMessageAppend);
     const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
 
@@ -246,7 +253,13 @@ async function handleApiError(
     if (shouldAttemptUnifiedRefund) {
       const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
       if (!refundStatus.success){
-        handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
+        const mainMessage = `Refund failed: ${refundStatus.message}.`;
+        const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
+        const providerText = `Provider: ${baseUrl}`;
+        const fullMessage = refundStatus.requestId
+          ? `${mainMessage}\n${requestIdText}\n${providerText}`
+          : `${mainMessage} | ${providerText}`;
+        handleApiResponseError(fullMessage, onMessageAppend);
       }
     }
     
@@ -273,7 +286,13 @@ async function handleApiError(
   else if (response.status === 413) {
     const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
     if (!refundStatus.success){
-      handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
+      const mainMessage = `Refund failed: ${refundStatus.message}.`;
+      const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
+      const providerText = `Provider: ${baseUrl}`;
+      const fullMessage = refundStatus.requestId
+        ? `${mainMessage}\n${requestIdText}\n${providerText}`
+        : `${mainMessage} | ${providerText}`;
+      handleApiResponseError(fullMessage, onMessageAppend);
     }
   }
   else if (response.status === 500) {
@@ -491,16 +510,28 @@ async function handlePostResponseRefund(params: {
       satsSpent = initialBalance - getBalanceFromStoredProofs();
     }
   } else {
-    console.error("Refund failed:", refundStatus.message);
+    console.error("Refund failed:", refundStatus.message, refundStatus, refundStatus, refundStatus, refundStatus, refundStatus);
     if (refundStatus.message && refundStatus.message.includes("Balance too small to refund")) {
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
     else if (refundStatus.message && refundStatus.message.includes("Refund request failed with status 401")) {
-      handleApiResponseError("Refund failed: " + refundStatus.message + ". Clearing token. Pls retry. ", onMessageAppend);
+      const mainMessage = `Refund failed: ${refundStatus.message}. Clearing token. Pls retry.`;
+      const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
+      const providerText = `Provider: ${baseUrl}`;
+      const fullMessage = refundStatus.requestId
+        ? `${mainMessage}\n${requestIdText}\n${providerText}`
+        : `${mainMessage} | ${providerText}`;
+      handleApiResponseError(fullMessage, onMessageAppend);
       clearCurrentApiToken(baseUrl); // Pass baseUrl here
     }
     else {
-      handleApiResponseError("Refund failed: " + refundStatus.message, onMessageAppend);
+      const mainMessage = `Refund failed: ${refundStatus.message}.`;
+      const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
+      const providerText = `Provider: ${baseUrl}`;
+      const fullMessage = refundStatus.requestId
+        ? `${mainMessage}\n${requestIdText}\n${providerText}`
+        : `${mainMessage} | ${providerText}`;
+      handleApiResponseError(fullMessage, onMessageAppend);
     }
     // For msats, keep decimal precision; for sats, use Math.ceil
     satsSpent = unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount);

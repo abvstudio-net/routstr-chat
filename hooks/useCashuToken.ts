@@ -388,6 +388,23 @@ export function useCashuToken() {
     });
   }
 
+  const removeMint = async (mintUrl: string) => {
+    // Validate URL
+    new URL(mintUrl);
+    if (!wallet) {
+      throw new Error('Wallet not found, trying to remove mint URL: ' + mintUrl);
+    }
+    // Check if mint exists in wallet
+    if (!wallet.mints.includes(mintUrl)) {
+      throw new Error('Mint URL not found in wallet: ' + mintUrl);
+    }
+    // Remove mint from wallet
+    createWallet({
+      ...wallet,
+      mints: wallet.mints.filter(mint => mint !== mintUrl),
+    });
+  }
+
   /**
    * Receive a token
    * @param token The encoded token string
@@ -546,6 +563,7 @@ export function useCashuToken() {
     cleanSpentProofs,
     cleanupPendingProofs,
     addMintIfNotExists,
+    removeMint,
     resetRecoveryState,
     isLoading,
     error
