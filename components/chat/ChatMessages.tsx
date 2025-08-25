@@ -109,11 +109,15 @@ export default function ChatMessages({
                 <div className="flex justify-center mb-6 group">
                   <div className="flex flex-col">
                     <div className="bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
-                      <div className="flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300">
+                      <div className="flex items-start gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300 mt-0.5 flex-shrink-0">
                           <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
-                        <p className="text-sm font-medium">{getTextFromContent(message.content)}</p>
+                        <div className="text-sm font-medium">
+                          {getTextFromContent(message.content).split('\n').map((line, idx) => (
+                            <div key={idx}>{line}</div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div className="mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">

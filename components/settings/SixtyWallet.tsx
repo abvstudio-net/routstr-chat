@@ -59,6 +59,8 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const [customMintUrl, setCustomMintUrl] = useState('');
   const [isAddingMint, setIsAddingMint] = useState(false);
   const [showAddMintInput, setShowAddMintInput] = useState(false);
+  const [showRemoveMintMode, setShowRemoveMintMode] = useState(false);
+  const [isRemovingMint, setIsRemovingMint] = useState(false);
   
   // Migration state
   const [localWalletBalance, setLocalWalletBalance] = useState(0);
@@ -151,7 +153,7 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
   const { wallet, isLoading, updateProofs } = useCashuWallet();
   const { mutate: handleCreateWallet, isPending: isCreatingWallet, error: createWalletError } = useCreateCashuWallet();
   const cashuStore = useCashuStore();
-  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError, addMintIfNotExists } = useCashuToken();
+  const { sendToken, receiveToken, cleanSpentProofs, cleanupPendingProofs, isLoading: isTokenLoading, error: hookError, addMintIfNotExists, removeMint } = useCashuToken();
   const transactionHistoryStore = useTransactionHistoryStore();
   const { addInvoice, updateInvoice } = useInvoiceSync();
   const { triggerCheck } = useInvoiceChecker();
@@ -237,6 +239,30 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
       setError(`Failed to add mint: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsAddingMint(false);
+    }
+  };
+
+  const handleRemoveMint = async (mintUrl: string) => {
+    try {
+      setIsRemovingMint(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      await removeMint(mintUrl);
+      setSuccessMessage(`Mint "${cleanMintUrl(mintUrl)}" removed successfully.`);
+      
+      // If the removed mint was the active one, set a new active mint
+      if (cashuStore.activeMintUrl === mintUrl && wallet?.mints && wallet.mints.length > 0) {
+        const remainingMints = wallet.mints.filter(mint => mint !== mintUrl);
+        if (remainingMints.length > 0) {
+          cashuStore.setActiveMintUrl(remainingMints[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error removing mint:", error);
+      setError(`Failed to remove mint: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsRemovingMint(false);
     }
   };
 
@@ -647,10 +673,17 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
               <h3 className="text-sm font-medium text-white/80 mr-2">Select Mint</h3>
               <button
                 onClick={() => setShowAddMintInput(!showAddMintInput)}
-                className="text-xs text-white/70 hover:text-white cursor-pointer"
+                className="text-xs text-white/70 hover:text-white cursor-pointer mr-2"
                 type="button"
               >
                 {showAddMintInput ? 'Cancel Add' : '(Add New Mint)'}
+              </button>
+              <button
+                onClick={() => setShowRemoveMintMode(!showRemoveMintMode)}
+                className="text-xs text-white/70 hover:text-white cursor-pointer"
+                type="button"
+              >
+                {showRemoveMintMode ? 'Cancel Remove' : '(Remove Mint)'}
               </button>
             </div>
             <div className="space-y-2">
@@ -680,6 +713,17 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                       >
                         Clean Proofs
                       </button>
+                      {showRemoveMintMode && (
+                        <button
+                          onClick={() => handleRemoveMint(mint)}
+                          disabled={isRemovingMint || wallet.mints.length <= 1}
+                          className="ml-2 px-2 py-1 text-xs bg-red-500/20 border border-red-500/30 rounded-md text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          type="button"
+                          title={wallet.mints.length <= 1 ? "Cannot remove the last mint" : "Remove this mint"}
+                        >
+                          {isRemovingMint ? 'Removing...' : 'Delete'}
+                        </button>
+                      )}
                     </div>
                     <span className={cn("text-sm font-medium", isActive ? "text-white" : "text-white/70")}>
                       {formatBalance(mintBalance, unit+'s')}

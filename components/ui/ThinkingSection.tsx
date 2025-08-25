@@ -17,7 +17,7 @@ export default function ThinkingSection({ thinking, thinkingContent, isStreaming
   const [thinkingText, setThinkingText] = useState('');
 
   useEffect(() => {
-    if (thinkingContent !== '') {
+    if (thinkingContent !== '' && ( !thinking || thinking == '' )) {
       setThinkingText(thinkingContent!);
       setIsExpanded(true);
     } else {

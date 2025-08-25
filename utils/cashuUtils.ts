@@ -207,9 +207,17 @@ export const getOrCreateApiToken = async (
   }
 };
 
-export const fetchRefundToken = async (baseUrl: string, storedToken: string): Promise<any> => {
+export const fetchRefundToken = async (baseUrl: string, storedToken: string): Promise<{
+  success: boolean;
+  token?: string;
+  requestId?: string;
+  error?: string;
+}> => {
   if (!baseUrl) {
-    throw new Error('No base URL configured');
+    return {
+      success: false,
+      error: 'No base URL configured'
+    };
   }
 
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -231,29 +239,51 @@ export const fetchRefundToken = async (baseUrl: string, storedToken: string): Pr
     });
 
     clearTimeout(timeoutId);
+    const requestId = response.headers.get('x-routstr-request-id') || undefined;
 
     if (!response.ok) {
       const errorData = await response.json();
       if (response.status === 400 && errorData?.detail === "No balance to refund") {
         invalidateApiToken(baseUrl);
-        throw new Error('No balance to refund');
+        return {
+          success: false,
+          requestId,
+          error: 'No balance to refund'
+        };
       }
-      throw new Error(`Refund request failed with status ${response.status}: ${errorData?.detail || response.statusText}`);
+      return {
+        success: false,
+        requestId,
+        error: `Refund request failed with status ${response.status}: ${errorData?.detail || response.statusText}`
+      };
     }
     
     const data = await response.json();
-    return data.token;
+    return {
+      success: true,
+      token: data.token,
+      requestId
+    };
   } catch (error) {
     clearTimeout(timeoutId);
     
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        throw new Error('Request timed out after 1 minute');
+        return {
+          success: false,
+          error: 'Request timed out after 1 minute'
+        };
       }
-      throw error;
+      return {
+        success: false,
+        error: error.message
+      };
     }
     
-    throw new Error('Unknown error occurred during refund request');
+    return {
+      success: false,
+      error: 'Unknown error occurred during refund request'
+    };
   }
 };
 
@@ -287,16 +317,17 @@ export const refundRemainingBalance = async (mintUrl: string, baseUrl: string, a
     }
 
     try {
-      const token = await fetchRefundToken(baseUrl, storedToken);
-      if (token) {
-        await storeCashuToken(mintUrl, token);
-      }
-      invalidateApiToken(baseUrl); // Pass baseUrl
-      return { success: true, message: 'Refund completed successfully' };
-    } catch (error) {
-      if (error instanceof Error && error.message === 'No balance to refund') {
+      const refundResult = await fetchRefundToken(baseUrl, storedToken);
+      if (refundResult.success && refundResult.token) {
+        await storeCashuToken(mintUrl, refundResult.token);
+        invalidateApiToken(baseUrl); // Pass baseUrl
+        return { success: true, message: 'Refund completed successfully' };
+      } else if (refundResult.error === 'No balance to refund') {
         return { success: true, message: 'No balance to refund' };
+      } else {
+        return { success: false, message: refundResult.error || 'Refund failed' };
       }
+    } catch (error) {
       throw error; // Re-throw other errors
     }
   } catch (error) {
@@ -368,6 +399,7 @@ export type UnifiedRefundResult = {
   success: boolean;
   refundedAmount?: number;
   message?: string;
+  requestId?: string;
 };
 
 export const unifiedRefund = async (
@@ -385,8 +417,25 @@ export const unifiedRefund = async (
     
     try {
 
-      const refundedToken = await fetchRefundToken(baseUrl, storedToken);
-      const proofs = await receiveTokenFn(refundedToken);
+      const refundResult = await fetchRefundToken(baseUrl, storedToken);
+      
+      if (!refundResult.success) {
+        return {
+          success: false,
+          message: refundResult.error || 'Refund failed',
+          requestId: refundResult.requestId
+        };
+      }
+      
+      if (!refundResult.token) {
+        return {
+          success: false,
+          message: 'No token received from refund',
+          requestId: refundResult.requestId
+        };
+      }
+      
+      const proofs = await receiveTokenFn(refundResult.token);
       const totalAmount = proofs.reduce((sum: number, p: any) => sum + p.amount, 0);
       if (!apiKey) {
         invalidateApiToken(baseUrl); // Pass baseUrl
@@ -394,7 +443,8 @@ export const unifiedRefund = async (
       
       return {
         success: true,
-        refundedAmount: totalAmount
+        refundedAmount: totalAmount,
+        requestId: refundResult.requestId
       };
     } catch (error) {
       if (usingNip60) {
