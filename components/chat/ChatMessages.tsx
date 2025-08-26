@@ -35,7 +35,7 @@ export default function ChatMessages({
   messagesEndRef
 }: ChatMessagesProps) {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
-  const [showSystemMessages, setShowSystemMessages] = useState(false);
+  const [expandedSystemGroups, setExpandedSystemGroups] = useState<Set<number>>(new Set());
 
   // Helper function to check if a system message should always be shown
   const shouldAlwaysShowSystemMessage = (content: string | MessageContent[]): boolean => {
@@ -43,10 +43,59 @@ export default function ChatMessages({
     return textContent.trim().startsWith('ATTENTION');
   };
 
-  // Count hidden system messages
-  const hiddenSystemMessagesCount = messages.filter(
-    msg => msg.role === 'system' && !shouldAlwaysShowSystemMessage(msg.content)
-  ).length;
+  // Function to identify system message groups
+  const getSystemMessageGroups = () => {
+    const groups: { startIndex: number; count: number }[] = [];
+    let currentGroupStart: number | null = null;
+    let currentGroupCount = 0;
+
+    messages.forEach((message, index) => {
+      if (message.role === 'system' && !shouldAlwaysShowSystemMessage(message.content)) {
+        if (currentGroupStart === null) {
+          currentGroupStart = index;
+          currentGroupCount = 1;
+        } else {
+          currentGroupCount++;
+        }
+      } else {
+        if (currentGroupStart !== null) {
+          groups.push({ startIndex: currentGroupStart, count: currentGroupCount });
+          currentGroupStart = null;
+          currentGroupCount = 0;
+        }
+      }
+    });
+
+    // Don't forget the last group if it ends at the last message
+    if (currentGroupStart !== null) {
+      groups.push({ startIndex: currentGroupStart, count: currentGroupCount });
+    }
+
+    return groups;
+  };
+
+  const systemGroups = getSystemMessageGroups();
+
+  // Toggle a specific system message group
+  const toggleSystemGroup = (groupStartIndex: number) => {
+    setExpandedSystemGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupStartIndex)) {
+        newSet.delete(groupStartIndex);
+      } else {
+        newSet.add(groupStartIndex);
+      }
+      return newSet;
+    });
+  };
+
+  // Check if a message belongs to an expanded group
+  const isInExpandedGroup = (messageIndex: number): boolean => {
+    const group = systemGroups.find(g =>
+      messageIndex >= g.startIndex && messageIndex < g.startIndex + g.count
+    );
+    return group ? expandedSystemGroups.has(group.startIndex) : false;
+  };
 
   const copyMessageContent = async (messageIndex: number, content: string | MessageContent[]) => {
     try {
@@ -67,34 +116,32 @@ export default function ChatMessages({
           </div>
         ) : (
           messages.map((message, index) => {
-            // Check if we should show the toggle button before this message
-            const isFirstHiddenSystemMessage =
+            // Check if this is the start of a system message group
+            const systemGroup = systemGroups.find(g => g.startIndex === index);
+            const isSystemGroupStart = systemGroup &&
               message.role === 'system' &&
-              !shouldAlwaysShowSystemMessage(message.content) &&
-              messages.slice(0, index).filter(m =>
-                m.role === 'system' && !shouldAlwaysShowSystemMessage(m.content)
-              ).length === 0;
+              !shouldAlwaysShowSystemMessage(message.content);
 
             return (
               <div key={index}>
-                {/* Show toggle button before the first hidden system message */}
-                {isFirstHiddenSystemMessage && hiddenSystemMessagesCount > 0 && (
+                {/* Show toggle button at the start of each system message group */}
+                {isSystemGroupStart && (
                   <div className="flex justify-center mb-6">
-                    {!showSystemMessages ? (
+                    {!expandedSystemGroups.has(index) ? (
                       <button
-                        onClick={() => setShowSystemMessages(true)}
-                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-black/30 hover:bg-black/50 rounded-md px-3 py-1.5 transition-colors"
+                        onClick={() => toggleSystemGroup(index)}
+                        className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-md px-3 py-1.5 transition-colors"
                       >
                         <Eye className="w-3 h-3" />
-                        Show {hiddenSystemMessagesCount} system {hiddenSystemMessagesCount === 1 ? 'message' : 'messages'}
+                        Show {systemGroup.count} Error{systemGroup.count === 1 ? '' : 's'}
                       </button>
                     ) : (
                       <button
-                        onClick={() => setShowSystemMessages(false)}
-                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-black/30 hover:bg-black/50 rounded-md px-3 py-1.5 transition-colors"
+                        onClick={() => toggleSystemGroup(index)}
+                        className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-md px-3 py-1.5 transition-colors"
                       >
                         <EyeOff className="w-3 h-3" />
-                        Hide system messages
+                        Hide Errors
                       </button>
                     )}
                   </div>
@@ -151,8 +198,8 @@ export default function ChatMessages({
                   </div>
                 </div>
               ) : message.role === 'system' ? (
-                // Check if this system message should always be shown or if system messages are toggled on
-                (shouldAlwaysShowSystemMessage(message.content) || showSystemMessages) ? (
+                // Check if this system message should always be shown or if it's in an expanded group
+                (shouldAlwaysShowSystemMessage(message.content) || isInExpandedGroup(index)) ? (
                   <div className="flex justify-center mb-6 group">
                     <div className="flex flex-col">
                       <div className="bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
