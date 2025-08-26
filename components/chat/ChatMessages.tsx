@@ -97,6 +97,22 @@ export default function ChatMessages({
     return group ? expandedSystemGroups.has(group.startIndex) : false;
   };
 
+  // Check if the last message in a system group contains "Pls retry"
+  const shouldShowGroupRetryButton = (groupStartIndex: number): boolean => {
+    const group = systemGroups.find(g => g.startIndex === groupStartIndex);
+    if (!group) return false;
+    
+    const lastMessageIndex = group.startIndex + group.count - 1;
+    const lastMessage = messages[lastMessageIndex];
+    
+    if (lastMessage && lastMessage.role === 'system') {
+      const textContent = getTextFromContent(lastMessage.content);
+      return textContent.includes('Pls retry');
+    }
+    
+    return false;
+  };
+
   const copyMessageContent = async (messageIndex: number, content: string | MessageContent[]) => {
     try {
       const textContent = getTextFromContent(content);
@@ -126,7 +142,7 @@ export default function ChatMessages({
               <div key={index}>
                 {/* Show toggle button at the start of each system message group */}
                 {isSystemGroupStart && (
-                  <div className="flex justify-center mb-6">
+                  <div className="flex justify-center items-center gap-3 mb-6">
                     {!expandedSystemGroups.has(index) ? (
                       <button
                         onClick={() => toggleSystemGroup(index)}
@@ -142,6 +158,38 @@ export default function ChatMessages({
                       >
                         <EyeOff className="w-3 h-3" />
                         Hide Errors
+                      </button>
+                    )}
+                    
+                    {/* Show retry button if last message contains "Pls retry" */}
+                    {shouldShowGroupRetryButton(index) && (
+                      <button
+                        onClick={() => retryMessage(index + systemGroup.count - 1)}
+                        className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-md px-3 py-1.5 transition-colors"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="rotate-45"
+                        >
+                          <path
+                            d="M21.168 8A10.003 10.003 0 0 0 12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M17 8h4.4a.6.6 0 0 0 .6-.6V3"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Retry
                       </button>
                     )}
                   </div>
