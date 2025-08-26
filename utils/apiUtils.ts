@@ -224,7 +224,7 @@ async function handleApiError(
   } = params;
 
   if (response.status === 401 || response.status === 403) {
-    console.log(response.body)
+    console.log('rdlogs: ,',response.body)
     const requestId = response.headers.get('x-routstr-request-id');
     const mainMessage = response.statusText + ". Trying to get a refund.";
     const requestIdText = requestId ? `Request ID: ${requestId}` : '';

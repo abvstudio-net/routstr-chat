@@ -1,5 +1,5 @@
 import { Message, MessageContent } from '@/types/chat';
-import { Edit, MessageSquare, Copy, Check } from 'lucide-react';
+import { Edit, MessageSquare, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import MessageContentRenderer from '@/components/MessageContent';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ThinkingSection from '@/components/ui/ThinkingSection';
@@ -35,6 +35,18 @@ export default function ChatMessages({
   messagesEndRef
 }: ChatMessagesProps) {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+  const [showSystemMessages, setShowSystemMessages] = useState(false);
+
+  // Helper function to check if a system message should always be shown
+  const shouldAlwaysShowSystemMessage = (content: string | MessageContent[]): boolean => {
+    const textContent = getTextFromContent(content);
+    return textContent.trim().startsWith('ATTENTION');
+  };
+
+  // Count hidden system messages
+  const hiddenSystemMessagesCount = messages.filter(
+    msg => msg.role === 'system' && !shouldAlwaysShowSystemMessage(msg.content)
+  ).length;
 
   const copyMessageContent = async (messageIndex: number, content: string | MessageContent[]) => {
     try {
@@ -54,9 +66,42 @@ export default function ChatMessages({
             {/* Greeting message will be handled by the input component when centered */}
           </div>
         ) : (
-          messages.map((message, index) => (
-            <div key={index} className="mb-8 last:mb-0">
-              {message.role === 'user' ? (
+          messages.map((message, index) => {
+            // Check if we should show the toggle button before this message
+            const isFirstHiddenSystemMessage =
+              message.role === 'system' &&
+              !shouldAlwaysShowSystemMessage(message.content) &&
+              messages.slice(0, index).filter(m =>
+                m.role === 'system' && !shouldAlwaysShowSystemMessage(m.content)
+              ).length === 0;
+
+            return (
+              <div key={index}>
+                {/* Show toggle button before the first hidden system message */}
+                {isFirstHiddenSystemMessage && hiddenSystemMessagesCount > 0 && (
+                  <div className="flex justify-center mb-6">
+                    {!showSystemMessages ? (
+                      <button
+                        onClick={() => setShowSystemMessages(true)}
+                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-black/30 hover:bg-black/50 rounded-md px-3 py-1.5 transition-colors"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Show {hiddenSystemMessagesCount} system {hiddenSystemMessagesCount === 1 ? 'message' : 'messages'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowSystemMessages(false)}
+                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-black/30 hover:bg-black/50 rounded-md px-3 py-1.5 transition-colors"
+                      >
+                        <EyeOff className="w-3 h-3" />
+                        Hide system messages
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="mb-8 last:mb-0">
+                  {message.role === 'user' ? (
                 <div className="flex justify-end mb-6">
                   <div className="max-w-[85%]">
                     {editingMessageIndex === index ? (
@@ -106,52 +151,55 @@ export default function ChatMessages({
                   </div>
                 </div>
               ) : message.role === 'system' ? (
-                <div className="flex justify-center mb-6 group">
-                  <div className="flex flex-col">
-                    <div className="bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
-                      <div className="flex items-start gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300 mt-0.5 flex-shrink-0">
-                          <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <div className="text-sm font-medium">
-                          {getTextFromContent(message.content).split('\n').map((line, idx) => (
-                            <div key={idx}>{line}</div>
-                          ))}
+                // Check if this system message should always be shown or if system messages are toggled on
+                (shouldAlwaysShowSystemMessage(message.content) || showSystemMessages) ? (
+                  <div className="flex justify-center mb-6 group">
+                    <div className="flex flex-col">
+                      <div className="bg-red-500/20 border border-red-500/30 rounded-lg py-3 px-4 text-red-200">
+                        <div className="flex items-start gap-2">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-red-300 mt-0.5 flex-shrink-0">
+                            <path d="M12 9v4M12 21h.01M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          <div className="text-sm font-medium">
+                            {getTextFromContent(message.content).split('\n').map((line, idx) => (
+                              <div key={idx}>{line}</div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
-                      <button
-                        onClick={() => retryMessage(index)}
-                        className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="rotate-45"
+                      <div className="mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={() => retryMessage(index)}
+                          className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 bg-black/50 hover:bg-black/70 rounded-md px-3 py-1.5 transition-colors cursor-pointer"
                         >
-                          <path
-                            d="M21.168 8A10.003 10.003 0 0 0 12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                          <path
-                            d="M17 8h4.4a.6.6 0 0 0 .6-.6V3"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Retry
-                      </button>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="rotate-45"
+                          >
+                            <path
+                              d="M21.168 8A10.003 10.003 0 0 0 12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            <path
+                              d="M17 8h4.4a.6.6 0 0 0 .6-.6V3"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          Retry
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : null // Don't render if system message is hidden
               ) : (
                 <div className="flex flex-col items-start mb-6 group">
                   {(message.thinking) && (
@@ -201,11 +249,14 @@ export default function ChatMessages({
                       Try Again
                     </button>
                   </div>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
-          ))
+          );
+        })
         )}
+
 
         {thinkingContent && (
           <ThinkingSection thinkingContent={thinkingContent} isStreaming={streamingContent==''}/>
