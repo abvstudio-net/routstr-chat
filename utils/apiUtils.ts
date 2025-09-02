@@ -70,11 +70,11 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     );
     
     if (!token) {
-      throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+      throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id} Damn token no found ${token}`);
     }
 
     if (typeof token === 'object' && 'hasTokens' in token && !token.hasTokens) {
-      throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+      throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id} ${typeof token} ${token}`);
     }
 
     if (token && typeof token === 'string') {
@@ -276,7 +276,7 @@ async function handleApiError(
       );
 
       if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-        throw new Error(`Insufficient balance. Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+        throw new Error(`Insufficient balance (retryOnInsurrifientBal). Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
       }
     }
   } 
