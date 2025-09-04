@@ -2,13 +2,12 @@ import { useNostr } from '@/hooks/useNostr';
 import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { DEFAULT_MINT_URL } from '@/lib/utils';
 import { CASHU_EVENT_KINDS, CashuWalletStruct, CashuToken, activateMint, updateMintKeys, defaultMints } from '@/lib/cashu';
 import { NostrEvent, getPublicKey } from 'nostr-tools';
 import { useCashuStore, Nip60TokenEvent } from '@/stores/cashuStore';
 import { Proof } from '@cashu/cashu-ts';
-import { getLastEventTimestamp } from '@/lib/nostrTimestamps';
 import { NSchema as n } from '@nostrify/nostrify';
 import { z } from 'zod';
 import { useNutzaps } from '@/hooks/useNutzaps';
@@ -57,40 +56,7 @@ export function useCashuWallet() {
           setTimeout(() => reject(new Error('Query timeout')), 10000);
         });
         
-        const events = await Promise.race([
-          (async () => {
-            const initialResult = await queryPromise;
-            // If it's empty, wait for the first incoming network event
-            if (Array.isArray(initialResult) && initialResult.length === 0) {
-              return await new Promise((resolve, reject) => {
-                try {
-                  const sub = (nostr as any).subscribe(
-                    [{ kinds: [CASHU_EVENT_KINDS.WALLET], authors: [user.pubkey], limit: 1 }],
-                    {
-                      onEvent: (ev: any) => {
-                        sub.unsubscribe();
-                        resolve([ev]);
-                      },
-                      onError: (err: any) => {
-                        sub.unsubscribe();
-                        reject(err);
-                      }
-                    }
-                  );
-                  // Safety timeout to not hang forever
-                  setTimeout(() => {
-                    sub.unsubscribe();
-                    reject(new Error('No network event before timeout'));
-                  }, 10000);
-                } catch (subErr) {
-                  reject(subErr);
-                }
-              });
-            }
-            return initialResult;
-          })(),
-          timeoutPromise
-        ]);
+        const events = await Promise.race([queryPromise, timeoutPromise]);
         console.log("rdlogs:  l wtf", events, queryPromise, nostr.relays)
 
         if ((events as any[]).length === 0) {
@@ -206,9 +172,6 @@ export function useCashuWallet() {
           setDidRelaysTimeout(true);
           // Store timeout status in localStorage for persistence across hook instances
           localStorage.setItem('cashu_relays_timeout', 'true');
-        }
-        else if (error instanceof Error &&  error.message === 'nostr.subscribe is not a function') {
-          // swallowing this error as it MIGHT occur if Nostr hook isn't fully loaded. 
         }
         else {
           console.error('walletQuery: Error in queryFn', error);
