@@ -170,16 +170,16 @@ export default function ModelSelector({
     <div className="relative">
       <button
         onClick={() => isAuthenticated ? setIsModelDrawerOpen(!isModelDrawerOpen) : setIsLoginModalOpen(true)}
-        className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-4 h-[36px] text-sm transition-colors cursor-pointer border border-white/10"
+        className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 sm:px-4 h-[36px] text-xs sm:text-sm transition-colors cursor-pointer border border-white/10 overflow-hidden max-w-[calc(100vw-260px)] sm:max-w-none"
         data-tutorial="model-selector"
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           {selectedModel && favoriteModels.includes(selectedModel.id) && (
             <Star className="h-3 w-3 text-yellow-400 fill-current" />
           )}
-          <span className="font-medium">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
+          <span className="font-medium truncate whitespace-nowrap">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
         </div>
-        <ChevronDown className="h-4 w-4 text-white/70" />
+        <ChevronDown className="h-4 w-4 text-white/70 flex-shrink-0" />
       </button>
 
       {isModelDrawerOpen && isAuthenticated && (

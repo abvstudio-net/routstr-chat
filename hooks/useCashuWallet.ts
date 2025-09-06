@@ -60,10 +60,16 @@ export function useCashuWallet() {
         console.log("rdlogs:  l wtf", events, queryPromise, nostr.relays)
 
         if ((events as any[]).length === 0) {
+          // No events found, but query completed successfully: clear timeout indicators
+          try { localStorage.setItem('cashu_relays_timeout', 'false'); } catch {}
+          setShowQueryTimeoutModal(false);
+          setDidRelaysTimeout(false);
           return null;
         }
 
-        localStorage.setItem('cashu_relays_timeout', 'false');
+        try { localStorage.setItem('cashu_relays_timeout', 'false'); } catch {}
+        setShowQueryTimeoutModal(false);
+        setDidRelaysTimeout(false);
 
         const event = (events as any[])[0];
 
