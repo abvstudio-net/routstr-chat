@@ -19,7 +19,7 @@ import { AppConfig } from '@/context/AppContext';
 const presetRelays = [
   { url: 'wss://relay.chorus.community', name: 'Chorus' },
   { url: 'wss://relay.damus.io', name: 'Damus' },
-  { url: 'wss://nos.com', name: 'nos.lol' },
+  { url: 'wss://nos.lol', name: 'nos.lol' },
   { url: 'wss://relay.nostr.band', name: 'Nostr.Band' },
   { url: 'wss://relay.primal.net', name: 'Primal' },
 ];
