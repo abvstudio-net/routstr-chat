@@ -199,12 +199,7 @@ export const useChatActions = (): UseChatActionsReturn => {
     }
   }, [wallet, isWalletLoading, logins, handleCreateWallet, didRelaysTimeout]);
 
-  // Scroll to bottom when messages or streaming content changes
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [streamingContent, thinkingContent]);
+  // Autoscroll moved to ChatMessages to honor user scroll position
 
   const setTransactionHistory = useCallback((value: React.SetStateAction<TransactionHistory[]>) => {
     setTransactionHistoryState(prev => {

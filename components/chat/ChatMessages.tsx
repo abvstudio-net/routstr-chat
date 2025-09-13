@@ -3,7 +3,7 @@ import { Edit, MessageSquare, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import MessageContentRenderer from '@/components/MessageContent';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ThinkingSection from '@/components/ui/ThinkingSection';
-import { RefObject, useState } from 'react';
+import { RefObject, useState, useEffect, useRef, useCallback } from 'react';
 
 interface ChatMessagesProps {
   messages: Message[];
@@ -36,6 +36,34 @@ export default function ChatMessages({
 }: ChatMessagesProps) {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [expandedSystemGroups, setExpandedSystemGroups] = useState<Set<number>>(new Set());
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+
+  const isScrolledToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    const thresholdPx = 24;
+    return el.scrollTop + el.clientHeight >= el.scrollHeight - thresholdPx;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    setIsUserAtBottom(isScrolledToBottom());
+  }, [isScrolledToBottom]);
+
+  const scrollToBottomIfNeeded = useCallback(() => {
+    if (isUserAtBottom && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [isUserAtBottom, messagesEndRef]);
+
+  useEffect(() => {
+    // Initial check on mount
+    setIsUserAtBottom(isScrolledToBottom());
+  }, [isScrolledToBottom]);
+
+  useEffect(() => {
+    scrollToBottomIfNeeded();
+  }, [messages.length, streamingContent, thinkingContent, scrollToBottomIfNeeded]);
 
   // Helper function to check if a system message should always be shown
   const shouldAlwaysShowSystemMessage = (content: string | MessageContent[]): boolean => {
@@ -124,7 +152,7 @@ export default function ChatMessages({
     }
   };
   return (
-    <div className="flex-1 overflow-y-auto pt-[60px] pb-[80px]">
+    <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto pt-[60px] pb-[80px]">
       <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 min-h-[calc(100vh-200px)]">
