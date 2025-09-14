@@ -51,7 +51,20 @@ export default function ModelSelector({
   // Check if a model is available based on balance
   const isModelAvailable = (model: Model) => {
     try {
-      return balance >= model.sats_pricing.max_cost;
+      if (!model?.sats_pricing) return true; // If no pricing, assume available
+
+      // Use the model passed as argument, not selectedModel
+      const { prompt, completion, max_cost, max_completion_cost } = model.sats_pricing as any;
+
+      // If max_completion_cost is not present, fallback to max_cost
+      if (typeof max_completion_cost !== 'number') {
+        return typeof max_cost === 'number' ? balance >= max_cost : true;
+      }
+
+      // If prompt and max_completion_cost are present, estimate cost
+      const promptCosts = typeof prompt === 'number' ? prompt * 5000 : 0;
+      const totalEstimatedCosts = promptCosts + max_completion_cost;
+      return balance >= totalEstimatedCosts;
     }
     catch(error){ 
       console.log(model);
