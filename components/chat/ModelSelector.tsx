@@ -52,23 +52,36 @@ export default function ModelSelector({
   const isModelAvailable = (model: Model) => {
     try {
       if (!model?.sats_pricing) return true; // If no pricing, assume available
-
-      // Use the model passed as argument, not selectedModel
-      const { prompt, completion, max_cost, max_completion_cost } = model.sats_pricing as any;
-
-      // If max_completion_cost is not present, fallback to max_cost
-      if (typeof max_completion_cost !== 'number') {
-        return typeof max_cost === 'number' ? balance >= max_cost : true;
-      }
-
-      // If prompt and max_completion_cost are present, estimate cost
-      const promptCosts = typeof prompt === 'number' ? prompt * 5000 : 0;
-      const totalEstimatedCosts = promptCosts + max_completion_cost;
-      return balance >= totalEstimatedCosts;
+      const estimatedMinCost = getEstimatedMinCost(model);
+      if (!estimatedMinCost || estimatedMinCost <= 0) return true;
+      return balance >= estimatedMinCost;
     }
     catch(error){ 
       console.log(model);
       console.error(error);
+    }
+  };
+
+  // Calculate the minimum estimated sats needed to run this model
+  const getEstimatedMinCost = (model: Model): number => {
+    try {
+      if (!model?.sats_pricing) return 0;
+      const { prompt, max_cost, max_completion_cost } = model.sats_pricing as any;
+
+      // Fallback to max_cost when max_completion_cost isn't provided
+      if (typeof max_completion_cost !== 'number') {
+        return typeof max_cost === 'number' ? max_cost : 0;
+      }
+
+      const approximateTokens = 2000;
+      const promptCosts = typeof prompt === 'number' ? prompt * approximateTokens : 0;
+      const totalEstimatedCosts = promptCosts + max_completion_cost;
+      return typeof totalEstimatedCosts === 'number' && isFinite(totalEstimatedCosts)
+        ? totalEstimatedCosts
+        : 0;
+    } catch (error) {
+      console.error(error);
+      return 0;
     }
   };
 
@@ -116,6 +129,7 @@ export default function ModelSelector({
   // Render a model item
   const renderModelItem = (model: Model, isFavorite = false) => {
     const isAvailable = isModelAvailable(model);
+    const estimatedMinCost = getEstimatedMinCost(model);
     return (
       <div
         key={model.id}
@@ -162,8 +176,8 @@ export default function ModelSelector({
             </div>
             <div className="text-xs text-white/50">
               {model.sats_pricing.completion.toFixed(4)} sats
-              {!isAvailable && model.sats_pricing.max_cost > 0 && (
-                <span className="ml-2 text-yellow-400 font-medium">• Min: {model.sats_pricing.max_cost.toFixed(0)} sats</span>
+              {!isAvailable && estimatedMinCost > 0 && (
+                <span className="ml-2 text-yellow-400 font-medium">• Min: {estimatedMinCost.toFixed(0)} sats</span>
               )}
             </div>
           </div>
