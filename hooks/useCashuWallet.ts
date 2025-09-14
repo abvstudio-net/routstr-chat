@@ -50,7 +50,6 @@ export function useCashuWallet() {
           { kinds: [CASHU_EVENT_KINDS.WALLET], authors: [user.pubkey], limit: 1 }
         ], { signal });
 
-        console.log("rdlogs: relaysa ", nostr.relays)
         
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Query timeout')), 10000);
@@ -350,11 +349,11 @@ export function useCashuWallet() {
         cashuStore.addProofs(event.token.proofs, event.id);
       });
 
-      console.log('rdlogs ', deletedEventIds);
+      // console.log('rdlogs ', deletedEventIds);
 
-      console.log('rdlogs events: \n' + filteredEvents.map(event =>
-        `eventId: ${event.id}\nproofsCount: ${event.token.proofs.length}\ncreatedAt: ${event.createdAt}`
-      ).join('\n\n'));
+      // console.log('rdlogs events: \n' + filteredEvents.map(event =>
+      //   `eventId: ${event.id}\nproofsCount: ${event.token.proofs.length}\ncreatedAt: ${event.createdAt}`
+      // ).join('\n\n'));
 
       return filteredEvents;
       } catch (error) {

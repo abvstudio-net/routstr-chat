@@ -78,7 +78,7 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
         saveBaseUrl(currentUrlToTry);
       }
       
-      const response = await fetch(`${currentUrlToTry}`);
+      const response = await fetch(`${currentUrlToTry}v1/models`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch models from ${currentUrlToTry}: ${response.status}`);
@@ -86,27 +86,27 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
 
       const data = await response.json();
 
-      if (data && data.models && Array.isArray(data.models)) {
-        setModels(data.models);
+      if (data && data.data && Array.isArray(data.data)) {
+        setModels(data.data);
         let modelToSelect: Model | null = null;
 
         // Get model ID from URL if present
         const urlModelId = searchParams.get('model');
         if (urlModelId) {
-          modelToSelect = data.models.find((m: Model) => m.id === urlModelId) || null;
+          modelToSelect = data.data.find((m: Model) => m.id === urlModelId) || null;
         }
 
         // If no URL model or model not found, try last used
         if (!modelToSelect) {
           const lastUsedModelId = loadLastUsedModel();
           if (lastUsedModelId) {
-            modelToSelect = data.models.find((m: Model) => m.id === lastUsedModelId) || null;
+            modelToSelect = data.data.find((m: Model) => m.id === lastUsedModelId) || null;
           }
         }
 
         // If no URL model or last used model, select the first compatible model
         if (!modelToSelect) {
-          const compatibleModels = data.models.filter((m: Model) =>
+          const compatibleModels = data.data.filter((m: Model) =>
             m.sats_pricing && currentBalance >= m.sats_pricing.max_cost
           );
           if (compatibleModels.length > 0) {
@@ -119,7 +119,7 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
           saveLastUsedModel(modelToSelect.id);
         }
       }
-    } catch (error) {
+     } catch (error) {
       console.error('Error while fetching models', error);
       setModels([]);
       setSelectedModel(null);
