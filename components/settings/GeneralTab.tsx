@@ -61,12 +61,12 @@ const GeneralTab: React.FC<GeneralTabProps> = ({
     <>
       {showNsecWarning && (
         <div className="relative bg-red-500/5 border border-red-500/20 text-red-400 px-4 py-3 rounded-md mb-6">
-          <p className="text-sm">
+          <p className="text-sm pr-12">
             <span className="font-bold">Warning:</span> Your nsec is currently stored only in your browser's local storage. It will be lost if you clear your browser data. Please consider exporting and securely storing your nsec.
           </p>
           <button
             onClick={handleCloseNsecWarning}
-            className="absolute top-2 right-2 text-red-400 hover:text-red-500 transition-colors cursor-pointer"
+            className="absolute top-3 right-4 p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
             type="button"
             title="Dismiss warning"
           >
