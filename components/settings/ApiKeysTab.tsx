@@ -535,7 +535,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             >
               <Info className="h-4 w-4 text-white/60 hover:text-white transition-colors cursor-pointer" />
               <div
-                className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-gray-800 text-white text-xs rounded-md shadow-lg transition-opacity duration-300 w-64 border border-gray-700 whitespace-normal z-50 ${
+                className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 p-3 bg-black text-white text-xs rounded-md shadow-lg transition-opacity duration-300 w-64 border border-white/30 whitespace-normal z-50 ${
                   showTooltip ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 }`}
               >

@@ -18,6 +18,7 @@ interface ChatMessagesProps {
   retryMessage: (index: number) => void;
   getTextFromContent: (content: string | MessageContent[]) => string;
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  isMobile: boolean;
 }
 
 export default function ChatMessages({
@@ -32,7 +33,8 @@ export default function ChatMessages({
   saveInlineEdit,
   retryMessage,
   getTextFromContent,
-  messagesEndRef
+  messagesEndRef,
+  isMobile
 }: ChatMessagesProps) {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [expandedSystemGroups, setExpandedSystemGroups] = useState<Set<number>>(new Set());
@@ -152,7 +154,17 @@ export default function ChatMessages({
     }
   };
   return (
-    <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto pt-[60px] pb-[80px]">
+    <div
+      ref={scrollContainerRef}
+      onScroll={handleScroll}
+      className={`flex-1 overflow-y-auto pt-[60px] ${isMobile ? 'pb-4' : 'pb-[80px]'}`}
+      style={{
+        paddingTop: 'calc(60px + env(safe-area-inset-top))',
+        paddingBottom: isMobile
+          ? 'calc(16px + env(safe-area-inset-bottom))'
+          : 'calc(80px + env(safe-area-inset-bottom))'
+      }}
+    >
       <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 min-h-[calc(100vh-200px)]">

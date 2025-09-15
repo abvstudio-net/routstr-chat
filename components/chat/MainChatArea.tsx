@@ -125,6 +125,7 @@ const MainChatArea: React.FC = () => {
         retryMessage={handleRetryMessage}
         getTextFromContent={getTextFromContent}
         messagesEndRef={messagesEndRef}
+        isMobile={isMobile}
       />
 
       {/* Chat Input */}
