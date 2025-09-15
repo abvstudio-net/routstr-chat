@@ -147,9 +147,6 @@ const ModelsTab: React.FC<ModelsTabProps> = ({
         <div className="bg-white/5 border border-white/10 rounded-md p-3 h-full flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-white flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 text-yellow-400">
-                <path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.787 1.401 8.167L12 18.896l-7.335 3.868 1.401-8.167L.132 9.21l8.2-1.192L12 .587z"/>
-              </svg>
               Favorite Models
             </h4>
             {configuredModels.length > 0 && (
