@@ -87,6 +87,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [selectedManualApiKeyBaseUrl, setSelectedManualApiKeyBaseUrl] = useState<string>(baseUrl); // New state for manual API key base URL
   const [isAddingApiKey, setIsAddingApiKey] = useState(false); // New state for adding API key loading
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set()); // New state for tracking expanded API keys
+  const [isRefreshingKey, setIsRefreshingKey] = useState<string | null>(null); // Loading state for per-key refresh
 
   // Ref to track previous syncedApiKeys for deep comparison
   const prevSyncedApiKeysRef = useRef<StoredApiKey[]>([]);
@@ -270,40 +271,64 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     }
   };
 
+  // Helper: fetch wallet info for a single key and return the updated representation plus an error code
+  const fetchUpdatedKey = async (
+    keyData: StoredApiKey
+  ): Promise<{ updatedKey: StoredApiKey | null; error: 'invalid_api_key' | 'network' | 'other' | null }> => {
+    const urlToUse = keyData.baseUrl || baseUrl;
+    try {
+      const response = await fetch(`${urlToUse}v1/wallet/info`, {
+        headers: {
+          'Authorization': `Bearer ${keyData.key}`
+        }
+      });
+
+      if (!response.ok) {
+        // Try to parse error body to detect invalid key
+        try {
+          const data = await response.json();
+          if (data?.detail?.error?.code === 'invalid_api_key') {
+            return { updatedKey: { ...keyData, balance: null, isInvalid: true }, error: 'invalid_api_key' };
+          }
+        } catch (_) {
+          // ignore parse errors; fall through to generic error
+        }
+        return { updatedKey: null, error: 'other' };
+      }
+
+      const data = await response.json();
+      return { updatedKey: { ...keyData, balance: data.balance, isInvalid: false }, error: null };
+    } catch (error) {
+      if (error instanceof TypeError) {
+        // Network error: mark invalid like before for bulk refresh
+        return { updatedKey: { ...keyData, balance: null, isInvalid: true }, error: 'network' };
+      }
+      return { updatedKey: null, error: 'other' };
+    }
+  };
+
   const refreshApiKeysBalances = async () => {
     setIsRefreshingBalances(true); // Set loading state
     const updatedKeys: StoredApiKey[] = [];
     try {
       for (const keyData of storedApiKeys) {
-        const urlToUse = keyData.baseUrl || baseUrl; // Use key-specific baseUrl or fallback to global
-        try {
-          const response = await fetch(`${urlToUse}v1/wallet/info`, {
-            headers: {
-              'Authorization': `Bearer ${keyData.key}`
-            }
-          });
-          if (!response.ok) {
-            console.error(`Failed to refresh balance for key ${keyData.key}:`, response);
-            const data = await response.json();
-            if (data.detail?.error?.code === "invalid_api_key") {
-              updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid and set balance to null
-            } else {
-              updatedKeys.push(keyData); // Keep old data if refresh fails or other error
-            }
-            continue;
-          }
+        const { updatedKey, error } = await fetchUpdatedKey(keyData);
+        if (updatedKey) {
+          updatedKeys.push(updatedKey);
+          continue;
+        }
 
-          const data = await response.json();
-          updatedKeys.push({ ...keyData, balance: data.balance, isInvalid: false }); // Set isInvalid to false on successful refresh
-        } catch (error) {
-          console.error(`Error refreshing balance for key ${keyData.key}:`, error);
-          if (error instanceof TypeError) {
-            toast.error(`Base URL ${urlToUse} is not responding. Skipping key ${keyData.key}.`);
-            updatedKeys.push({ ...keyData, balance: null, isInvalid: true }); // Mark as invalid if base URL is not responding
-          } else {
-            toast.error(`Error refreshing balance for key ${keyData.key}: ${error instanceof Error ? error.message : String(error)}`);
-            updatedKeys.push(keyData); // Keep old data if other error occurs
-          }
+        if (error === 'network') {
+          const urlToUse = keyData.baseUrl || baseUrl;
+          toast.error(`Base URL ${urlToUse} is not responding. Skipping key ${keyData.key}.`);
+          // In network errors we still mark invalid (helper already does), but updatedKey is null by contract here
+          updatedKeys.push({ ...keyData, balance: null, isInvalid: true });
+        } else if (error === 'other') {
+          toast.error(`Error refreshing balance for key ${keyData.key}.`);
+          updatedKeys.push(keyData); // Keep old data if other error occurs
+        } else if (error === 'invalid_api_key') {
+          // Shouldn't happen because helper returns updatedKey for this case, but keep safe fallback
+          updatedKeys.push({ ...keyData, balance: null, isInvalid: true });
         }
       }
       // Update local storage if not cloud syncing, otherwise the hook will handle it
@@ -317,6 +342,44 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       }
     } finally {
       setIsRefreshingBalances(false); // Reset loading state
+    }
+  };
+
+  const refreshSingleApiKeyBalance = async (keyData: StoredApiKey) => {
+    setIsRefreshingKey(keyData.key);
+    try {
+      const { updatedKey, error } = await fetchUpdatedKey(keyData);
+      if (updatedKey) {
+        const newKeys = storedApiKeys.map(k => (k.key === keyData.key ? updatedKey : k));
+        setStoredApiKeys(newKeys);
+
+        if (cloudSyncEnabled) {
+          await createOrUpdateApiKeys(newKeys);
+          toast.success('API key balance refreshed!');
+        } else {
+          localStorage.setItem('api_keys', JSON.stringify(newKeys));
+          toast.success('API key balance refreshed!');
+        }
+        return;
+      }
+
+      if (error === 'network') {
+        const urlToUse = keyData.baseUrl || baseUrl;
+        toast.error(`Base URL ${urlToUse} is not responding. Skipping refresh.`);
+      } else if (error === 'other') {
+        toast.error('Error refreshing key.');
+      } else if (error === 'invalid_api_key') {
+        // Mark invalid locally for single refresh as well
+        const newKeys = storedApiKeys.map(k => (k.key === keyData.key ? { ...keyData, balance: null, isInvalid: true } : k));
+        setStoredApiKeys(newKeys);
+        if (cloudSyncEnabled) {
+          await createOrUpdateApiKeys(newKeys);
+        } else {
+          localStorage.setItem('api_keys', JSON.stringify(newKeys));
+        }
+      }
+    } finally {
+      setIsRefreshingKey(null);
     }
   };
 
@@ -708,6 +771,15 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                       </button>
                     </div>
                     <div className="flex justify-end space-x-2">
+                      <button
+                        className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-xs hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                        onClick={() => refreshSingleApiKeyBalance(keyData)}
+                        disabled={isRefreshingKey === keyData.key}
+                        title="Refresh this API key balance"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingKey === keyData.key ? 'animate-spin' : ''}`} />
+                        {isRefreshingKey === keyData.key ? 'Refreshing...' : 'Refresh'}
+                      </button>
                       <button
                         className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-xs hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={() => handleTopUp(keyData)}
