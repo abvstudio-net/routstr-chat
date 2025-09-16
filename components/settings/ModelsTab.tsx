@@ -169,7 +169,6 @@ const ModelsTab: React.FC<ModelsTabProps> = ({
                     </svg>
                     <span className="truncate">{item.model ? getModelNameWithoutProvider(item.model.name) : item.id}</span>
                   </div>
-                  <div className="text-[11px] text-white/50 truncate">{item.id}</div>
                   <div className="text-[11px] text-white/60 truncate">
                     Provider: <span className="text-white/80">{getProviderLabelFor(item.key)}</span>
                   </div>
@@ -293,7 +292,6 @@ const ModelsTab: React.FC<ModelsTabProps> = ({
               <div key={`${selectedProvider}-${model.id}`} className="flex items-center justify-between py-2">
                 <div className="min-w-0">
                   <div className="text-sm text-white truncate">{getModelNameWithoutProvider(model.name)}</div>
-                  <div className="text-[11px] text-white/50 truncate">{model.id}</div>
                 </div>
                 <button
                   className="text-white/80 hover:text-white text-xs border border-white/20 rounded px-2 py-1 cursor-pointer flex items-center gap-1"
