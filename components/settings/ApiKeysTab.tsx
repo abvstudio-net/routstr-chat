@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Copy, Eye, EyeOff, Info, Check, Plus, RefreshCw, Key, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
+import { Copy, Eye, EyeOff, Info, Check, Plus, RefreshCw, Key, ChevronDown, ChevronRight, ChevronUp, Pencil, X } from 'lucide-react';
 import { getBalanceFromStoredProofs, refundRemainingBalance, create60CashuToken, generateApiToken, unifiedRefund } from '@/utils/cashuUtils';
 import { toast } from 'sonner';
 import { useApiKeysSync } from '@/hooks/useApiKeysSync'; // Import the new hook
@@ -88,6 +88,8 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   const [isAddingApiKey, setIsAddingApiKey] = useState(false); // New state for adding API key loading
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set()); // New state for tracking expanded API keys
   const [isRefreshingKey, setIsRefreshingKey] = useState<string | null>(null); // Loading state for per-key refresh
+  const [editingLabelKey, setEditingLabelKey] = useState<string | null>(null); // Key currently being renamed
+  const [editingLabelValue, setEditingLabelValue] = useState(''); // Temp label value for editing
 
   // Ref to track previous syncedApiKeys for deep comparison
   const prevSyncedApiKeysRef = useRef<StoredApiKey[]>([]);
@@ -383,6 +385,42 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
     }
   };
 
+  const handleStartEditLabel = (keyData: StoredApiKey) => {
+    setEditingLabelKey(keyData.key);
+    setEditingLabelValue(keyData.label || '');
+    setExpandedKeys(prev => {
+      const set = new Set(prev);
+      set.add(keyData.key);
+      return set;
+    });
+  };
+
+  const handleCancelEditLabel = () => {
+    setEditingLabelKey(null);
+    setEditingLabelValue('');
+  };
+
+  const handleSaveEditLabel = async (keyData: StoredApiKey) => {
+    const trimmed = editingLabelValue.trim();
+    const newLabel = trimmed.length > 0 ? trimmed : 'Unnamed';
+    const newKeys = storedApiKeys.map(k => (k.key === keyData.key ? { ...k, label: newLabel } : k));
+    setStoredApiKeys(newKeys);
+    try {
+      if (cloudSyncEnabled) {
+        await createOrUpdateApiKeys(newKeys);
+        toast.success('API key name updated');
+      } else {
+        localStorage.setItem('api_keys', JSON.stringify(newKeys));
+        toast.success('API key name updated');
+      }
+    } catch (e) {
+      toast.error('Failed to update API key name');
+    } finally {
+      setEditingLabelKey(null);
+      setEditingLabelValue('');
+    }
+  };
+
   const handleDeleteApiKey = (keyToDelete: string) => {
     setKeyToDeleteConfirmation(keyToDelete);
     setShowDeleteConfirmation(true);
@@ -584,13 +622,13 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
   };
  
   return (
-    <div className="space-y-4 text-white relative"> {/* Added relative positioning back */}
-      <h3 className="text-lg font-semibold">API Keys</h3>
+    <div className="space-y-6 text-white relative"> {/* Added relative positioning back */}
+      <h3 className="text-sm font-medium text-white/80">API Keys</h3>
 
       {user && (
-        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+        <div className="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/10">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-white">Sync with Cloud (Nostr)</span>
+            <span className="text-sm font-medium text-white/80">Sync with Cloud (Nostr)</span>
             <div
               className="relative inline-block"
               onMouseEnter={() => setShowTooltip(true)}
@@ -624,23 +662,27 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
          </div>
        )}
 
-      <div>
-        <p className="text-sm text-white/70">Available Balance:</p>
-        <p className="text-lg font-medium">
-          {localMintBalance} sats
-          {usingNip60 && cashuStore.activeMintUrl && (
-            <span className="text-xs text-white/50 ml-2">
-              ({cashuStore.activeMintUrl.replace(/^https?:\/\//, '')})
-              <button
-                onClick={() => setActiveTab('wallet')}
-                className="ml-2 text-blue-400 hover:text-blue-300 text-xs font-medium"
-                type="button"
-              >
-                Switch
-              </button>
-            </span>
-          )}
-        </p>
+      <div className="bg-white/5 border border-white/10 rounded-md p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-white/70">Available Balance</div>
+            <div className="text-lg font-semibold text-white">
+              {localMintBalance} sats
+              {usingNip60 && cashuStore.activeMintUrl && (
+                <span className="text-xs text-white/50 ml-2">
+                  ({cashuStore.activeMintUrl.replace(/^https?:\/\//, '')})
+                  <button
+                    onClick={() => setActiveTab('wallet')}
+                    className="ml-2 text-white/70 hover:text-white text-xs font-medium"
+                    type="button"
+                  >
+                    Switch
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
         {usingNip60 && cashuStore.proofs && Object.keys(mintBalances).length > 1 && (() => {
           let totalBalance = 0;
           for (const mintUrl in mintBalances) {
@@ -652,7 +694,6 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
               totalBalance += balance;
             }
           }
-          // Only display total balance if it's different from the current mint balance
           return localMintBalance !== totalBalance && (
             <p className="text-sm text-white/70 mt-2">
               Total Balance: {totalBalance} sats
@@ -672,10 +713,10 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       )}
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full">
           <button
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/20 text-white/80 rounded-md text-sm font-medium hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={createApiKey}
             disabled={isLoading || isSyncingApiKeys}
           >
@@ -683,7 +724,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             {isLoading ? 'Creating...' : 'Create New API Key'}
           </button>
           <button
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/20 text-white/80 rounded-md text-sm font-medium hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={handleAddApiKey}
             disabled={isAddingApiKey || isSyncingApiKeys}
           >
@@ -693,12 +734,12 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         </div>
         {storedApiKeys.length > 0 && (
           <button
-            className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-sm hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={refreshApiKeysBalances}
             disabled={isRefreshingBalances}
             title="Refresh all API key balances"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshingBalances ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`${isRefreshingBalances ? 'animate-spin' : ''} h-4 w-4`} />
             <span className="hidden sm:inline">{isRefreshingBalances ? 'Refreshing...' : 'Refresh'}</span>
           </button>
         )}
@@ -711,24 +752,61 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             const isExpanded = expandedKeys.has(keyData.key);
             const displayUrl = keyData.baseUrl ? keyData.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'No URL';
             return (
-              <div key={index} className="bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+              <div key={index} className="bg-white/5 rounded-md border border-white/10 overflow-hidden">
                 {/* Single Line Compact Header */}
                 <div
                   className="flex items-center justify-between p-3 hover:bg-white/5 transition-colors cursor-pointer"
                   onClick={() => toggleExpanded(keyData.key)}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-sm font-medium text-white truncate">
-                      {keyData.label || 'Unnamed API Key'}
-                    </span>
-                    <span className="text-xs text-white/50 font-medium text-white truncate">
+                    {editingLabelKey === keyData.key ? (
+                      <div className="flex items-center gap-1 min-w-0">
+                        <input
+                          value={editingLabelValue}
+                          onChange={(e) => setEditingLabelValue(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveEditLabel(keyData); } }}
+                          className="bg-white/5 border border-white/10 rounded-full px-3 py-1 text-sm text-white w-40 sm:w-56 md:w-64 focus:outline-none focus:ring-1 focus:ring-white/20"
+                          placeholder="Enter a name"
+                          autoFocus
+                        />
+                        <button
+                          className="p-1 hover:bg-white/10 rounded-full"
+                          onClick={(e) => { e.stopPropagation(); handleSaveEditLabel(keyData); }}
+                          title="Save"
+                        >
+                          <Check className="h-4 w-4 text-white/70" />
+                        </button>
+                        <button
+                          className="p-1 hover:bg-white/10 rounded-full"
+                          onClick={(e) => { e.stopPropagation(); handleCancelEditLabel(); }}
+                          title="Cancel"
+                        >
+                          <X className="h-4 w-4 text-white/60" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-white truncate">
+                          {keyData.label || 'Unnamed API Key'}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStartEditLabel(keyData); }}
+                          className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                          title="Rename"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-white/60" />
+                        </button>
+                      </>
+                    )}
+                    <span className="text-xs text-white/50 font-medium truncate">
                       ({displayUrl})
                     </span>
                     {keyData.isInvalid && (
-                      <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium rounded-full flex-shrink-0">Invalid</span>
+                      <span className="px-2 py-0.5 bg-white/10 border border-white/20 text-white/60 text-xs font-medium rounded-full flex-shrink-0">Invalid</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-sm font-medium text-white">
                       {keyData.isInvalid ? 'Invalid' : (keyData.balance !== null ? `${(keyData.balance / 1000).toFixed(2)} sats` : 'N/A')}
                     </span>
@@ -750,45 +828,45 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
 
                 {/* Expanded Content - Only Visible When Expanded */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-white/10">
+                  <div className="px-4 pt-4 pb-4 space-y-3 border-t border-white/10">
                     <div className="flex items-center space-x-2">
                       <input
                         type="password"
                         value={keyData.key}
                         readOnly
-                        className="flex-grow bg-black/20 border border-white/10 rounded-md px-3 py-2 text-xs text-white/80 font-mono focus:outline-none focus:ring-1 focus:ring-white/20"
+                        className="flex-grow bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white/80 font-mono focus:outline-none focus:ring-1 focus:ring-white/20"
                       />
                       <button
                         onClick={() => handleCopyClick(keyData.key)}
-                        className="p-2 rounded-md bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
                         title={copiedKey === keyData.key ? "Copied!" : "Copy API Key"}
                       >
                         {copiedKey === keyData.key ? (
-                          <Check className="h-4 w-4 text-green-400" />
+                          <Check className="h-4 w-4 text-white/70" />
                         ) : (
                           <Copy className="h-4 w-4 text-white/70" />
                         )}
                       </button>
-                    </div>
-                    <div className="flex justify-end space-x-2">
                       <button
-                        className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-xs hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                        className="px-2 py-1.5 bg-transparent border border-white/10 text-white/80 rounded-md text-[11px] hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
                         onClick={() => refreshSingleApiKeyBalance(keyData)}
                         disabled={isRefreshingKey === keyData.key}
                         title="Refresh this API key balance"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingKey === keyData.key ? 'animate-spin' : ''}`} />
-                        {isRefreshingKey === keyData.key ? 'Refreshing...' : 'Refresh'}
+                        <RefreshCw className={`${isRefreshingKey === keyData.key ? 'animate-spin' : ''} h-3.5 w-3.5`} />
+                        <span>Refresh</span>
                       </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end">
                       <button
-                        className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-xs hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        className="w-full sm:w-auto px-3 py-1.5 bg-white/10 border border-white/20 text-white rounded-md text-xs hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={() => handleTopUp(keyData)}
                         disabled={isTopUpLoading === keyData.key || keyData.isInvalid}
                       >
                         {isTopUpLoading === keyData.key ? 'Topping Up...' : 'Top Up'}
                       </button>
                       <button
-                        className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-xs hover:bg-blue-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        className="w-full sm:w-auto px-3 py-1.5 bg-transparent border border-white/10 text-white/80 rounded-md text-xs hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={async () => {
                           setIsRefundingKey(keyData.key); // Set loading for this specific key
                           try {
@@ -812,7 +890,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                         {isRefundingKey === keyData.key ? 'Refunding...' : 'Refund'}
                       </button>
                       <button
-                        className="px-3 py-1 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-xs hover:bg-red-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        className="w-full sm:w-auto px-3 py-1.5 bg-transparent border border-red-500/30 text-red-400 rounded-md text-xs hover:bg-red-500/10 transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={() => handleDeleteApiKey(keyData.key)}
                         disabled={isDeletingKey === keyData.key || isSyncingApiKeys} // Disable if this key is deleting or syncing
                       >
@@ -901,7 +979,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-sm hover:bg-blue-500/20 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
                     onClick={confirmCreateApiKey}
                   >
                     Confirm
@@ -931,7 +1009,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     Delete Anyway
                   </button>
                   <button
-                    className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
                     onClick={() => {
                       setShowDeleteConfirmation(false);
                       setKeyToDeleteConfirmation(null);
@@ -973,7 +1051,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-sm hover:bg-red-500/20 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
                     onClick={confirmDeleteApiKey}
                   >
                     Confirm Delete
@@ -1023,7 +1101,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-md text-sm hover:bg-green-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2 bg-white/10 border border-white/20 text-white rounded-md text-sm hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                 onClick={confirmTopUp}
                 disabled={!topUpAmount || parseInt(topUpAmount) <= 0 || parseInt(topUpAmount) > localMintBalance}
               >
@@ -1115,7 +1193,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-sm hover:bg-blue-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
                     onClick={confirmAddApiKey}
                     disabled={!manualApiKey.trim()}
                   >
