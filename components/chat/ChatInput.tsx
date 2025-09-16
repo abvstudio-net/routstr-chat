@@ -125,10 +125,8 @@ export default function ChatInput({
                 !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
               }`
             : `${
-                /* On mobile, do NOT stick to bottom; make it part of the flow */ ''
-              } ${
                 isMobile
-                  ? 'relative z-30 bg-transparent px-3'
+                  ? 'fixed z-30 bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out p-3'
                   : 'fixed z-30 bottom-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 p-4' : isSidebarCollapsed ? 'left-0 right-0 p-4' : 'left-72 right-0 p-4')
               }`
         }`}
@@ -136,7 +134,7 @@ export default function ChatInput({
           transform: isCentered && !isMobile
             ? 'translateY(30px)'
             : 'translateY(0)',
-          paddingBottom: isMobile ? undefined : 'env(safe-area-inset-bottom)'
+          paddingBottom: 'env(safe-area-inset-bottom)'
         }}
       >
         <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-xl' : 'max-w-2xl'} ${isMobile ? 'pb-3' : ''}`}>
