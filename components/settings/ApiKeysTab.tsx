@@ -713,10 +713,10 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
       )}
 
       {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div className="flex flex-col sm:flex-row gap-2 w-full">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-2 py-1 sm:px-3 sm:py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-xs sm:text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={createApiKey}
             disabled={isLoading || isSyncingApiKeys}
           >
@@ -724,7 +724,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
             {isLoading ? 'Creating...' : 'Create New API Key'}
           </button>
           <button
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-2 py-1 sm:px-3 sm:py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-xs sm:text-sm font-medium hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={handleAddApiKey}
             disabled={isAddingApiKey || isSyncingApiKeys}
           >
@@ -734,7 +734,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
         </div>
         {storedApiKeys.length > 0 && (
           <button
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-sm hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-2 py-1 sm:px-3 sm:py-2 bg-transparent border border-white/10 text-white/80 rounded-md text-xs sm:text-sm hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
             onClick={refreshApiKeysBalances}
             disabled={isRefreshingBalances}
             title="Refresh all API key balances"
@@ -760,25 +760,25 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     {editingLabelKey === keyData.key ? (
-                      <div className="flex items-center gap-1 min-w-0">
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
                         <input
                           value={editingLabelValue}
                           onChange={(e) => setEditingLabelValue(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveEditLabel(keyData); } }}
-                          className="bg-white/5 border border-white/10 rounded-full px-3 py-1 text-sm text-white w-40 sm:w-56 md:w-64 focus:outline-none focus:ring-1 focus:ring-white/20"
+                          className="bg-white/5 border border-white/10 rounded-full px-3 py-1 text-sm text-white w-full sm:w-56 md:w-64 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-white/20"
                           placeholder="Enter a name"
                           autoFocus
                         />
                         <button
-                          className="p-1 hover:bg-white/10 rounded-full"
+                          className="p-1 hover:bg-white/10 rounded-full shrink-0"
                           onClick={(e) => { e.stopPropagation(); handleSaveEditLabel(keyData); }}
                           title="Save"
                         >
                           <Check className="h-4 w-4 text-white/70" />
                         </button>
                         <button
-                          className="p-1 hover:bg-white/10 rounded-full"
+                          className="p-1 hover:bg-white/10 rounded-full shrink-0"
                           onClick={(e) => { e.stopPropagation(); handleCancelEditLabel(); }}
                           title="Cancel"
                         >
@@ -799,7 +799,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                         </button>
                       </>
                     )}
-                    <span className="text-xs text-white/50 font-medium truncate">
+                    <span className={`text-xs text-white/50 font-medium truncate ${editingLabelKey === keyData.key ? 'hidden sm:inline' : ''}`}>
                       ({displayUrl})
                     </span>
                     {keyData.isInvalid && (
@@ -834,11 +834,11 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                         type="password"
                         value={keyData.key}
                         readOnly
-                        className="flex-grow bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white/80 font-mono focus:outline-none focus:ring-1 focus:ring-white/20"
+                        className="flex-grow bg-white/5 border border-white/10 rounded-full px-3 py-1 text-[11px] text-white/80 font-mono focus:outline-none focus:ring-1 focus:ring-white/20"
                       />
                       <button
                         onClick={() => handleCopyClick(keyData.key)}
-                        className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
                         title={copiedKey === keyData.key ? "Copied!" : "Copy API Key"}
                       >
                         {copiedKey === keyData.key ? (
@@ -848,7 +848,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                         )}
                       </button>
                       <button
-                        className="px-2 py-1.5 bg-transparent border border-white/10 text-white/80 rounded-md text-[11px] hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                        className="px-2 py-1 bg-transparent border border-white/10 text-white/80 rounded-full text-[11px] hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
                         onClick={() => refreshSingleApiKeyBalance(keyData)}
                         disabled={isRefreshingKey === keyData.key}
                         title="Refresh this API key balance"
@@ -859,14 +859,14 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                     </div>
                     <div className="flex flex-wrap gap-2 justify-end">
                       <button
-                        className="w-full sm:w-auto px-3 py-1.5 bg-white/10 border border-white/20 text-white rounded-md text-xs hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
+                        className="px-2 py-1 sm:px-3 bg-white/10 border border-white/20 text-white rounded-full text-[11px] sm:text-xs hover:bg-white/15 transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={() => handleTopUp(keyData)}
                         disabled={isTopUpLoading === keyData.key || keyData.isInvalid}
                       >
                         {isTopUpLoading === keyData.key ? 'Topping Up...' : 'Top Up'}
                       </button>
                       <button
-                        className="w-full sm:w-auto px-3 py-1.5 bg-transparent border border-white/10 text-white/80 rounded-md text-xs hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+                        className="px-2 py-1 sm:px-3 bg-transparent border border-white/10 text-white/80 rounded-full text-[11px] sm:text-xs hover:bg-white/5 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={async () => {
                           setIsRefundingKey(keyData.key); // Set loading for this specific key
                           try {
@@ -890,7 +890,7 @@ const ApiKeysTab = ({ mintUrl, baseUrl, usingNip60, baseUrls, setActiveTab }: Ap
                         {isRefundingKey === keyData.key ? 'Refunding...' : 'Refund'}
                       </button>
                       <button
-                        className="w-full sm:w-auto px-3 py-1.5 bg-transparent border border-red-500/30 text-red-400 rounded-md text-xs hover:bg-red-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+                        className="px-2 py-1 sm:px-3 bg-transparent border border-red-500/30 text-red-400 rounded-full text-[11px] sm:text-xs hover:bg-red-500/10 transition-colors disabled:opacity-50 cursor-pointer"
                         onClick={() => handleDeleteApiKey(keyData.key)}
                         disabled={isDeletingKey === keyData.key || isSyncingApiKeys} // Disable if this key is deleting or syncing
                       >
