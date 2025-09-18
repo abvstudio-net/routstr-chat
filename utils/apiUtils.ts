@@ -113,7 +113,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     });
 
     if (!response.ok) {
-      await handleApiError(response, {
+      console.error("rdlogs:rdlogs:inside make request", response)
+      const retryResponse = await handleApiError(response, {
         mintUrl,
         baseUrl,
         usingNip60,
@@ -125,8 +126,10 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
         retryOnInsufficientBalance,
         messageHistory,
         onMessagesUpdate,
-        onMessageAppend
+        onMessageAppend,
+        makeRequest
       });
+      return retryResponse;
     }
 
     return response;
@@ -206,8 +209,9 @@ async function handleApiError(
     messageHistory: Message[];
     onMessagesUpdate: (messages: Message[]) => void;
     onMessageAppend: (message: Message) => void;
+    makeRequest: (retryOnInsufficientBalance: boolean) => Promise<Response>;
   }
-): Promise<void> {
+): Promise<Response> {
   const {
     mintUrl,
     baseUrl,
@@ -220,7 +224,8 @@ async function handleApiError(
     retryOnInsufficientBalance,
     messageHistory,
     onMessagesUpdate,
-    onMessageAppend
+    onMessageAppend,
+    makeRequest
   } = params;
 
   if (response.status === 401 || response.status === 403) {
@@ -266,22 +271,14 @@ async function handleApiError(
     clearCurrentApiToken(baseUrl); // Pass baseUrl here
     
     if (retryOnInsufficientBalance) {
-      const newToken = await getTokenForRequest(
-        usingNip60,
-        mintUrl,
-        tokenAmount,
-        baseUrl, // Add baseUrl here
-        sendToken,
-        activeMintUrl
-      );
-
-      if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
-        throw new Error(`Insufficient balance (retryOnInsurrifientBal). Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
-      }
+      return await makeRequest(false);
     }
   } 
   else if (response.status === 402) {
     clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    if (retryOnInsufficientBalance) {
+      return await makeRequest(false);
+    }
   } 
   else if (response.status === 413) {
     const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
@@ -293,18 +290,27 @@ async function handleApiError(
         ? `${mainMessage}\n${requestIdText}\n${providerText}`
         : `${mainMessage} | ${providerText}`;
       handleApiResponseError(fullMessage, onMessageAppend);
+      return response;
+    }
+    else {
+      if (retryOnInsufficientBalance) {
+        return await makeRequest(false);
+      }
     }
   }
   else if (response.status === 500) {
     console.error("rdlogs:rdlogs:internal errror finassld");
+    return response;
   }
   else {
     console.error("rdlogs:rdlogs:smh else else ", response);
+    return response;
   }
 
   if (!retryOnInsufficientBalance) {
     throw new Error(`API error: ${response.status}`);
   }
+  return response;
 }
 
 /**
@@ -501,10 +507,12 @@ async function handlePostResponseRefund(params: {
   const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   if (refundStatus.success) {
     if (usingNip60 && refundStatus.refundedAmount !== undefined) {
+      console.log("rdlogs:rdlogs:refunded amount", refundStatus.refundedAmount);
       // For msats, keep decimal precision; for sats, use Math.ceil
       satsSpent = (unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount)) - refundStatus.refundedAmount;
       onBalanceUpdate(initialBalance - satsSpent);
     } else {
+      console.log("rdlogs:rdlogs:fetching balances");
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
       onBalanceUpdate(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000));
       satsSpent = initialBalance - getBalanceFromStoredProofs();
@@ -536,7 +544,7 @@ async function handlePostResponseRefund(params: {
     // For msats, keep decimal precision; for sats, use Math.ceil
     satsSpent = unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount);
   }
-  console.log("spent: ", satsSpent)
+  console.log("rdlogs:rdlogs:spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
   
   // Use different thresholds based on unit
