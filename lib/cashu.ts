@@ -90,7 +90,10 @@ export async function activateMint(mintUrl: string): Promise<{ mintInfo: GetInfo
   const walletKeysets = await wallet.getKeySets();
   const msatKeysets = await msatWallet.getKeySets();
   const allKeysets = Array.from(new Set([...walletKeysets, ...msatKeysets]));
-  return { mintInfo, keysets: allKeysets };
+  // Some mints or clients may return malformed keyset ids. Filter to valid hex ids to avoid downstream fromHex errors.
+  const isValidHexId = (id: string) => typeof id === 'string' && /^[0-9a-fA-F]+$/.test(id) && id.length % 2 === 0;
+  const filteredKeysets = allKeysets.filter(ks => isValidHexId(ks.id));
+  return { mintInfo, keysets: filteredKeysets };
 }
 
 export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Promise<{ keys: Record<string, MintKeys>[] }> {
@@ -111,7 +114,9 @@ export async function updateMintKeys(mintUrl: string, keysets: MintKeyset[]): Pr
       keysLocal = []
     }
     // get all keys for each keyset where keysetLocal != keyset and add them to the keysLocal
-    const keys = await Promise.all(keysets.map(async (keyset) => {
+    const isValidHexId = (id: string) => typeof id === 'string' && /^[0-9a-fA-F]+$/.test(id) && id.length % 2 === 0;
+    const safeKeysets = keysets.filter(ks => isValidHexId(ks.id));
+    const keys = await Promise.all(safeKeysets.map(async (keyset) => {
       // Use the appropriate wallet based on which keyset list contains this keyset.id
       const isInWalletKeysets = walletKeysets.some(k => k.id === keyset.id);
       const walletToUse = isInWalletKeysets ? wallet : msatWallet;
