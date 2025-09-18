@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star, Info } from 'lucide-react';
 import { Model } from '@/data/models';
 import { getModelNameWithoutProvider, getProviderFromModelName } from '@/data/models';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -18,6 +18,7 @@ interface ModelSelectorProps {
   configuredModels: string[];
   openModelsConfig?: () => void;
   toggleConfiguredModel: (modelId: string) => void;
+  setModelProviderFor?: (modelId: string, baseUrl: string) => void;
 }
 
 export default function ModelSelector({
@@ -33,6 +34,7 @@ export default function ModelSelector({
   configuredModels,
   openModelsConfig,
   toggleConfiguredModel,
+  setModelProviderFor,
 }: ModelSelectorProps) {
   const modelDrawerRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
@@ -138,6 +140,27 @@ export default function ModelSelector({
       .filter((e): e is { key: string; model: Model; providerLabel: string } => !!e);
   }, [configuredModels, filteredModels, modelProviderMap]);
 
+  // Current model helpers for top-of-list section
+  const currentConfiguredKey: string | undefined = useMemo(() => {
+    if (!selectedModel) return undefined;
+    // Prefer provider-qualified keys if present
+    const preferred = configuredModels.find(k => k.startsWith(`${selectedModel.id}@@`));
+    if (preferred) return preferred;
+    const anyKey = configuredModels.find(k => k === selectedModel.id);
+    return anyKey;
+  }, [configuredModels, selectedModel]);
+
+  const currentProviderLabel: string | undefined = useMemo(() => {
+    if (!selectedModel) return undefined;
+    let base: string | null = null;
+    if (currentConfiguredKey) {
+      const parsed = parseModelKey(currentConfiguredKey);
+      base = parsed.base;
+    }
+    const mappedBase = base || modelProviderMap[currentConfiguredKey || ''] || modelProviderMap[selectedModel.id];
+    return formatProviderLabel(mappedBase, selectedModel);
+  }, [selectedModel, currentConfiguredKey, modelProviderMap]);
+
   // Check if a model is available based on balance
   const isModelAvailable = (model: Model) => {
     try {
@@ -240,6 +263,10 @@ export default function ModelSelector({
     const isAvailable = isModelAvailable(model);
     const estimatedMinCost = getEstimatedMinCost(model);
     const isFav = isFavorite || isConfiguredModel(model.id);
+    const isFixedProvider = !!configuredKeyOverride && configuredKeyOverride.includes('@@');
+    const fixedBase = isFixedProvider ? parseModelKey(configuredKeyOverride!).base : null;
+    const effectiveProviderLabel = providerLabel || formatProviderLabel(modelProviderMap[model.id], model);
+    const isDynamicProvider = !isFixedProvider;
     return (
       <div
         key={`${configuredKeyOverride || model.id}`}
@@ -270,6 +297,10 @@ export default function ModelSelector({
             className="flex-1 min-w-0 cursor-pointer"
             onClick={() => {
               if (isAvailable) {
+                // If this is a favorite with a fixed provider, persist mapping so selection is fixed
+                if (isFixedProvider && fixedBase && setModelProviderFor) {
+                  setModelProviderFor(model.id, fixedBase);
+                }
                 handleModelChange(model.id);
                 setIsModelDrawerOpen(false);
               }
@@ -278,22 +309,23 @@ export default function ModelSelector({
             <div className={`font-medium truncate`}>
               {getModelNameWithoutProvider(model.name)}
             </div>
-            {providerLabel ? (
-              <div className="text-xs text-white/50 flex items-center justify-between">
-                <span className="text-white/60 truncate pr-2">{providerLabel}</span>
-                <span className="mx-2 flex-shrink-0">{formatTokensPerSat(model?.sats_pricing?.completion)}</span>
-                {!isAvailable && estimatedMinCost > 0 && (
-                  <span className="text-yellow-400 font-medium flex-shrink-0">• Min: {estimatedMinCost.toFixed(0)} sats</span>
+            <div className="text-xs text-white/50 flex items-center justify-between">
+              <span className="text-white/60 truncate pr-2 flex items-center gap-1">
+                {isDynamicProvider && (
+                  <span title="Dynamic provider: always picks the cheapest based on pricing">~</span>
                 )}
-              </div>
-            ) : (
-              <div className="text-xs text-white/50 flex items-center gap-2">
-                <span>{formatTokensPerSat(model?.sats_pricing?.completion)}</span>
-                {!isAvailable && estimatedMinCost > 0 && (
-                  <span className="text-yellow-400 font-medium">• Min: {estimatedMinCost.toFixed(0)} sats</span>
+                <span className="truncate">{effectiveProviderLabel}</span>
+                {isDynamicProvider && (
+                  <span className="inline-flex" title="Dynamic provider: always picks the cheapest based on pricing">
+                    <Info className="h-3 w-3 text-white/40" />
+                  </span>
                 )}
-              </div>
-            )}
+              </span>
+              <span className="mx-2 flex-shrink-0">{formatTokensPerSat(model?.sats_pricing?.completion)}</span>
+              {!isAvailable && estimatedMinCost > 0 && (
+                <span className="text-yellow-400 font-medium flex-shrink-0">• Min: {estimatedMinCost.toFixed(0)} sats</span>
+              )}
+            </div>
           </div>
           
           {/* Selected Indicator */}
@@ -490,6 +522,16 @@ export default function ModelSelector({
                   </div>
                 ) : (
                   <div className="overflow-y-auto max-h-[60vh]">
+                    {/* Current Model Section */}
+                    {selectedModel && (
+                      <div className="p-1">
+                        <div className="px-2 py-1 text-xs font-medium text-white/60">Current</div>
+                        <div className="space-y-1">
+                          {renderModelItem(selectedModel, isConfiguredModel(selectedModel.id), currentProviderLabel, currentConfiguredKey)}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Favorite Models Section */}
                     {favoriteEntries.length > 0 && (
                       <div className="p-1">
@@ -501,7 +543,7 @@ export default function ModelSelector({
                     )}
 
                     {/* Separator */}
-                    {favoriteEntries.length > 0 && remainingModelsList.length > 0 && (
+                    {(!!selectedModel || favoriteEntries.length > 0) && remainingModelsList.length > 0 && (
                       <div className="border-t border-white/10 my-1" />
                     )}
 
@@ -510,7 +552,7 @@ export default function ModelSelector({
                       <div className="px-2 py-1 text-xs font-medium text-white/60">All Models</div>
                       {remainingModelsList.length > 0 ? (
                         <div className="space-y-1">
-                          {remainingModelsList.map((model) => renderModelItem(model, false))}
+                          {remainingModelsList.filter(m => m.id !== selectedModel?.id).map((model) => renderModelItem(model, false))}
                         </div>
                       ) : (
                         <div className="p-2 text-sm text-white/50 text-center">No models found</div>
@@ -589,6 +631,16 @@ export default function ModelSelector({
                 </div>
               ) : (
                 <div className="overflow-y-auto max-h-[60vh]">
+                  {/* Current Model Section */}
+                  {selectedModel && (
+                    <div className="p-1">
+                      <div className="px-2 py-1 text-xs font-medium text-white/60">Current</div>
+                      <div className="space-y-1">
+                        {renderModelItem(selectedModel, isConfiguredModel(selectedModel.id), currentProviderLabel, currentConfiguredKey)}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Favorite Models Section */}
                   {favoriteEntries.length > 0 && (
                     <div className="p-1">
@@ -600,7 +652,7 @@ export default function ModelSelector({
                   )}
 
                   {/* Separator */}
-                  {favoriteEntries.length > 0 && remainingModelsList.length > 0 && (
+                  {(!!selectedModel || favoriteEntries.length > 0) && remainingModelsList.length > 0 && (
                     <div className="border-t border-white/10 my-1" />
                   )}
 
@@ -609,7 +661,7 @@ export default function ModelSelector({
                     <div className="px-2 py-1 text-xs font-medium text-white/60">All Models</div>
                     {remainingModelsList.length > 0 ? (
                       <div className="space-y-1">
-                        {remainingModelsList.map((model) => renderModelItem(model, false))}
+                        {remainingModelsList.filter(m => m.id !== selectedModel?.id).map((model) => renderModelItem(model, false))}
                       </div>
                     ) : (
                       <div className="p-2 text-sm text-white/50 text-center">No models found</div>

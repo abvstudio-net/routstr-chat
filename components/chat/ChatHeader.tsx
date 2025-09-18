@@ -24,6 +24,7 @@ const ChatHeader: React.FC = () => {
     handleModelChange,
     configuredModels,
     toggleConfiguredModel,
+    setModelProviderFor,
     
     // UI State
     isMobile,
@@ -89,6 +90,7 @@ const ChatHeader: React.FC = () => {
           balance={balance}
           configuredModels={configuredModels}
           toggleConfiguredModel={toggleConfiguredModel}
+          setModelProviderFor={setModelProviderFor}
           openModelsConfig={() => {
             setIsSettingsOpen(true);
             setInitialSettingsTab('models');
