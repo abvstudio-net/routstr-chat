@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { TransactionHistory } from '@/types/chat';
 import { getDecodedToken } from '@cashu/cashu-ts';
 import { getPendingCashuTokenAmount } from '../../utils/cashuUtils';
+import { getLocalCashuTokens } from '../../utils/storageUtils';
 
 interface HistoryTabProps {
   transactionHistory: TransactionHistory[];
@@ -17,11 +18,35 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onClose,
 }) => {
   const [pendingCashuAmount, setPendingCashuAmount] = useState<number | null>(null);
+  const [pendingDistribution, setPendingDistribution] = useState<{ baseUrl: string; amount: number }[]>([]);
 
   useEffect(() => {
     const checkPendingCashuToken = () => {
       const amount = getPendingCashuTokenAmount();
       setPendingCashuAmount(amount > 0 ? amount : null);
+
+      // Compute per-baseUrl distribution using same decoding logic
+      const tokens = getLocalCashuTokens();
+      const distributionMap: Record<string, number> = {};
+      tokens.forEach((entry) => {
+        try {
+          const decoded = getDecodedToken(entry.token);
+          const unitDivisor = decoded.unit === 'msat' ? 1000 : 1;
+          let sum = 0;
+          decoded.proofs.forEach((p: { amount: number }) => {
+            sum += p.amount / unitDivisor;
+          });
+          if (sum > 0) {
+            distributionMap[entry.baseUrl] = (distributionMap[entry.baseUrl] || 0) + sum;
+          }
+        } catch (e) {
+          // ignore malformed tokens
+        }
+      });
+      const distArray = Object.entries(distributionMap)
+        .map(([baseUrl, amt]) => ({ baseUrl, amount: Math.round(amt) }))
+        .sort((a, b) => b.amount - a.amount);
+      setPendingDistribution(distArray);
     };
 
     checkPendingCashuToken();
@@ -64,7 +89,16 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                 <div className="w-2 h-2 rounded-full bg-yellow-500" />
                 <div>
                   <div className="text-sm font-medium text-white">Pending</div>
-                  <div className="text-xs text-white/50">Awaiting confirmation</div>
+                  {pendingDistribution.length > 0 && (
+                    <div className="mt-0.5 space-y-0.5">
+                      {pendingDistribution.map((item) => (
+                        <div key={item.baseUrl} className="text-xs text-white/50 flex items-center gap-2">
+                          <span className="truncate max-w-[200px]" title={item.baseUrl}>{item.baseUrl}</span>
+                          <span className="text-white/70 font-mono">+{item.amount} sats</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="text-right">
