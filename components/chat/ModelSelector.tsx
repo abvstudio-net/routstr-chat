@@ -46,6 +46,9 @@ export default function ModelSelector({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [detailsModel, setDetailsModel] = useState<Model | null>(null);
   const [modelProviderMap, setModelProviderMap] = useState<Record<string, string>>({});
+  const [providerModelCache, setProviderModelCache] = useState<Record<string, Record<string, Model>>>({});
+  const [loadingProviderBases, setLoadingProviderBases] = useState<Set<string>>(new Set());
+  const [detailsBaseUrl, setDetailsBaseUrl] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -54,6 +57,98 @@ export default function ModelSelector({
       setModelProviderMap({});
     }
   }, []);
+
+  // Normalize base URL to ensure trailing slash and protocol
+  const normalizeBaseUrl = (base?: string | null): string | null => {
+    if (!base || typeof base !== 'string' || base.length === 0) return null;
+    const withProto = base.startsWith('http') ? base : `https://${base}`;
+    return withProto.endsWith('/') ? withProto : `${withProto}/`;
+  };
+
+  // Fetch and cache models for a specific provider base URL
+  const fetchAndCacheProviderModels = async (baseRaw: string): Promise<void> => {
+    const base = normalizeBaseUrl(baseRaw);
+    if (!base) return;
+    // Avoid duplicate fetches
+    if (loadingProviderBases.has(base)) return;
+    setLoadingProviderBases(prev => new Set(prev).add(base));
+    try {
+      const res = await fetch(`${base}v1/models`);
+      if (!res.ok) throw new Error(`Failed to fetch models for ${base}: ${res.status}`);
+      const json = await res.json();
+      const list: readonly Model[] = Array.isArray(json?.data) ? json.data : [];
+      const map: Record<string, Model> = {};
+      for (const m of list) {
+        map[m.id] = m;
+      }
+      setProviderModelCache(prev => ({ ...prev, [base]: map }));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingProviderBases(prev => {
+        const next = new Set(prev);
+        next.delete(base);
+        return next;
+      });
+    }
+  };
+
+  // Helpers to parse provider-qualified keys
+  const parseModelKey = (key: string): { id: string; base: string | null } => {
+    const sep = key.indexOf('@@');
+    if (sep === -1) return { id: key, base: null };
+    return { id: key.slice(0, sep), base: key.slice(sep + 2) };
+  };
+
+  // Current model helpers for top-of-list section
+  const currentConfiguredKeyMemo: string | undefined = useMemo(() => {
+    if (!selectedModel) return undefined;
+    const preferred = configuredModels.find(k => k.startsWith(`${selectedModel.id}@@`));
+    if (preferred) return preferred;
+    const anyKey = configuredModels.find(k => k === selectedModel.id);
+    return anyKey;
+  }, [configuredModels, selectedModel]);
+
+  // Determine which provider bases we likely need and prefetch them
+  const neededProviderBases: readonly string[] = useMemo(() => {
+    const bases = new Set<string>();
+    try {
+      // From configured favorites (keys may include @@base)
+      for (const key of configuredModels) {
+        const { base } = parseModelKey(key);
+        const norm = normalizeBaseUrl(base);
+        if (norm) bases.add(norm);
+      }
+      // From best-priced mapping for models in view
+      for (const m of models) {
+        const mapped = normalizeBaseUrl(modelProviderMap[m.id]);
+        if (mapped) bases.add(mapped);
+      }
+      // From current selection key
+      if (currentConfiguredKeyMemo) {
+        const { base } = parseModelKey(currentConfiguredKeyMemo);
+        const norm = normalizeBaseUrl(base);
+        if (norm) bases.add(norm);
+      }
+      // From details panel selection
+      if (detailsBaseUrl) {
+        const norm = normalizeBaseUrl(detailsBaseUrl);
+        if (norm) bases.add(norm);
+      }
+    } catch {}
+    return Array.from(bases);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuredModels, models, modelProviderMap, currentConfiguredKeyMemo, detailsBaseUrl]);
+
+  useEffect(() => {
+    // Prefetch any needed bases not yet cached
+    for (const base of neededProviderBases) {
+      if (!providerModelCache[base]) {
+        void fetchAndCacheProviderModels(base);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neededProviderBases]);
 
   // Deduplicate models across providers by picking the best-priced variant per id
   const dedupedModels = useMemo(() => {
@@ -100,13 +195,6 @@ export default function ModelSelector({
     return `${value.toFixed(2)} token/sat`;
   };
 
-  // Helpers to parse provider-qualified keys
-  const parseModelKey = (key: string): { id: string; base: string | null } => {
-    const sep = key.indexOf('@@');
-    if (sep === -1) return { id: key, base: null };
-    return { id: key.slice(0, sep), base: key.slice(sep + 2) };
-  };
-
   const formatProviderLabel = (baseUrl: string | null | undefined, model: Model): string => {
     try {
       if (baseUrl) {
@@ -140,15 +228,8 @@ export default function ModelSelector({
       .filter((e): e is { key: string; model: Model; providerLabel: string } => !!e);
   }, [configuredModels, filteredModels, modelProviderMap]);
 
-  // Current model helpers for top-of-list section
-  const currentConfiguredKey: string | undefined = useMemo(() => {
-    if (!selectedModel) return undefined;
-    // Prefer provider-qualified keys if present
-    const preferred = configuredModels.find(k => k.startsWith(`${selectedModel.id}@@`));
-    if (preferred) return preferred;
-    const anyKey = configuredModels.find(k => k === selectedModel.id);
-    return anyKey;
-  }, [configuredModels, selectedModel]);
+  // Current model helpers for top-of-list section (alias to memoized key)
+  const currentConfiguredKey: string | undefined = currentConfiguredKeyMemo;
 
   const currentProviderLabel: string | undefined = useMemo(() => {
     if (!selectedModel) return undefined;
@@ -260,12 +341,19 @@ export default function ModelSelector({
 
   // Render a model item
   const renderModelItem = (model: Model, isFavorite: boolean = false, providerLabel?: string, configuredKeyOverride?: string) => {
-    const isAvailable = isModelAvailable(model);
-    const estimatedMinCost = getEstimatedMinCost(model);
-    const isFav = isFavorite || isConfiguredModel(model.id);
+    // Resolve provider base for this item (fixed provider wins; otherwise use best-priced mapping)
     const isFixedProvider = !!configuredKeyOverride && configuredKeyOverride.includes('@@');
-    const fixedBase = isFixedProvider ? parseModelKey(configuredKeyOverride!).base : null;
-    const effectiveProviderLabel = providerLabel || formatProviderLabel(modelProviderMap[model.id], model);
+    const fixedBaseRaw = isFixedProvider ? parseModelKey(configuredKeyOverride!).base : null;
+    const fixedBase = normalizeBaseUrl(fixedBaseRaw);
+    const mappedBase = normalizeBaseUrl(modelProviderMap[model.id]);
+    const baseForPricing = fixedBase || mappedBase;
+    const providerModels = baseForPricing ? providerModelCache[baseForPricing] : undefined;
+    const providerSpecificModel = providerModels ? providerModels[model.id] : undefined;
+    const effectiveModelForPricing = providerSpecificModel || model;
+    const isAvailable = isModelAvailable(effectiveModelForPricing);
+    const estimatedMinCost = getEstimatedMinCost(effectiveModelForPricing);
+    const isFav = isFavorite || isConfiguredModel(model.id);
+    const effectiveProviderLabel = providerLabel || formatProviderLabel(baseForPricing, model);
     const isDynamicProvider = !isFixedProvider;
     return (
       <div
@@ -321,7 +409,7 @@ export default function ModelSelector({
                   </span>
                 )}
               </span>
-              <span className="mx-2 flex-shrink-0">{formatTokensPerSat(model?.sats_pricing?.completion)}</span>
+              <span className="mx-2 flex-shrink-0">{formatTokensPerSat(effectiveModelForPricing?.sats_pricing?.completion)}</span>
               {!isAvailable && estimatedMinCost > 0 && (
                 <span className="text-yellow-400 font-medium flex-shrink-0">• Min: {estimatedMinCost.toFixed(0)} sats</span>
               )}
@@ -340,7 +428,9 @@ export default function ModelSelector({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                // Resolve base for details as well so the details panel fetches correct pricing
                 setDetailsModel(model);
+                setDetailsBaseUrl(baseForPricing);
                 navigateToView('details');
               }}
               className="flex-shrink-0 p-1 rounded-md text-white/60 hover:text-white/90 hover:bg-white/5 cursor-pointer"
@@ -356,80 +446,87 @@ export default function ModelSelector({
   };
 
   // Render model details (shared by desktop pane and mobile popover)
-  const renderModelDetails = (model: Model) => (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-xs text-white/50">{getProviderFromModelName(model.name)}</div>
-          <div className="text-base font-semibold truncate">{getModelNameWithoutProvider(model.name)}</div>
-        </div>
-      </div>
-
-      {model.description && (
-        <div className="text-xs text-white/60 line-clamp-4">
-          {model.description}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-white/5 rounded-md p-2 border border-white/10">
-          <div className="text-white/60">Context length</div>
-          <div className="font-medium">{model.context_length?.toLocaleString?.() ?? '—'} tokens</div>
-        </div>
-        <div className="bg-white/5 rounded-md p-2 border border-white/10">
-          <div className="text-white/60">Modality</div>
-          <div className="font-medium">{model.architecture?.modality ?? '—'}</div>
-        </div>
-        <div className="bg-white/5 rounded-md p-2 border border-white/10">
-          <div className="text-white/60">Tokenizer</div>
-          <div className="font-medium">{model.architecture?.tokenizer ?? '—'}</div>
-        </div>
-        <div className="bg-white/5 rounded-md p-2 border border-white/10">
-          <div className="text-white/60">Instruct type</div>
-          <div className="font-medium">{model.architecture?.instruct_type ?? '—'}</div>
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <div className="text-xs text-white/60">Pricing</div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-white/5 rounded-md p-2 border border-white/10">
-            <div className="text-white/60">Prompt</div>
-            <div className="font-medium">
-              {formatTokensPerSat(model?.sats_pricing?.prompt)}
-            </div>
-          </div>
-          <div className="bg-white/5 rounded-md p-2 border border-white/10">
-            <div className="text-white/60">Completion</div>
-            <div className="font-medium">
-              {formatTokensPerSat(model?.sats_pricing?.completion)}
-            </div>
+  const renderModelDetails = (model: Model) => {
+    // Determine provider base for details: prefer explicit detailsBaseUrl, otherwise mapping
+    const baseForDetails = normalizeBaseUrl(detailsBaseUrl) || normalizeBaseUrl(modelProviderMap[model.id]);
+    const providerModels = baseForDetails ? providerModelCache[baseForDetails] : undefined;
+    const providerSpecificModel = providerModels ? providerModels[model.id] : undefined;
+    const effectiveModel = providerSpecificModel || model;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs text-white/50">{getProviderFromModelName(effectiveModel.name)}</div>
+            <div className="text-base font-semibold truncate">{getModelNameWithoutProvider(effectiveModel.name)}</div>
           </div>
         </div>
-        {(model?.sats_pricing?.max_cost || model?.sats_pricing?.max_completion_cost) && (
-          <div className="text-[11px] text-white/50">
-            Est. min: {getEstimatedMinCost(model).toFixed(0)} sats
+
+        {effectiveModel.description && (
+          <div className="text-xs text-white/60 line-clamp-4">
+            {effectiveModel.description}
           </div>
         )}
-      </div>
 
-      <div className="space-y-1">
-        <div className="text-xs text-white/60">Capabilities</div>
-        <div className="flex flex-wrap gap-1.5">
-          {(model?.architecture?.input_modalities?.includes('image') || (model?.pricing?.image ?? 0) > 0) && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Images</span>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-white/5 rounded-md p-2 border border-white/10">
+            <div className="text-white/60">Context length</div>
+            <div className="font-medium">{effectiveModel.context_length?.toLocaleString?.() ?? '—'} tokens</div>
+          </div>
+          <div className="bg-white/5 rounded-md p-2 border border-white/10">
+            <div className="text-white/60">Modality</div>
+            <div className="font-medium">{effectiveModel.architecture?.modality ?? '—'}</div>
+          </div>
+          <div className="bg-white/5 rounded-md p-2 border border-white/10">
+            <div className="text-white/60">Tokenizer</div>
+            <div className="font-medium">{effectiveModel.architecture?.tokenizer ?? '—'}</div>
+          </div>
+          <div className="bg-white/5 rounded-md p-2 border border-white/10">
+            <div className="text-white/60">Instruct type</div>
+            <div className="font-medium">{effectiveModel.architecture?.instruct_type ?? '—'}</div>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="text-xs text-white/60">Pricing</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-white/5 rounded-md p-2 border border-white/10">
+              <div className="text-white/60">Prompt</div>
+              <div className="font-medium">
+                {formatTokensPerSat(effectiveModel?.sats_pricing?.prompt)}
+              </div>
+            </div>
+            <div className="bg-white/5 rounded-md p-2 border border-white/10">
+              <div className="text-white/60">Completion</div>
+              <div className="font-medium">
+                {formatTokensPerSat(effectiveModel?.sats_pricing?.completion)}
+              </div>
+            </div>
+          </div>
+          {(effectiveModel?.sats_pricing?.max_cost || effectiveModel?.sats_pricing?.max_completion_cost) && (
+            <div className="text-[11px] text-white/50">
+              Est. min: {getEstimatedMinCost(effectiveModel).toFixed(0)} sats
+            </div>
           )}
-          {(model?.pricing?.web_search ?? 0) > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Web search</span>
-          )}
-          {(model?.pricing?.internal_reasoning ?? 0) > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Thinking</span>
-          )}
-          <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">{model.architecture?.output_modalities?.join(', ') || 'Text output'}</span>
+        </div>
+
+        <div className="space-y-1">
+          <div className="text-xs text-white/60">Capabilities</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(effectiveModel?.architecture?.input_modalities?.includes('image') || (effectiveModel?.pricing?.image ?? 0) > 0) && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Images</span>
+            )}
+            {(effectiveModel?.pricing?.web_search ?? 0) > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Web search</span>
+            )}
+            {(effectiveModel?.pricing?.internal_reasoning ?? 0) > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Thinking</span>
+            )}
+            <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">{effectiveModel.architecture?.output_modalities?.join(', ') || 'Text output'}</span>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="relative">
