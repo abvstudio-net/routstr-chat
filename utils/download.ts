@@ -1,10 +1,18 @@
-export async function downloadImageFromSrc(src: string, suggestedName?: string) {
+export async function downloadImageFromSrc(src: string | Blob, suggestedName?: string) {
   try {
-    // If src is a data URL, we can create a blob directly
+    if (typeof src !== 'string') {
+      const blob = src;
+      const extension = getExtensionFromMime(blob.type) || 'png';
+      const fileName = suggestedName || `image-${Date.now()}.${extension}`;
+      triggerDownload(blob, fileName);
+      return;
+    }
+
+    // If src is a data URL, create a blob directly
     if (src.startsWith('data:')) {
       const response = await fetch(src);
       const blob = await response.blob();
-      const extension = blob.type.split('/')[1] || 'png';
+      const extension = getExtensionFromMime(blob.type) || 'png';
       const fileName = suggestedName || `image-${Date.now()}.${extension}`;
       triggerDownload(blob, fileName);
       return;
@@ -13,14 +21,20 @@ export async function downloadImageFromSrc(src: string, suggestedName?: string) 
     // Otherwise, fetch the image respecting CORS if allowed
     const res = await fetch(src, { mode: 'cors' as RequestMode });
     const blob = await res.blob();
-    const extension = blob.type.split('/')[1] || inferExtensionFromUrl(src) || 'png';
+    const extension = getExtensionFromMime(blob.type) || inferExtensionFromUrl(src) || 'png';
     const fileName = suggestedName || getFileNameFromUrl(src) || `image-${Date.now()}.${extension}`;
     triggerDownload(blob, fileName);
   } catch (error) {
-    // As a fallback, try navigating to the URL with a temporary anchor
-    const fallbackName = suggestedName || getFileNameFromUrl(src) || `image-${Date.now()}`;
+    // Fallback: try navigating to the URL with a temporary anchor
+    const fallbackName = typeof src === 'string' ? (suggestedName || getFileNameFromUrl(src) || `image-${Date.now()}`) : (suggestedName || `image-${Date.now()}`);
     const anchor = document.createElement('a');
-    anchor.href = src;
+    if (typeof src === 'string') {
+      anchor.href = src;
+    } else {
+      const url = URL.createObjectURL(src);
+      anchor.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
     anchor.download = fallbackName;
     anchor.target = '_blank';
     document.body.appendChild(anchor);
@@ -54,6 +68,11 @@ function getFileNameFromUrl(url: string): string | null {
 function inferExtensionFromUrl(url: string): string | null {
   const match = url.match(/\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/);
   return match ? match[1] : null;
+}
+
+function getExtensionFromMime(mime: string): string | null {
+  const parts = mime.split('/');
+  return parts.length === 2 ? parts[1] : null;
 }
 
 
