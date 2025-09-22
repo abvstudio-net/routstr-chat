@@ -12,6 +12,7 @@ import { getTextFromContent } from '@/utils/messageUtils';
 
 export interface UseConversationStateReturn {
   conversations: Conversation[];
+  conversationsLoaded: boolean;
   activeConversationId: string | null;
   messages: Message[];
   editingMessageIndex: number | null;
@@ -39,6 +40,7 @@ export interface UseConversationStateReturn {
  */
 export const useConversationState = (): UseConversationStateReturn => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
@@ -48,6 +50,7 @@ export const useConversationState = (): UseConversationStateReturn => {
   useEffect(() => {
     const loadedConversations = loadConversationsFromStorage();
     setConversations(loadedConversations);
+    setConversationsLoaded(true);
   }, []);
 
   // Save current conversation whenever messages change
@@ -158,6 +161,7 @@ export const useConversationState = (): UseConversationStateReturn => {
         return saveConversationToStorage(prevConversations, conversationId, newMessages);
       });
     },
-    getActiveConversationId: () => activeConversationId
+    getActiveConversationId: () => activeConversationId,
+    conversationsLoaded
   };
 };
