@@ -5,10 +5,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    // Ensure app router can export without Node APIs on the server
-    reactCompiler: false,
-  },
 };
 
 export default nextConfig;
