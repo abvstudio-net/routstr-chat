@@ -203,7 +203,7 @@ export default function ChatInput({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={!isAuthenticated}
-              className={`absolute left-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
+              className={`absolute left-3 p-2 rounded-full bg-transparent hover:bg-white/10 md:hover:bg-white/20 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
               aria-label="Upload image"
             >
               <ImagePlus className="h-5 w-5 text-white" />
@@ -213,7 +213,7 @@ export default function ChatInput({
             <button
               onClick={handleSendMessage}
               disabled={isLoading || (!isAuthenticated && !inputMessage.trim() && uploadedImages.length === 0)}
-              className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
+              className={`absolute right-3 p-2 rounded-full bg-transparent hover:bg-white/10 md:hover:bg-white/20 disabled:opacity-50 disabled:bg-transparent transition-colors cursor-pointer ${textareaHeight <= 48 ? 'top-1/2 transform -translate-y-1/2' : 'bottom-2'}`}
               aria-label="Send message"
             >
               {isLoading ? (
