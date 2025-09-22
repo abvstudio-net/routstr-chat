@@ -669,6 +669,7 @@ export default function ModelSelector({
                       )}
                     </div>
                   </div>
+                  {renderQuickFilters()}
                 </div>
 
                 {isLoadingModels ? (
