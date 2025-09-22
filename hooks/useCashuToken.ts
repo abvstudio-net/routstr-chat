@@ -3,7 +3,7 @@ import { useCashuStore } from '@/stores/cashuStore';
 import { useCashuWallet } from '@/hooks/useCashuWallet';
 import { useCashuHistory } from '@/hooks/useCashuHistory';
 import { CashuMint, CashuWallet, Proof, getDecodedToken, CheckStateEnum } from '@cashu/cashu-ts';
-import { CashuProof, CashuToken, canMakeExactChange, calculateFees } from '@/lib/cashu';
+import { CashuProof, CashuToken, canMakeExactChange, calculateFees, activateMint, updateMintKeys } from '@/lib/cashu';
 import { hashToCurve } from "@cashu/crypto/modules/common";
 import { useNutzapStore } from '@/stores/nutzapStore';
 
@@ -375,18 +375,59 @@ export function useCashuToken() {
 
   };
 
-  const addMintIfNotExists = async (mintUrl: string) => {
-    // Validate URL
-    new URL(mintUrl);
-    if (!wallet) {
-      throw new Error('Wallet not found, trying to add mint URL: '+mintUrl);
+  const normalizeMintUrl = (url: string) => url.replace(/\/+$/, '');
+
+  const ensureMintInitialized = async (mintUrl: string) => {
+    const normalizedMintUrl = normalizeMintUrl(mintUrl);
+    const existingMint = cashuStore.mints.find((mint) => mint.url === normalizedMintUrl);
+    const needsActivation = !existingMint || !existingMint.mintInfo || !existingMint.keysets?.length || !existingMint.keys?.length;
+
+    if (!existingMint) {
+      cashuStore.addMint(normalizedMintUrl);
     }
-    // Add mint to wallet
-    createWallet({
-      ...wallet,
-      mints: [...wallet.mints, mintUrl],
-    });
-  }
+
+    if (needsActivation) {
+      try {
+        const { mintInfo, keysets } = await activateMint(normalizedMintUrl);
+        cashuStore.setMintInfo(normalizedMintUrl, mintInfo);
+        cashuStore.setKeysets(normalizedMintUrl, keysets);
+        const { keys } = await updateMintKeys(normalizedMintUrl, keysets);
+        cashuStore.setKeys(normalizedMintUrl, keys);
+      } catch (err) {
+        console.error('Failed to initialize mint data:', err);
+      }
+    }
+
+    return normalizedMintUrl;
+  };
+
+  const addMintIfNotExists = async (mintUrl: string) => {
+    const normalizedMintUrl = await ensureMintInitialized(mintUrl);
+
+    try {
+      new URL(normalizedMintUrl);
+    } catch (err) {
+      throw new Error('Invalid mint URL: ' + mintUrl);
+    }
+
+    if (!wallet) {
+      console.warn('Wallet not loaded when trying to add mint URL:', normalizedMintUrl);
+      return normalizedMintUrl;
+    }
+
+    if (!wallet.mints.includes(normalizedMintUrl)) {
+      try {
+        await createWallet({
+          ...wallet,
+          mints: [...wallet.mints, normalizedMintUrl],
+        });
+      } catch (err) {
+        console.error('Failed to persist mint URL to wallet:', err);
+      }
+    }
+
+    return normalizedMintUrl;
+  };
 
   const removeMint = async (mintUrl: string) => {
     // Validate URL
@@ -425,10 +466,10 @@ export function useCashuToken() {
       console.log("rdlogs profs: ", tokenProofs, unit)
 
       // if we don't have the mintUrl yet, add it
-      await addMintIfNotExists(mintUrl);
+      const normalizedMintUrl = await addMintIfNotExists(mintUrl);
 
       // Setup wallet for receiving
-      const mint = new CashuMint(mintUrl);
+      const mint = new CashuMint(normalizedMintUrl);
       console.log('rdlogs:  ---recevie- biew mind', mintUrl);
       const keysets = await mint.getKeySets();
       
@@ -447,7 +488,7 @@ export function useCashuToken() {
       const receivedProofs = await wallet.receive(token);
       // Create token event in Nostr
       const receivedTokenData: CashuToken = {
-        mint: mintUrl,
+        mint: normalizedMintUrl,
         proofs: receivedProofs.map(p => ({
           id: p.id || '',
           amount: p.amount,
@@ -458,7 +499,7 @@ export function useCashuToken() {
 
       try {
         // Attempt to create token in Nostr, but don't rely on the return value
-        await updateProofs({ mintUrl, proofsToAdd: receivedTokenData.proofs, proofsToRemove: [] });
+        await updateProofs({ mintUrl: normalizedMintUrl, proofsToAdd: receivedTokenData.proofs, proofsToRemove: [] });
       } catch (err) {
         console.error('Error storing token in Nostr:', err);
       }

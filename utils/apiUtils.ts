@@ -113,7 +113,6 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     });
 
     if (!response.ok) {
-      console.error("rdlogs:rdlogs:inside make request", response)
       await handleApiError(response, {
         mintUrl,
         baseUrl,
