@@ -1,6 +1,47 @@
 import { Conversation, Message } from '@/types/chat';
 import { getTextFromContent, stripImageDataFromMessages } from './messageUtils';
 
+const CONVERSATIONS_STORAGE_KEY = 'saved_conversations';
+const CONVERSATIONS_UPDATED_AT_KEY = 'saved_conversations_updated_at';
+
+const hasLocalStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+export const getConversationsUpdatedAt = (): number => {
+  if (!hasLocalStorage()) return 0;
+  const raw = window.localStorage.getItem(CONVERSATIONS_UPDATED_AT_KEY);
+  if (!raw) return 0;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const persistConversationsSnapshot = (
+  conversations: Conversation[],
+  updatedAt?: number
+): number => {
+  if (!hasLocalStorage()) {
+    return typeof updatedAt === 'number' ? updatedAt : Date.now();
+  }
+
+  const timestamp = typeof updatedAt === 'number' ? updatedAt : Date.now();
+
+  try {
+    window.localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations));
+    window.localStorage.setItem(CONVERSATIONS_UPDATED_AT_KEY, String(timestamp));
+  } catch (error) {
+    console.error('Error persisting conversations to storage:', error);
+  }
+
+  return timestamp;
+};
+
+const ensureUpdatedAtExists = () => {
+  if (!hasLocalStorage()) return;
+  if (!window.localStorage.getItem(CONVERSATIONS_UPDATED_AT_KEY)) {
+    window.localStorage.setItem(CONVERSATIONS_UPDATED_AT_KEY, String(Date.now()));
+  }
+};
+
 /**
  * Generates a title for a conversation based on the first user message
  * @param messages Array of messages in the conversation
@@ -52,7 +93,7 @@ export const saveConversationToStorage = (
     return conversation;
   });
 
-  localStorage.setItem('saved_conversations', JSON.stringify(updatedConversations));
+  persistConversationsSnapshot(updatedConversations);
   return updatedConversations;
 };
 
@@ -61,19 +102,20 @@ export const saveConversationToStorage = (
  * @returns Array of conversations or empty array if none found
  */
 export const loadConversationsFromStorage = (): Conversation[] => {
+  if (!hasLocalStorage()) return [];
   try {
-    const savedConversationsData = localStorage.getItem('saved_conversations');
-    if (savedConversationsData) {
-      const parsedConversations = JSON.parse(savedConversationsData);
-      if (Array.isArray(parsedConversations)) {
-        return parsedConversations;
-      }
+    const savedConversationsData = window.localStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+    if (!savedConversationsData) return [];
+
+    const parsedConversations = JSON.parse(savedConversationsData);
+    if (Array.isArray(parsedConversations)) {
+      ensureUpdatedAtExists();
+      return parsedConversations;
     }
-    return [];
   } catch (error) {
     console.error('Error loading conversations from storage:', error);
-    return [];
   }
+  return [];
 };
 
 /**
@@ -90,14 +132,15 @@ export const createNewConversation = (
   updatedConversations: Conversation[];
 } => {
   const newId = Date.now().toString();
+  const messagesToStore = stripImageDataFromMessages(initialMessages);
   const newConversation: Conversation = {
     id: newId,
     title: `Conversation ${existingConversations.length + 1}`,
-    messages: initialMessages
+    messages: messagesToStore
   };
 
   const updatedConversations = [...existingConversations, newConversation];
-  localStorage.setItem('saved_conversations', JSON.stringify(updatedConversations));
+  persistConversationsSnapshot(updatedConversations);
 
   return {
     newConversation,
@@ -116,7 +159,7 @@ export const deleteConversationFromStorage = (
   conversationId: string
 ): Conversation[] => {
   const updatedConversations = conversations.filter(c => c.id !== conversationId);
-  localStorage.setItem('saved_conversations', JSON.stringify(updatedConversations));
+  persistConversationsSnapshot(updatedConversations);
   return updatedConversations;
 };
 
@@ -137,7 +180,9 @@ export const findConversationById = (
  * Clears all conversations from storage
  */
 export const clearAllConversations = (): void => {
-  localStorage.removeItem('saved_conversations');
+  if (!hasLocalStorage()) return;
+  window.localStorage.removeItem(CONVERSATIONS_STORAGE_KEY);
+  window.localStorage.removeItem(CONVERSATIONS_UPDATED_AT_KEY);
 };
 
 /**
@@ -159,6 +204,6 @@ export const updateConversation = (
     return conversation;
   });
 
-  localStorage.setItem('saved_conversations', JSON.stringify(updatedConversations));
+  persistConversationsSnapshot(updatedConversations);
   return updatedConversations;
 };

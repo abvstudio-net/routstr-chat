@@ -9,6 +9,7 @@ import {
   clearAllConversations
 } from '@/utils/conversationUtils';
 import { getTextFromContent } from '@/utils/messageUtils';
+import { useChatHistorySync } from './useChatHistorySync';
 
 export interface UseConversationStateReturn {
   conversations: Conversation[];
@@ -45,6 +46,14 @@ export const useConversationState = (): UseConversationStateReturn => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+
+  useChatHistorySync({
+    conversations,
+    setConversations,
+    activeConversationId,
+    setMessages,
+    conversationsLoaded
+  });
 
   // Load conversations from storage on mount
   useEffect(() => {
