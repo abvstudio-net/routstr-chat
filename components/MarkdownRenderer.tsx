@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import CodeBlock from './CodeBlock';
 import 'katex/dist/katex.min.css';
+import { downloadImageFromSrc } from '../utils/download';
 
 interface MarkdownRendererProps {
   content: string;
@@ -158,13 +159,23 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             </em>
           ),
 
-          // Images
+          // Images with download button overlay
           img: ({ src, alt }) => (
-            <img
-              src={src}
-              alt={alt}
-              className="max-w-full h-auto rounded-lg mb-4 border border-white/10"
-            />
+            <div className="relative inline-block mb-4 group">
+              <img
+                src={src}
+                alt={alt}
+                className="max-w-full h-auto rounded-lg border border-white/10"
+              />
+              <button
+                type="button"
+                onClick={() => src && downloadImageFromSrc(src)}
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black/80 text-white text-xs rounded-md px-2 py-1 border border-white/20"
+                aria-label="Download image"
+              >
+                Download
+              </button>
+            </div>
           ),
         }}
       >

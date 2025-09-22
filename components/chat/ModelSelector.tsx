@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star, Info } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star, Info, Image as ImageIcon, Type } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Model } from '@/data/models';
 import { getModelNameWithoutProvider, getProviderFromModelName } from '@/data/models';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -49,6 +50,7 @@ export default function ModelSelector({
   const [providerModelCache, setProviderModelCache] = useState<Record<string, Record<string, Model>>>({});
   const [loadingProviderBases, setLoadingProviderBases] = useState<Set<string>>(new Set());
   const [detailsBaseUrl, setDetailsBaseUrl] = useState<string | null>(null);
+  const [outputFilters, setOutputFilters] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -169,10 +171,19 @@ export default function ModelSelector({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [models]);
 
-  // Filter models based on search query
-  const filteredModels = dedupedModels.filter(model => 
-    getModelNameWithoutProvider(model.name).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter models based on search query and quick output filters
+  const filteredModels = dedupedModels.filter(model => {
+    const matchesSearch = getModelNameWithoutProvider(model.name)
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+    if (outputFilters.size === 0) return true;
+    const outputs = (model.architecture?.output_modalities ?? ['text']).map(m => String(m).toLowerCase());
+    for (const f of outputFilters) {
+      if (outputs.includes(f)) return true;
+    }
+    return false;
+  });
 
   // Determine which model's details to show in the right pane
   const previewModel: Model | null = useMemo(() => {
@@ -338,6 +349,53 @@ export default function ModelSelector({
       e.preventDefault();
     }
   };
+
+  // Quick filter badges for output modalities
+  const quickOutputOptions: { key: string; label: string; icon: ReactNode }[] = [
+    { key: 'text', label: 'Text', icon: <Type className="h-3.5 w-3.5" /> },
+    { key: 'image', label: 'Image', icon: <ImageIcon className="h-3.5 w-3.5" /> },
+  ];
+
+  const toggleOutputFilter = (key: string) => {
+    setOutputFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const renderQuickFilters = () => (
+    <div className="mt-2 flex gap-1.5 flex-nowrap">
+      {quickOutputOptions.map(opt => {
+        const isActive = outputFilters.has(opt.key);
+        return (
+          <button
+            key={opt.key}
+            onClick={() => toggleOutputFilter(opt.key)}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border transition-colors cursor-pointer ${
+              isActive ? 'bg-white/20 border-white/30 text-white' : 'bg-white/5 border-white/15 text-white/70 hover:bg-white/10'
+            }`}
+            title={`Filter by ${opt.label.toLowerCase()} output`}
+            type="button"
+          >
+            {opt.icon}
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+      {outputFilters.size > 0 && (
+        <button
+          onClick={() => setOutputFilters(new Set())}
+          className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-white/0 text-white/60 hover:text-white/90 hover:bg-white/10 border border-white/15 cursor-pointer"
+          title="Clear filters"
+          type="button"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
 
   // Render a model item
   const renderModelItem = (model: Model, isFavorite: boolean = false, providerLabel?: string, configuredKeyOverride?: string) => {
@@ -720,6 +778,7 @@ export default function ModelSelector({
                     )}
                   </div>
                 </div>
+                {renderQuickFilters()}
               </div>
 
               {isLoadingModels ? (
@@ -734,7 +793,7 @@ export default function ModelSelector({
                       <div className="px-2 py-1 text-xs font-medium text-white/60">Current</div>
                       <div className="space-y-1">
                         {renderModelItem(selectedModel, isConfiguredModel(selectedModel.id), currentProviderLabel, currentConfiguredKey)}
-                      </div>
+              </div>
                     </div>
                   )}
 

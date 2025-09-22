@@ -1,5 +1,5 @@
-import { Message, TransactionHistory } from '@/types/chat';
-import { convertMessageForAPI, createTextMessage } from './messageUtils';
+import { Message, TransactionHistory, MessageContent as ChatMessageContent } from '@/types/chat';
+import { convertMessageForAPI, createTextMessage, createMultimodalMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
@@ -57,6 +57,16 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
 
+  // Decide whether to stream based on model output modality; image models prefer non-streaming
+  const shouldStream: boolean = (() => {
+    try {
+      if (selectedModel?.architecture?.output_modalities?.includes?.('image')) return false;
+      const id = String(selectedModel?.id || '').toLowerCase();
+      if (id.includes('image') || id.includes('vision')) return false;
+    } catch {}
+    return true;
+  })();
+
   // Convert messages to API format
   // Filter out system messages (error messages) before sending to API
   const apiMessages = messageHistory
@@ -108,7 +118,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       body: JSON.stringify({
         model: selectedModel?.id,
         messages: apiMessages,
-        stream: true
+        stream: shouldStream
       })
     });
 
@@ -139,14 +149,90 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     const response = await makeRequest();
     // const response = new Response();
 
-    if (!response.body) {
-      throw new Error('Response body is not available');
+    const contentType = response.headers.get('content-type') || '';
+
+    let streamingResult: StreamingResult = { content: '' };
+    if (contentType.includes('text/event-stream')) {
+      if (!response.body) {
+        throw new Error('Response body is not available');
+      }
+
+      streamingResult = await processStreamingResponse(
+        response,
+        onStreamingUpdate,
+        onThinkingUpdate,
+        selectedModel?.id
+      );
+    } else {
+      // Fallback for non-streaming JSON responses (e.g., image-only outputs)
+      try {
+        const json = await response.json();
+        const choice = json?.choices?.[0];
+        const msg = choice?.message;
+        const imagesArray: ChatMessageContent[] = [];
+        let textContent = '';
+
+        if (msg) {
+          if (typeof msg.content === 'string') {
+            textContent = msg.content;
+          } else if (Array.isArray(msg.content)) {
+            for (const item of msg.content) {
+              if (item?.type === 'text' && typeof item.text === 'string') {
+                imagesArray.push({ type: 'text', text: item.text });
+              } else if (
+                item?.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string'
+              ) {
+                imagesArray.push({ type: 'image_url', image_url: { url: item.image_url.url } });
+              }
+            }
+          }
+
+          if (Array.isArray(msg.images)) {
+            for (const img of msg.images) {
+              if (img?.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string') {
+                imagesArray.push({ type: 'image_url', image_url: { url: img.image_url.url } });
+              }
+            }
+          }
+        }
+
+        streamingResult = {
+          content: textContent,
+          images: imagesArray.length > 0 ? imagesArray.filter(i => i.type === 'image_url') : undefined,
+          usage: json?.usage
+            ? {
+                total_tokens: json.usage.total_tokens,
+                prompt_tokens: json.usage.prompt_tokens,
+                completion_tokens: json.usage.completion_tokens
+              }
+            : undefined,
+          model: json?.model,
+          finish_reason: choice?.finish_reason
+        };
+      } catch (e) {
+        // If parsing fails, fall back to reading as text and showing as error
+        console.error('Failed to parse non-streaming response', e);
+      }
     }
 
-    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, onThinkingUpdate, selectedModel?.id);
-
-    if (streamingResult.content) {
-      const assistantMessage = createTextMessage('assistant', streamingResult.content);
+    if (streamingResult.content || (streamingResult.images && streamingResult.images.length > 0)) {
+      let assistantMessage: Message;
+      if (streamingResult.images && streamingResult.images.length > 0) {
+        const images = streamingResult.images
+          .filter((i): i is ChatMessageContent => i && i.type === 'image_url' && !!i.image_url?.url);
+        if (images.length > 0) {
+          const contentArray: ChatMessageContent[] = [];
+          if (streamingResult.content && streamingResult.content.trim().length > 0) {
+            contentArray.push({ type: 'text', text: streamingResult.content });
+          }
+          contentArray.push(...images);
+          assistantMessage = { role: 'assistant', content: contentArray };
+        } else {
+          assistantMessage = createTextMessage('assistant', streamingResult.content || '');
+        }
+      } else {
+        assistantMessage = createTextMessage('assistant', streamingResult.content || '');
+      }
       if (streamingResult.thinking) {
         assistantMessage.thinking = streamingResult.thinking;
       }
@@ -326,6 +412,7 @@ interface StreamingResult {
   };
   model?: string;
   finish_reason?: string;
+  images?: ChatMessageContent[];
 }
 
 async function processStreamingResponse(
@@ -343,6 +430,8 @@ async function processStreamingResponse(
   let usage: StreamingResult['usage'];
   let model: string | undefined;
   let finish_reason: string | undefined;
+  let images: StreamingResult['images'];
+  let partialJson = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -364,8 +453,12 @@ async function processStreamingResponse(
 
           if (jsonData === '[DONE]') continue;
 
+          const toParse = (partialJson ? partialJson : '') + jsonData;
+
+          let parsedData: any;
           try {
-            const parsedData = JSON.parse(jsonData);
+            parsedData = JSON.parse(toParse);
+            partialJson = '';
 
             // Handle reasoning delta. OpenRouter does this. 
             if (parsedData.choices &&
@@ -424,6 +517,40 @@ async function processStreamingResponse(
               }
             }
 
+            // Handle images (typically present in the final event)
+            if (parsedData.choices &&
+              parsedData.choices[0] &&
+              parsedData.choices[0].message &&
+              parsedData.choices[0].message.images && Array.isArray(parsedData.choices[0].message.images)) {
+              try {
+                const imgs = parsedData.choices[0].message.images
+                  .filter((img: any) => img && img.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string')
+                  .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } as { url: string } }));
+                if (imgs.length > 0) {
+                  images = imgs;
+                }
+              } catch {
+                // Ignore malformed image payloads
+              }
+            }
+
+            // Some providers include images inside message.content array
+            if (parsedData.choices &&
+              parsedData.choices[0] &&
+              parsedData.choices[0].message &&
+              Array.isArray(parsedData.choices[0].message.content)) {
+              try {
+                const imgsFromContent = parsedData.choices[0].message.content
+                  .filter((item: any) => item && item.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string')
+                  .map((item: any) => ({ type: 'image_url', image_url: { url: item.image_url.url } as { url: string } }));
+                if (imgsFromContent.length > 0) {
+                  images = (images ?? []).concat(imgsFromContent);
+                }
+              } catch {
+                // Ignore malformed content payloads
+              }
+            }
+
             // Handle usage statistics (usually in the final chunk)
             if (parsedData.usage) {
               usage = {
@@ -445,7 +572,8 @@ async function processStreamingResponse(
               finish_reason = parsedData.choices[0].finish_reason;
             }
           } catch {
-            // Swallow parse errors for streaming chunks
+            // Keep accumulating until we have a complete JSON event
+            partialJson = toParse;
           }
         }
       }
@@ -454,12 +582,62 @@ async function processStreamingResponse(
     }
   }
 
+  // Attempt to parse any leftover partial JSON from SSE
+  if (partialJson && partialJson.trim().length > 0) {
+    try {
+      const parsedData = JSON.parse(partialJson);
+
+      if (parsedData.choices && parsedData.choices[0] && parsedData.choices[0].message) {
+        const msg = parsedData.choices[0].message;
+        // Extract images from message.images
+        if (Array.isArray(msg.images)) {
+          try {
+            const imgs = msg.images
+              .filter((img: any) => img && img.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string')
+              .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } as { url: string } }));
+            if (imgs.length > 0) {
+              images = (images ?? []).concat(imgs);
+            }
+          } catch {}
+        }
+        // Extract images from message.content blocks
+        if (Array.isArray(msg.content)) {
+          try {
+            const imgsFromContent = msg.content
+              .filter((item: any) => item && item.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string')
+              .map((item: any) => ({ type: 'image_url', image_url: { url: item.image_url.url } as { url: string } }));
+            if (imgsFromContent.length > 0) {
+              images = (images ?? []).concat(imgsFromContent);
+            }
+          } catch {}
+        }
+      }
+
+      if (parsedData.usage) {
+        usage = {
+          total_tokens: parsedData.usage.total_tokens,
+          prompt_tokens: parsedData.usage.prompt_tokens,
+          completion_tokens: parsedData.usage.completion_tokens
+        };
+      }
+      if (parsedData.model) {
+        model = parsedData.model;
+      }
+      if (parsedData.choices && parsedData.choices[0] && parsedData.choices[0].finish_reason) {
+        finish_reason = parsedData.choices[0].finish_reason;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     content: accumulatedContent,
     thinking: (modelId && accumulatedThinking) ? accumulatedThinking : undefined,
     usage,
     model,
-    finish_reason
+    finish_reason,
+    images
   };
 }
 
