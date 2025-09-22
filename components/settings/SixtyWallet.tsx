@@ -706,7 +706,13 @@ const SixtyWallet: React.FC<{mintUrl:string, usingNip60: boolean, setUsingNip60:
                         name="activeMint"
                         value={mint}
                         checked={isActive}
-                        onChange={() => cashuStore.setActiveMintUrl(mint)}
+                        onChange={() => {
+                          if ((mintBalances[mint] || 0) <= 0) {
+                            alert('No balance in this mint. Please add balance.');
+                            return;
+                          }
+                          cashuStore.setActiveMintUrl(mint);
+                        }}
                         className="form-radio h-4 w-4 text-white bg-white/10 border-white/30 focus:ring-white/50 shrink-0"
                       />
                       <label htmlFor={`mint-${mint}`} className={cn("text-sm cursor-pointer truncate max-w-[70vw] sm:max-w-[28rem]", isActive ? "text-white" : "text-white/70")}> 

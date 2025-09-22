@@ -222,6 +222,26 @@ export const useChatActions = (): UseChatActionsReturn => {
     }
   }, [wallet, isWalletLoading, logins, handleCreateWallet, didRelaysTimeout]);
 
+  // Auto-switch active mint to one that has balance if current has zero (NIP-60 only)
+  useEffect(() => {
+    if (!usingNip60) return;
+
+    const activeUrl = cashuStore.getActiveMintUrl?.() ?? cashuStore.activeMintUrl;
+    const activeBalance = activeUrl ? (mintBalances[activeUrl] ?? 0) : 0;
+
+    // If current active has balance, keep it
+    if (activeBalance > 0) return;
+
+    // Find mint with highest non-zero balance
+    const candidates = Object.entries(mintBalances).filter(([, balance]) => (balance ?? 0) > 0);
+    if (candidates.length === 0) return;
+    const [bestMint] = candidates.sort((a, b) => (b[1] as number) - (a[1] as number))[0];
+
+    if (bestMint && bestMint !== activeUrl) {
+      cashuStore.setActiveMintUrl(bestMint);
+    }
+  }, [usingNip60, mintBalances, cashuStore.activeMintUrl]);
+
   // Autoscroll moved to ChatMessages to honor user scroll position
 
   const setTransactionHistory = useCallback((value: React.SetStateAction<TransactionHistory[]>) => {

@@ -145,6 +145,11 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
 
   // Handle mint selection
   const handleMintSelection = (mintUrl: string) => {
+    const selectedBalance = (mintBalances && mintBalances[mintUrl]) || 0;
+    if (selectedBalance <= 0) {
+      setError('No balance in this mint. Please add balance.');
+      return;
+    }
     cashuStore.setActiveMintUrl(mintUrl);
     setIsMintSelectorOpen(false);
     setError(''); // Clear any previous errors
