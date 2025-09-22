@@ -143,3 +143,30 @@ body {
   height: 0;
   background: transparent;
 }
+
+/* Restore scrollbars specifically for the Model Selector drawer */
+#model-selector-drawer,
+#model-selector-drawer * {
+  -ms-overflow-style: auto; /* IE and Edge */
+  scrollbar-width: thin; /* Firefox */
+}
+
+/* WebKit scrollbar styles for Model Selector */
+#model-selector-drawer::-webkit-scrollbar,
+#model-selector-drawer *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#model-selector-drawer::-webkit-scrollbar-track,
+#model-selector-drawer *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#model-selector-drawer::-webkit-scrollbar-thumb,
+#model-selector-drawer *::-webkit-scrollbar-thumb {
+  background-color: oklch(0.705 0.015 286.067 / 0.6);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}

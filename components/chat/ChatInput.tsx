@@ -134,7 +134,8 @@ export default function ChatInput({
           transform: isCentered && !isMobile
             ? 'translateY(30px)'
             : 'translateY(0)',
-          paddingBottom: 'env(safe-area-inset-bottom)'
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          bottom: !isCentered ? (isMobile ? '0' : '16px') : undefined
         }}
       >
         <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-xl' : 'max-w-2xl'} ${isMobile ? 'pb-3' : ''}`}>
