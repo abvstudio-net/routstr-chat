@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star, Info, Image as ImageIcon, Type } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Search, Settings, Star, Info, Image as ImageIcon, Type, Mic, Video, Copy, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Model } from '@/data/models';
 import { getModelNameWithoutProvider, getProviderFromModelName } from '@/data/models';
@@ -50,7 +50,8 @@ export default function ModelSelector({
   const [providerModelCache, setProviderModelCache] = useState<Record<string, Record<string, Model>>>({});
   const [loadingProviderBases, setLoadingProviderBases] = useState<Set<string>>(new Set());
   const [detailsBaseUrl, setDetailsBaseUrl] = useState<string | null>(null);
-  const [outputFilters, setOutputFilters] = useState<Set<string>>(new Set());
+  const [pairFilters, setPairFilters] = useState<Set<string>>(new Set());
+  const [copiedModelId, setCopiedModelId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -171,16 +172,38 @@ export default function ModelSelector({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [models]);
 
-  // Filter models based on search query and quick output filters
+  // Collect available input->output pairs dynamically from real model data
+  const availablePairs: readonly { key: string; input: string; output: string }[] = useMemo(() => {
+    const found = new Map<string, { key: string; input: string; output: string }>();
+    for (const m of dedupedModels) {
+      try {
+        const inputs = (m.architecture?.input_modalities ?? ['text']).map(x => String(x).toLowerCase());
+        const outputs = (m.architecture?.output_modalities ?? ['text']).map(x => String(x).toLowerCase());
+        for (const i of inputs) {
+          for (const o of outputs) {
+            const key = `${i}->${o}`;
+            if (!found.has(key)) found.set(key, { key, input: i, output: o });
+          }
+        }
+      } catch {}
+    }
+    return Array.from(found.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [dedupedModels]);
+
+  // Filter models based on search query and selected input->output pair filters
   const filteredModels = dedupedModels.filter(model => {
     const matchesSearch = getModelNameWithoutProvider(model.name)
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
-    if (outputFilters.size === 0) return true;
-    const outputs = (model.architecture?.output_modalities ?? ['text']).map(m => String(m).toLowerCase());
-    for (const f of outputFilters) {
-      if (outputs.includes(f)) return true;
+    if (pairFilters.size === 0) return true;
+    const inputs = (model.architecture?.input_modalities ?? ['text']).map(v => String(v).toLowerCase());
+    const outputs = (model.architecture?.output_modalities ?? ['text']).map(v => String(v).toLowerCase());
+    for (const i of inputs) {
+      for (const o of outputs) {
+        const key = `${i}->${o}`;
+        if (pairFilters.has(key)) return true;
+      }
     }
     return false;
   });
@@ -350,14 +373,35 @@ export default function ModelSelector({
     }
   };
 
-  // Quick filter badges for output modalities
-  const quickOutputOptions: { key: string; label: string; icon: ReactNode }[] = [
-    { key: 'text', label: 'Text', icon: <Type className="h-3.5 w-3.5" /> },
-    { key: 'image', label: 'Image', icon: <ImageIcon className="h-3.5 w-3.5" /> },
-  ];
+  // Quick filter badges for input->output pairs (from real data)
+  const modalityIconFor = (key: string): ReactNode => {
+    switch (key) {
+      case 'text':
+        return <Type className="h-3.5 w-3.5" />;
+      case 'image':
+        return <ImageIcon className="h-3.5 w-3.5" />;
+      case 'audio':
+        return <Mic className="h-3.5 w-3.5" />;
+      case 'video':
+        return <Video className="h-3.5 w-3.5" />;
+      default:
+        return <Type className="h-3.5 w-3.5" />;
+    }
+  };
 
-  const toggleOutputFilter = (key: string) => {
-    setOutputFilters(prev => {
+  const quickPairOptions: { key: string; input: string; output: string; label: string; left: ReactNode; right: ReactNode }[] = useMemo(() => {
+    return availablePairs.map(p => ({
+      key: p.key,
+      input: p.input,
+      output: p.output,
+      label: `${p.input.charAt(0).toUpperCase() + p.input.slice(1)} → ${p.output.charAt(0).toUpperCase() + p.output.slice(1)}`,
+      left: modalityIconFor(p.input),
+      right: modalityIconFor(p.output)
+    }));
+  }, [availablePairs]);
+
+  const togglePairFilter = (key: string) => {
+    setPairFilters(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -366,34 +410,41 @@ export default function ModelSelector({
   };
 
   const renderQuickFilters = () => (
-    <div className="mt-2 flex gap-1.5 flex-nowrap">
-      {quickOutputOptions.map(opt => {
-        const isActive = outputFilters.has(opt.key);
-        return (
+    <div className="mt-2 -mx-2 px-2">
+      <div className="flex gap-1.5 flex-wrap overflow-x-hidden pb-1 pr-2">
+        {quickPairOptions.map(opt => {
+          const isActive = pairFilters.has(opt.key);
+          return (
+            <button
+              key={opt.key}
+              onClick={() => togglePairFilter(opt.key)}
+              className={`shrink-0 h-6 inline-flex items-center gap-1 px-2 rounded-full text-[11px] border transition-colors cursor-pointer ${
+                isActive ? 'bg-white/20 border-white/30 text-white' : 'bg-white/5 border-white/15 text-white/70 hover:bg-white/10'
+              }`}
+              title={`Filter by ${opt.label.toLowerCase()}`}
+              type="button"
+              aria-pressed={isActive}
+            >
+              <span className="inline-flex items-center gap-1">
+                {opt.left}
+                <span>→</span>
+                {opt.right}
+              </span>
+              {/* icons only */}
+            </button>
+          );
+        })}
+        {pairFilters.size > 0 && (
           <button
-            key={opt.key}
-            onClick={() => toggleOutputFilter(opt.key)}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border transition-colors cursor-pointer ${
-              isActive ? 'bg-white/20 border-white/30 text-white' : 'bg-white/5 border-white/15 text-white/70 hover:bg-white/10'
-            }`}
-            title={`Filter by ${opt.label.toLowerCase()} output`}
+            onClick={() => setPairFilters(new Set())}
+            className="shrink-0 h-6 text-[11px] px-2 rounded-full bg-white/0 text-white/60 hover:text-white/90 hover:bg-white/10 border border-white/15 cursor-pointer"
+            title="Clear filters"
             type="button"
           >
-            {opt.icon}
-            <span>{opt.label}</span>
+            Clear
           </button>
-        );
-      })}
-      {outputFilters.size > 0 && (
-        <button
-          onClick={() => setOutputFilters(new Set())}
-          className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-white/0 text-white/60 hover:text-white/90 hover:bg-white/10 border border-white/15 cursor-pointer"
-          title="Clear filters"
-          type="button"
-        >
-          Clear
-        </button>
-      )}
+        )}
+      </div>
     </div>
   );
 
@@ -510,12 +561,62 @@ export default function ModelSelector({
     const providerModels = baseForDetails ? providerModelCache[baseForDetails] : undefined;
     const providerSpecificModel = providerModels ? providerModels[model.id] : undefined;
     const effectiveModel = providerSpecificModel || model;
+    // Date formatter for created timestamp (epoch seconds)
+    const formatDate = (epochSeconds?: number): string => {
+      try {
+        if (typeof epochSeconds !== 'number' || !isFinite(epochSeconds) || epochSeconds <= 0) return '—';
+        const d = new Date(epochSeconds * 1000);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleDateString();
+      } catch { return '—'; }
+    };
+
+    // Build input->output modality pairs for icon display
+    const inputs = (effectiveModel?.architecture?.input_modalities ?? ['text']).map(v => String(v).toLowerCase());
+    const outputs = (effectiveModel?.architecture?.output_modalities ?? ['text']).map(v => String(v).toLowerCase());
+    const ioPairs: { key: string; input: string; output: string }[] = (() => {
+      const pairs: { key: string; input: string; output: string }[] = [];
+      const seen = new Set<string>();
+      for (const i of inputs) {
+        for (const o of outputs) {
+          const key = `${i}->${o}`;
+          if (!seen.has(key)) { seen.add(key); pairs.push({ key, input: i, output: o }); }
+        }
+      }
+      return pairs;
+    })();
+
     return (
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="text-xs text-white/50">{getProviderFromModelName(effectiveModel.name)}</div>
             <div className="text-base font-semibold truncate">{getModelNameWithoutProvider(effectiveModel.name)}</div>
+            <div className="text-[11px] text-white/40 mt-0.5 flex items-center gap-2">
+              <span className="break-all" title="Model ID">{effectiveModel.id}</span>
+              <button
+                onClick={() => {
+                  try {
+                    void navigator.clipboard.writeText(effectiveModel.id);
+                    setCopiedModelId(effectiveModel.id);
+                    setTimeout(() => setCopiedModelId(null), 1200);
+                  } catch {}
+                }}
+                className="cursor-pointer text-white/50 hover:text-white/80"
+                title="Copy model ID"
+                type="button"
+                aria-label="Copy model ID"
+              >
+                {copiedModelId === effectiveModel.id ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+              {effectiveModel.created ? (
+                <span className="whitespace-nowrap">· {formatDate(effectiveModel.created)}</span>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -528,19 +629,33 @@ export default function ModelSelector({
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="bg-white/5 rounded-md p-2 border border-white/10">
             <div className="text-white/60">Context length</div>
-            <div className="font-medium">{effectiveModel.context_length?.toLocaleString?.() ?? '—'} tokens</div>
+            <div className="font-medium mt-1">{effectiveModel.context_length?.toLocaleString?.() ?? '—'} tokens</div>
           </div>
           <div className="bg-white/5 rounded-md p-2 border border-white/10">
             <div className="text-white/60">Modality</div>
-            <div className="font-medium">{effectiveModel.architecture?.modality ?? '—'}</div>
+            <div className="font-medium mt-1">
+              <div className="flex flex-wrap gap-2">
+                {ioPairs.length > 0 ? (
+                  ioPairs.map(p => (
+                    <span key={p.key} className="inline-flex items-center gap-1" title={`${p.input} → ${p.output}`}>
+                      {modalityIconFor(p.input)}
+                      <span>→</span>
+                      {modalityIconFor(p.output)}
+                    </span>
+                  ))
+                ) : (
+                  <span>—</span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="bg-white/5 rounded-md p-2 border border-white/10">
             <div className="text-white/60">Tokenizer</div>
-            <div className="font-medium">{effectiveModel.architecture?.tokenizer ?? '—'}</div>
+            <div className="font-medium mt-1">{effectiveModel.architecture?.tokenizer ?? '—'}</div>
           </div>
           <div className="bg-white/5 rounded-md p-2 border border-white/10">
             <div className="text-white/60">Instruct type</div>
-            <div className="font-medium">{effectiveModel.architecture?.instruct_type ?? '—'}</div>
+            <div className="font-medium mt-1">{effectiveModel.architecture?.instruct_type ?? '—'}</div>
           </div>
         </div>
 
@@ -549,13 +664,13 @@ export default function ModelSelector({
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-white/5 rounded-md p-2 border border-white/10">
               <div className="text-white/60">Prompt</div>
-              <div className="font-medium">
+              <div className="font-medium mt-1">
                 {formatTokensPerSat(effectiveModel?.sats_pricing?.prompt)}
               </div>
             </div>
             <div className="bg-white/5 rounded-md p-2 border border-white/10">
               <div className="text-white/60">Completion</div>
-              <div className="font-medium">
+              <div className="font-medium mt-1">
                 {formatTokensPerSat(effectiveModel?.sats_pricing?.completion)}
               </div>
             </div>
@@ -567,21 +682,7 @@ export default function ModelSelector({
           )}
         </div>
 
-        <div className="space-y-1">
-          <div className="text-xs text-white/60">Capabilities</div>
-          <div className="flex flex-wrap gap-1.5">
-            {(effectiveModel?.architecture?.input_modalities?.includes('image') || (effectiveModel?.pricing?.image ?? 0) > 0) && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Images</span>
-            )}
-            {(effectiveModel?.pricing?.web_search ?? 0) > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Web search</span>
-            )}
-            {(effectiveModel?.pricing?.internal_reasoning ?? 0) > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">Thinking</span>
-            )}
-            <span className="px-2 py-0.5 rounded-full text-[11px] bg-white/10 border border-white/15">{effectiveModel.architecture?.output_modalities?.join(', ') || 'Text output'}</span>
-          </div>
-        </div>
+        {/* Capabilities section removed per request */}
       </div>
     );
   };
