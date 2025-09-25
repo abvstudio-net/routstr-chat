@@ -5,6 +5,7 @@ import { Model } from '@/data/models';
 import { getModelNameWithoutProvider, getProviderFromModelName } from '@/data/models';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { loadModelProviderMap } from '@/utils/storageUtils';
+import { parseModelKey, normalizeBaseUrl } from '@/utils/modelUtils';
 
 interface ModelSelectorProps {
   selectedModel: Model | null;
@@ -14,7 +15,7 @@ interface ModelSelectorProps {
   setIsLoginModalOpen: (isOpen: boolean) => void;
   isLoadingModels: boolean;
   filteredModels: Model[];
-  handleModelChange: (modelId: string) => void;
+  handleModelChange: (modelId: string, configuredKeyOverride?: string) => void;
   balance: number;
   configuredModels: string[];
   openModelsConfig?: () => void;
@@ -61,12 +62,7 @@ export default function ModelSelector({
     }
   }, []);
 
-  // Normalize base URL to ensure trailing slash and protocol
-  const normalizeBaseUrl = (base?: string | null): string | null => {
-    if (!base || typeof base !== 'string' || base.length === 0) return null;
-    const withProto = base.startsWith('http') ? base : `https://${base}`;
-    return withProto.endsWith('/') ? withProto : `${withProto}/`;
-  };
+  // Normalize base URL to ensure trailing slash and protocol (moved to utils)
 
   // Fetch and cache models for a specific provider base URL
   const fetchAndCacheProviderModels = async (baseRaw: string): Promise<void> => {
@@ -96,12 +92,7 @@ export default function ModelSelector({
     }
   };
 
-  // Helpers to parse provider-qualified keys
-  const parseModelKey = (key: string): { id: string; base: string | null } => {
-    const sep = key.indexOf('@@');
-    if (sep === -1) return { id: key, base: null };
-    return { id: key.slice(0, sep), base: key.slice(sep + 2) };
-  };
+  // Helpers to parse provider-qualified keys (moved to utils)
 
   // Current model helpers for top-of-list section
   const currentConfiguredKeyMemo: string | undefined = useMemo(() => {
@@ -450,7 +441,7 @@ export default function ModelSelector({
 
   // Render a model item
   const renderModelItem = (model: Model, isFavorite: boolean = false, providerLabel?: string, configuredKeyOverride?: string) => {
-    // Resolve provider base for this item (fixed provider wins; otherwise use best-priced mapping)
+      // Resolve provider base for this item (fixed provider wins; otherwise use best-priced mapping)
     const isFixedProvider = !!configuredKeyOverride && configuredKeyOverride.includes('@@');
     const fixedBaseRaw = isFixedProvider ? parseModelKey(configuredKeyOverride!).base : null;
     const fixedBase = normalizeBaseUrl(fixedBaseRaw);
@@ -498,7 +489,7 @@ export default function ModelSelector({
                 if (isFixedProvider && fixedBase && setModelProviderFor) {
                   setModelProviderFor(model.id, fixedBase);
                 }
-                handleModelChange(model.id);
+                handleModelChange(model.id, configuredKeyOverride || undefined);
                 setIsModelDrawerOpen(false);
               }
             }}

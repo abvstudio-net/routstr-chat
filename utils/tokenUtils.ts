@@ -90,8 +90,10 @@ export const getTokenAmountForModel = (selectedModel: any, approximateTokens: nu
   if (!selectedModel?.sats_pricing?.max_completion_cost) {
     return selectedModel?.sats_pricing?.max_cost ?? DEFAULT_TOKEN_AMOUNT;
   }
+  console.log("rdlogs: dwaw: selectedModel", selectedModel)
   const promptCosts = selectedModel?.sats_pricing?.prompt * approximateTokens;
   const totalEstimatedCosts = promptCosts + selectedModel?.sats_pricing?.max_completion_cost;
-  console.log("rdlogs: totalEstimatedCosts", totalEstimatedCosts)
+  console.log("rdlogs: dwaw: promptCosts", selectedModel?.sats_pricing?.max_cost)
+  console.log("rdlogs: totalEstimatedCosts", promptCosts, totalEstimatedCosts)
   return totalEstimatedCosts ?? DEFAULT_TOKEN_AMOUNT;
 };

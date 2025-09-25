@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Model } from '@/data/models';
 import { DEFAULT_BASE_URLS, DEFAULT_MINT_URL } from '@/lib/utils';
-import { loadMintUrl, saveMintUrl, loadBaseUrl, saveBaseUrl, loadLastUsedModel, saveLastUsedModel, loadBaseUrlsList, saveBaseUrlsList, migrateCurrentCashuToken, loadModelProviderMap, saveModelProviderMap } from '@/utils/storageUtils';
-import { toast } from 'sonner';
+import { loadMintUrl, saveMintUrl, loadBaseUrl, saveBaseUrl, loadLastUsedModel, saveLastUsedModel, loadBaseUrlsList, saveBaseUrlsList, migrateCurrentCashuToken, loadModelProviderMap, saveModelProviderMap, setStorageItem, getStorageItem } from '@/utils/storageUtils';
+import {parseModelKey, normalizeBaseUrl } from '@/utils/modelUtils';
 
 export interface UseApiStateReturn {
   models: Model[];
@@ -17,7 +17,7 @@ export interface UseApiStateReturn {
   setMintUrl: (url: string) => void;
   setBaseUrl: (url: string) => void;
   fetchModels: (balance: number) => Promise<void>; // Modified to accept balance
-  handleModelChange: (modelId: string) => void;
+  handleModelChange: (modelId: string, configuredKeyOverride?: string) => void;
 }
 
 /**
@@ -80,6 +80,18 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
         })
       );
 
+      // Save all provider results to localStorage for later use
+      try {
+        const modelsFromAllProviders: Record<string, Model[]> = {};
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            const { base, list } = r.value;
+            modelsFromAllProviders[base] = list;
+          }
+        }
+        setStorageItem('modelsFromAllProviders', modelsFromAllProviders);
+      } catch {}
+
       // Build best-priced model per id across providers and remember provider
       const bestById = new Map<string, { model: Model; base: string }>();
 
@@ -138,10 +150,20 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
       if (urlModelId) {
         modelToSelect = combinedModels.find((m: Model) => m.id === urlModelId) || null;
       }
+      const lastUsedModelId = loadLastUsedModel();
       if (!modelToSelect) {
-        const lastUsedModelId = loadLastUsedModel();
-        if (lastUsedModelId) {
-          modelToSelect = combinedModels.find((m: Model) => m.id === lastUsedModelId) || null;
+        if (lastUsedModelId && lastUsedModelId.includes('@@')) {
+          const { id } = parseModelKey(lastUsedModelId);
+          const fixedBaseRaw = parseModelKey(lastUsedModelId).base;
+          const fixedBase = normalizeBaseUrl(fixedBaseRaw);
+          if (!fixedBase) return;
+          const normalized = fixedBase.endsWith('/') ? fixedBase : `${fixedBase}/`;
+          const allByProvider = getStorageItem<Record<string, Model[]>>('modelsFromAllProviders', {} as any);
+          const list = allByProvider?.[normalized] || allByProvider?.[lastUsedModelId] || [];
+          modelToSelect = Array.isArray(list) ? (list.find((m: Model) => m.id === id) ?? null) : null;
+        }
+        else if (lastUsedModelId) {
+          modelToSelect = combinedModels.find((m: Model) => m.id === lastUsedModelId) ?? null;
         }
       }
       if (!modelToSelect) {
@@ -149,7 +171,7 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
         if (compatible.length > 0) modelToSelect = compatible[0];
       }
       setSelectedModel(modelToSelect);
-      if (modelToSelect) saveLastUsedModel(modelToSelect.id);
+      if (modelToSelect && lastUsedModelId && !lastUsedModelId.includes('@@')) saveLastUsedModel(modelToSelect.id);
     } catch (error) {
       console.error('Error while fetching models', error);
       setModels([]);
@@ -164,23 +186,51 @@ export const useApiState = (isAuthenticated: boolean, balance: number): UseApiSt
     if (isAuthenticated && baseUrlsList.length > 0) { // Ensure baseUrlsList is loaded
       fetchModels(balance);
     }
-  }, [fetchModels, isAuthenticated, balance, baseUrlsList.length]); // Removed baseUrl, added baseUrlsList.length
+  }, [isAuthenticated, balance, baseUrlsList.length]); // Removed baseUrl, added baseUrlsList.length
 
-  const handleModelChange = useCallback((modelId: string) => {
-    const model = models.find((m: Model) => m.id === modelId);
-    if (model) {
-      setSelectedModel(model);
-      saveLastUsedModel(modelId);
-      // Switch provider base URL if a provider is configured for this model
+  const handleModelChange = useCallback((modelId: string, configuredKeyOverride?: string) => {
+    console.log("rdlogs: handleModelChange", modelId, configuredKeyOverride)
+
+    // If a provider base is explicitly provided, prefer provider-specific model from storage
+    if (configuredKeyOverride && configuredKeyOverride.includes('@@')) {
+      const fixedBaseRaw = parseModelKey(configuredKeyOverride!).base;
+      const fixedBase = normalizeBaseUrl(fixedBaseRaw);
+      if (!fixedBase) return;
       try {
-        const map = loadModelProviderMap();
-        const mappedBase = map[modelId];
-        if (mappedBase && typeof mappedBase === 'string' && mappedBase.length > 0) {
-          const normalized = mappedBase.endsWith('/') ? mappedBase : `${mappedBase}/`;
+        const normalized = fixedBase.endsWith('/') ? fixedBase : `${fixedBase}/`;
+        const allByProvider = getStorageItem<Record<string, Model[]>>('modelsFromAllProviders', {} as any);
+        const list = allByProvider?.[normalized] || allByProvider?.[configuredKeyOverride] || [];
+        const providerSpecific = Array.isArray(list) ? list.find((m: Model) => m.id === modelId) : undefined;
+        console.log("rdlogs: providerSpecific", providerSpecific)
+        if (providerSpecific) {
+          setSelectedModel(providerSpecific);
+          saveLastUsedModel(configuredKeyOverride);
           setBaseUrl(normalized);
+          return;
         }
-      } catch {}
+      } catch (e) {
+        console.error('Failed to load provider-specific model from storage', e);
+      }
     }
+    else {
+      // Fallback: use currently loaded combined models
+      const model = models.find((m: Model) => m.id === modelId);
+      if (model) {
+        setSelectedModel(model);
+        saveLastUsedModel(modelId);
+        // Switch provider base URL if a provider is configured for this model
+        try {
+          const map = loadModelProviderMap();
+          const mappedBase = map[modelId];
+          console.log("rdlogs: mappedBase", mappedBase)
+          if (mappedBase && typeof mappedBase === 'string' && mappedBase.length > 0) {
+            const normalized = mappedBase.endsWith('/') ? mappedBase : `${mappedBase}/`;
+            setBaseUrl(normalized);
+          }
+        } catch {}
+      }
+    }
+
   }, [models]);
 
   const setMintUrl = useCallback((url: string) => {
