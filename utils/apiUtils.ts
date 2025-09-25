@@ -73,15 +73,15 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     .filter(message => message.role !== 'system')
     .map(convertMessageForAPI);
 
-  const approximateTokens = Math.ceil(JSON.stringify(apiMessages, null, 2).length / 3)
-  let tokenAmount = getTokenAmountForModel(selectedModel, approximateTokens);
+  let tokenAmount = getTokenAmountForModel(selectedModel, apiMessages);
+  let baseUrlForRequest = baseUrl;
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
     const token = await getTokenForRequest(
       usingNip60,
       mintUrl,
       usingNip60 && unit == 'msat'? tokenAmount*1000 : tokenAmount,
-      baseUrl, // Add baseUrl here
+      baseUrlForRequest, // Add baseUrl here
       sendToken,
       activeMintUrl
     );
@@ -126,7 +126,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       console.error("rdlogs:rdlogs:inside make request", response)
       const retryResponse = await handleApiError(response, {
         mintUrl,
-        baseUrl,
+        baseUrlForRequest,
         usingNip60,
         receiveToken,
         tokenAmount,
@@ -215,6 +215,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       }
     }
 
+    console.log("rdlogs:rdlogs:streamingResult", streamingResult)
     if (streamingResult.content || (streamingResult.images && streamingResult.images.length > 0)) {
       let assistantMessage: Message;
       if (streamingResult.images && streamingResult.images.length > 0) {
@@ -272,7 +273,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     console.log("rdlogs:rdlogs: respon 23242342", response)
 
   } catch (error) {
-    console.log('API Error: ', error);
+    console.log('rdlogs: API Error: ', error);
     handleApiResponseError(error, onMessageAppend);
   }
 };
@@ -284,7 +285,7 @@ async function handleApiError(
   response: Response,
   params: {
     mintUrl: string;
-    baseUrl: string;
+    baseUrlForRequest: string;
     usingNip60: boolean;
     receiveToken: (token: string) => Promise<any[]>;
     tokenAmount: number;
@@ -300,7 +301,7 @@ async function handleApiError(
 ): Promise<Response> {
   const {
     mintUrl,
-    baseUrl,
+    baseUrlForRequest,
     usingNip60,
     receiveToken,
     tokenAmount,
@@ -319,12 +320,12 @@ async function handleApiError(
     const requestId = response.headers.get('x-routstr-request-id');
     const mainMessage = response.statusText + ". Trying to get a refund.";
     const requestIdText = requestId ? `Request ID: ${requestId}` : '';
-    const providerText = `Provider: ${baseUrl}`;
+    const providerText = `Provider: ${baseUrlForRequest}`;
     const fullMessage = requestId
       ? `${mainMessage}\n${requestIdText}\n${providerText}`
       : `${mainMessage} | ${providerText}`;
     handleApiResponseError(fullMessage, onMessageAppend);
-    const storedToken = getLocalCashuToken(baseUrl);
+    const storedToken = getLocalCashuToken(baseUrlForRequest);
     let shouldAttemptUnifiedRefund = true;
 
     if (storedToken) {
@@ -342,11 +343,11 @@ async function handleApiError(
     }
 
     if (shouldAttemptUnifiedRefund) {
-      const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+      const refundStatus = await unifiedRefund(mintUrl, baseUrlForRequest, usingNip60, receiveToken);
       if (!refundStatus.success){
         const mainMessage = `Refund failed: ${refundStatus.message}.`;
         const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
-        const providerText = `Provider: ${baseUrl}`;
+        const providerText = `Provider: ${baseUrlForRequest}`;
         const fullMessage = refundStatus.requestId
           ? `${mainMessage}\n${requestIdText}\n${providerText}`
           : `${mainMessage} | ${providerText}`;
@@ -354,24 +355,24 @@ async function handleApiError(
       }
     }
     
-    clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    clearCurrentApiToken(baseUrlForRequest); // Pass baseUrl here
     
     if (retryOnInsufficientBalance) {
       return await makeRequest(false);
     }
   } 
   else if (response.status === 402) {
-    clearCurrentApiToken(baseUrl); // Pass baseUrl here
+    clearCurrentApiToken(baseUrlForRequest); // Pass baseUrl here
     if (retryOnInsufficientBalance) {
       return await makeRequest(false);
     }
   } 
   else if (response.status === 413) {
-    const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
+    const refundStatus = await unifiedRefund(mintUrl, baseUrlForRequest, usingNip60, receiveToken);
     if (!refundStatus.success){
       const mainMessage = `Refund failed: ${refundStatus.message}.`;
       const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
-      const providerText = `Provider: ${baseUrl}`;
+      const providerText = `Provider: ${baseUrlForRequest}`;
       const fullMessage = refundStatus.requestId
         ? `${mainMessage}\n${requestIdText}\n${providerText}`
         : `${mainMessage} | ${providerText}`;
@@ -385,7 +386,7 @@ async function handleApiError(
     }
   }
   else if (response.status === 500) {
-    console.error("rdlogs:rdlogs:internal errror finassld");
+    console.error("rdlogs:rdlogs:internal errror finassld", response);
     return response;
   }
   else {
@@ -476,6 +477,7 @@ async function processStreamingResponse(
                 }
                 const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
                 accumulatedThinking = thinkingResult.thinking;
+                console.log("rdlogs:rdlogs:accumulatedThinking", accumulatedThinking)
                 onThinkingUpdate(accumulatedThinking)
               }
 
@@ -525,7 +527,7 @@ async function processStreamingResponse(
               try {
                 const imgs = parsedData.choices[0].message.images
                   .filter((img: any) => img && img.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string')
-                  .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } as { url: string } }));
+                  .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } }));
                 if (imgs.length > 0) {
                   images = imgs;
                 }

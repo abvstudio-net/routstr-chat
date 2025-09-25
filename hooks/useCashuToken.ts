@@ -125,14 +125,14 @@ export function useCashuToken() {
       let proofs = await cashuStore.getMintProofs(mintUrl);
       
       const fees = calculateFees(proofs, activeKeysets);
-      console.log("rdlogs: fees", fees, "for proofs:", proofs.length);
+      // console.log("rdlogs: fees", fees, "for proofs:", proofs.length);
 
       const proofsAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
       const denominationCounts = proofs.reduce((acc, p) => {
         acc[p.amount] = (acc[p.amount] || 0) + 1;
         return acc;
       }, {} as Record<number, number>);
-      console.log('rdlogs: Proof denomination groups:', denominationCounts);
+      // console.log('rdlogs: Proof denomination groups:', denominationCounts);
       if (proofsAmount < amount) {
         throw new Error(`Not enough funds on mint ${mintUrl}`);
       }
@@ -153,7 +153,7 @@ export function useCashuToken() {
           timestamp: Date.now()
         }));
         const sendFees = calculateFees(proofsToSend, activeKeysets);
-        console.log('rdlogs: fees to send ', amount, ' is ', sendFees)
+        // console.log('rdlogs: fees to send ', amount, ' is ', sendFees)
 
         // Create new token for the proofs we're keeping
         if (proofsToKeep.length > 0) {
@@ -565,7 +565,7 @@ export function useCashuToken() {
           (s) => s.Y == hashToCurve(enc.encode(p.secret)).toHex(true)
         )
       );
-      console.log('rdlogs pd', spentProofs)
+      // console.log('rdlogs pd', spentProofs)
 
       await updateProofs({ mintUrl, proofsToAdd: [], proofsToRemove: spentProofs });
 
