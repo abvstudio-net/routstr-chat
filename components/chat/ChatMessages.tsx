@@ -153,19 +153,20 @@ export default function ChatMessages({
       console.error('Failed to copy message:', error);
     }
   };
+  
   return (
     <div
       ref={scrollContainerRef}
       onScroll={handleScroll}
-      className={`flex-1 overflow-y-auto pt-[60px] ${isMobile ? 'pb-[96px]' : 'pb-[80px]'}`}
+      className={`flex-1 overflow-y-auto pt-[60px] ${isMobile ? 'pb-[96px]' : 'pb-[120px]'}`}
       style={{
         paddingTop: 'calc(60px + env(safe-area-inset-top))',
         paddingBottom: isMobile
           ? 'calc(96px + env(safe-area-inset-bottom))'
-          : 'calc(80px + env(safe-area-inset-bottom))'
+          : 'calc(120px + env(safe-area-inset-bottom))'
       }}
     >
-      <div className="mx-auto w-full max-w-4xl px-4 md:px-6 py-4 md:py-10">
+      <div className="mx-auto w-full max-w-[44rem] py-4 md:py-10">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 min-h-[calc(100vh-200px)]">
             {/* Greeting message will be handled by the input component when centered */}
@@ -267,7 +268,7 @@ export default function ChatMessages({
                           <div>
                             <div className="group relative">
                               <div className="bg-gray-700/70 rounded-2xl py-3 px-4 text-white">
-                                <div className="text-sm">
+                                <div className="text-[17px]">
                                   <MessageContentRenderer content={message.content} />
                                 </div>
                               </div>
@@ -340,7 +341,7 @@ export default function ChatMessages({
                       {(message.thinking) && (
                         <ThinkingSection thinking={message.thinking} thinkingContent={thinkingContent} />
                       )}
-                      <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
+                      <div className="w-full text-gray-100 py-2 px-0 text-[17px]">
                         <MessageContentRenderer content={message.content} />
                       </div>
                       <div className={`mt-1.5 ${isMobile ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} transition-opacity duration-200 flex items-center gap-2`}>
@@ -399,7 +400,7 @@ export default function ChatMessages({
 
         {streamingContent && (
           <div className="flex flex-col items-start mb-6">
-            <div className="max-w-[95%] text-gray-100 py-2 px-0.5">
+            <div className="w-full text-gray-100 py-2 px-0 text-[17px]">
               <MarkdownRenderer content={streamingContent} />
             </div>
           </div>

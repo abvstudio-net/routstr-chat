@@ -135,8 +135,8 @@ export default function ChatInput({
               }`
             : `${
                 isMobile
-                  ? 'fixed z-30 bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out p-3'
-                  : 'fixed z-30 bottom-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 p-4' : isSidebarCollapsed ? 'left-0 right-0 p-4' : 'left-72 right-0 p-4')
+                  ? 'fixed z-30 bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out px-3 pb-3 pt-0'
+                  : 'fixed z-30 bottom-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 pb-4 pt-0' : isSidebarCollapsed ? 'left-0 right-0 pb-4 pt-0' : 'left-72 right-0 pb-4 pt-0')
               }`
         }`}
         style={{
@@ -144,10 +144,10 @@ export default function ChatInput({
             ? 'translateY(30px)'
             : 'translateY(0)',
           paddingBottom: 'env(safe-area-inset-bottom)',
-          bottom: !isCentered ? (isMobile ? '0' : '16px') : undefined
+          bottom: !isCentered ? (isMobile ? '12px' : '16px') : undefined
         }}
       >
-        <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-xl' : 'max-w-2xl'} ${isMobile ? 'pb-3' : ''}`}>
+        <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-[38rem]' : 'max-w-[44rem]'} ${isMobile ? 'pb-3 px-3' : ''}`}>
           {/* Image Preview */}
           {uploadedImages.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
@@ -191,7 +191,7 @@ export default function ChatInput({
                 }
               }}
               placeholder={isAuthenticated ? (isCentered ? `Type your message...` : `Ask anything...`) : `Sign in to start chatting...`}
-              className="flex-1 bg-white/10 rounded-3xl px-4 py-3 text-sm sm:text-sm text-white focus:outline-none pl-14 pr-12 resize-none min-h-[48px] max-h-32 overflow-y-auto"
+              className="flex-1 bg-white/10 rounded-3xl px-4 py-3 text-[16.5px] sm:text-[16.5px] text-white focus:outline-none pl-14 pr-12 resize-none min-h-[48px] max-h-32 overflow-y-auto"
               autoComplete="off"
               data-tutorial="chat-input"
               rows={1}
@@ -235,6 +235,15 @@ export default function ChatInput({
           </div>
         </div>
       </div>
+      {/* Bottom spacer for visible padding below the input */}
+      {!isCentered && (
+        <div
+          className={`fixed bottom-0 z-20 pointer-events-none ${
+            !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
+          } ${isMobile ? 'h-3' : 'h-4'} bg-black`}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        />
+      )}
     </>
   );
 } 
