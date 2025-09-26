@@ -96,5 +96,5 @@ export const getTokenAmountForModel = (selectedModel: any, apiMessages: any[]): 
   const totalEstimatedCosts = promptCosts + selectedModel?.sats_pricing?.max_completion_cost;
   console.log("rdlogs: dwaw: promptCosts", selectedModel?.sats_pricing?.max_cost)
   console.log("rdlogs: totalEstimatedCosts", promptCosts, totalEstimatedCosts)
-  return (totalEstimatedCosts + 5);
+  return (totalEstimatedCosts * 1.05); // Added a 5% margin
 };

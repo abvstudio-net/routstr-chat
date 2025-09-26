@@ -1,5 +1,5 @@
-import { Message, TransactionHistory, MessageContent as ChatMessageContent } from '@/types/chat';
-import { convertMessageForAPI, createTextMessage, createMultimodalMessage } from './messageUtils';
+import { Message, TransactionHistory } from '@/types/chat';
+import { convertMessageForAPI, createTextMessage } from './messageUtils';
 import { getTokenForRequest, getTokenAmountForModel, clearCurrentApiToken } from './tokenUtils';
 import { fetchBalances, getBalanceFromStoredProofs, refundRemainingBalance, unifiedRefund } from '@/utils/cashuUtils';
 import { getLocalCashuToken } from './storageUtils';
@@ -57,16 +57,6 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
 
   const initialBalance = usingNip60 ? balance : getBalanceFromStoredProofs();
 
-  // Decide whether to stream based on model output modality; image models prefer non-streaming
-  const shouldStream: boolean = (() => {
-    try {
-      if (selectedModel?.architecture?.output_modalities?.includes?.('image')) return false;
-      const id = String(selectedModel?.id || '').toLowerCase();
-      if (id.includes('image') || id.includes('vision')) return false;
-    } catch {}
-    return true;
-  })();
-
   // Convert messages to API format
   // Filter out system messages (error messages) before sending to API
   const apiMessages = messageHistory
@@ -74,14 +64,13 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     .map(convertMessageForAPI);
 
   let tokenAmount = getTokenAmountForModel(selectedModel, apiMessages);
-  let baseUrlForRequest = baseUrl;
 
   const makeRequest = async (retryOnInsufficientBalance: boolean = true): Promise<Response> => {
     const token = await getTokenForRequest(
       usingNip60,
       mintUrl,
       usingNip60 && unit == 'msat'? tokenAmount*1000 : tokenAmount,
-      baseUrlForRequest, // Add baseUrl here
+      baseUrl, // Add baseUrl here
       sendToken,
       activeMintUrl
     );
@@ -118,15 +107,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
       body: JSON.stringify({
         model: selectedModel?.id,
         messages: apiMessages,
-        stream: shouldStream
+        stream: true
       })
     });
 
     if (!response.ok) {
-      console.error("rdlogs:rdlogs:inside make request", response)
-      const retryResponse = await handleApiError(response, {
+      await handleApiError(response, {
         mintUrl,
-        baseUrlForRequest,
+        baseUrl,
         usingNip60,
         receiveToken,
         tokenAmount,
@@ -136,10 +124,8 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
         retryOnInsufficientBalance,
         messageHistory,
         onMessagesUpdate,
-        onMessageAppend,
-        makeRequest
+        onMessageAppend
       });
-      return retryResponse;
     }
 
     return response;
@@ -149,91 +135,14 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     const response = await makeRequest();
     // const response = new Response();
 
-    const contentType = response.headers.get('content-type') || '';
-
-    let streamingResult: StreamingResult = { content: '' };
-    if (contentType.includes('text/event-stream')) {
-      if (!response.body) {
-        throw new Error('Response body is not available');
-      }
-
-      streamingResult = await processStreamingResponse(
-        response,
-        onStreamingUpdate,
-        onThinkingUpdate,
-        selectedModel?.id
-      );
-    } else {
-      // Fallback for non-streaming JSON responses (e.g., image-only outputs)
-      try {
-        const json = await response.json();
-        const choice = json?.choices?.[0];
-        const msg = choice?.message;
-        const imagesArray: ChatMessageContent[] = [];
-        let textContent = '';
-
-        if (msg) {
-          if (typeof msg.content === 'string') {
-            textContent = msg.content;
-          } else if (Array.isArray(msg.content)) {
-            for (const item of msg.content) {
-              if (item?.type === 'text' && typeof item.text === 'string') {
-                imagesArray.push({ type: 'text', text: item.text });
-              } else if (
-                item?.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string'
-              ) {
-                imagesArray.push({ type: 'image_url', image_url: { url: item.image_url.url } });
-              }
-            }
-          }
-
-          if (Array.isArray(msg.images)) {
-            for (const img of msg.images) {
-              if (img?.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string') {
-                imagesArray.push({ type: 'image_url', image_url: { url: img.image_url.url } });
-              }
-            }
-          }
-        }
-
-        streamingResult = {
-          content: textContent,
-          images: imagesArray.length > 0 ? imagesArray.filter(i => i.type === 'image_url') : undefined,
-          usage: json?.usage
-            ? {
-                total_tokens: json.usage.total_tokens,
-                prompt_tokens: json.usage.prompt_tokens,
-                completion_tokens: json.usage.completion_tokens
-              }
-            : undefined,
-          model: json?.model,
-          finish_reason: choice?.finish_reason
-        };
-      } catch (e) {
-        // If parsing fails, fall back to reading as text and showing as error
-        console.error('Failed to parse non-streaming response', e);
-      }
+    if (!response.body) {
+      throw new Error('Response body is not available');
     }
 
-    console.log("rdlogs:rdlogs:streamingResult", streamingResult)
-    if (streamingResult.content || (streamingResult.images && streamingResult.images.length > 0)) {
-      let assistantMessage: Message;
-      if (streamingResult.images && streamingResult.images.length > 0) {
-        const images = streamingResult.images
-          .filter((i): i is ChatMessageContent => i && i.type === 'image_url' && !!i.image_url?.url);
-        if (images.length > 0) {
-          const contentArray: ChatMessageContent[] = [];
-          if (streamingResult.content && streamingResult.content.trim().length > 0) {
-            contentArray.push({ type: 'text', text: streamingResult.content });
-          }
-          contentArray.push(...images);
-          assistantMessage = { role: 'assistant', content: contentArray };
-        } else {
-          assistantMessage = createTextMessage('assistant', streamingResult.content || '');
-        }
-      } else {
-        assistantMessage = createTextMessage('assistant', streamingResult.content || '');
-      }
+    const streamingResult = await processStreamingResponse(response, onStreamingUpdate, onThinkingUpdate, selectedModel?.id);
+
+    if (streamingResult.content) {
+      const assistantMessage = createTextMessage('assistant', streamingResult.content);
       if (streamingResult.thinking) {
         assistantMessage.thinking = streamingResult.thinking;
       }
@@ -273,7 +182,7 @@ export const fetchAIResponse = async (params: FetchAIResponseParams): Promise<vo
     console.log("rdlogs:rdlogs: respon 23242342", response)
 
   } catch (error) {
-    console.log('rdlogs: API Error: ', error);
+    console.log('API Error: ', error);
     handleApiResponseError(error, onMessageAppend);
   }
 };
@@ -285,7 +194,7 @@ async function handleApiError(
   response: Response,
   params: {
     mintUrl: string;
-    baseUrlForRequest: string;
+    baseUrl: string;
     usingNip60: boolean;
     receiveToken: (token: string) => Promise<any[]>;
     tokenAmount: number;
@@ -296,12 +205,11 @@ async function handleApiError(
     messageHistory: Message[];
     onMessagesUpdate: (messages: Message[]) => void;
     onMessageAppend: (message: Message) => void;
-    makeRequest: (retryOnInsufficientBalance: boolean) => Promise<Response>;
   }
-): Promise<Response> {
+): Promise<void> {
   const {
     mintUrl,
-    baseUrlForRequest,
+    baseUrl,
     usingNip60,
     receiveToken,
     tokenAmount,
@@ -311,8 +219,7 @@ async function handleApiError(
     retryOnInsufficientBalance,
     messageHistory,
     onMessagesUpdate,
-    onMessageAppend,
-    makeRequest
+    onMessageAppend
   } = params;
 
   if (response.status === 401 || response.status === 403) {
@@ -320,12 +227,12 @@ async function handleApiError(
     const requestId = response.headers.get('x-routstr-request-id');
     const mainMessage = response.statusText + ". Trying to get a refund.";
     const requestIdText = requestId ? `Request ID: ${requestId}` : '';
-    const providerText = `Provider: ${baseUrlForRequest}`;
+    const providerText = `Provider: ${baseUrl}`;
     const fullMessage = requestId
       ? `${mainMessage}\n${requestIdText}\n${providerText}`
       : `${mainMessage} | ${providerText}`;
     handleApiResponseError(fullMessage, onMessageAppend);
-    const storedToken = getLocalCashuToken(baseUrlForRequest);
+    const storedToken = getLocalCashuToken(baseUrl);
     let shouldAttemptUnifiedRefund = true;
 
     if (storedToken) {
@@ -343,11 +250,11 @@ async function handleApiError(
     }
 
     if (shouldAttemptUnifiedRefund) {
-      const refundStatus = await unifiedRefund(mintUrl, baseUrlForRequest, usingNip60, receiveToken);
+      const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
       if (!refundStatus.success){
         const mainMessage = `Refund failed: ${refundStatus.message}.`;
         const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
-        const providerText = `Provider: ${baseUrlForRequest}`;
+        const providerText = `Provider: ${baseUrl}`;
         const fullMessage = refundStatus.requestId
           ? `${mainMessage}\n${requestIdText}\n${providerText}`
           : `${mainMessage} | ${providerText}`;
@@ -355,49 +262,48 @@ async function handleApiError(
       }
     }
     
-    clearCurrentApiToken(baseUrlForRequest); // Pass baseUrl here
+    clearCurrentApiToken(baseUrl); // Pass baseUrl here
     
     if (retryOnInsufficientBalance) {
-      return await makeRequest(false);
+      const newToken = await getTokenForRequest(
+        usingNip60,
+        mintUrl,
+        tokenAmount,
+        baseUrl, // Add baseUrl here
+        sendToken,
+        activeMintUrl
+      );
+
+      if (!newToken || (typeof newToken === 'object' && 'hasTokens' in newToken && !newToken.hasTokens)) {
+        throw new Error(`Insufficient balance (retryOnInsurrifientBal). Please add more funds to continue. You need at least ${Number(tokenAmount).toFixed(0)} sats to use ${selectedModel?.id}`);
+      }
     }
   } 
   else if (response.status === 402) {
-    clearCurrentApiToken(baseUrlForRequest); // Pass baseUrl here
-    if (retryOnInsufficientBalance) {
-      return await makeRequest(false);
-    }
+    clearCurrentApiToken(baseUrl); // Pass baseUrl here
   } 
   else if (response.status === 413) {
-    const refundStatus = await unifiedRefund(mintUrl, baseUrlForRequest, usingNip60, receiveToken);
+    const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
     if (!refundStatus.success){
       const mainMessage = `Refund failed: ${refundStatus.message}.`;
       const requestIdText = refundStatus.requestId ? `Request ID: ${refundStatus.requestId}` : '';
-      const providerText = `Provider: ${baseUrlForRequest}`;
+      const providerText = `Provider: ${baseUrl}`;
       const fullMessage = refundStatus.requestId
         ? `${mainMessage}\n${requestIdText}\n${providerText}`
         : `${mainMessage} | ${providerText}`;
       handleApiResponseError(fullMessage, onMessageAppend);
-      return response;
-    }
-    else {
-      if (retryOnInsufficientBalance) {
-        return await makeRequest(false);
-      }
     }
   }
   else if (response.status === 500) {
-    console.error("rdlogs:rdlogs:internal errror finassld", response);
-    return response;
+    console.error("rdlogs:rdlogs:internal errror finassld");
   }
   else {
     console.error("rdlogs:rdlogs:smh else else ", response);
-    return response;
   }
 
   if (!retryOnInsufficientBalance) {
     throw new Error(`API error: ${response.status}`);
   }
-  return response;
 }
 
 /**
@@ -413,7 +319,6 @@ interface StreamingResult {
   };
   model?: string;
   finish_reason?: string;
-  images?: ChatMessageContent[];
 }
 
 async function processStreamingResponse(
@@ -431,8 +336,6 @@ async function processStreamingResponse(
   let usage: StreamingResult['usage'];
   let model: string | undefined;
   let finish_reason: string | undefined;
-  let images: StreamingResult['images'];
-  let partialJson = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -454,12 +357,8 @@ async function processStreamingResponse(
 
           if (jsonData === '[DONE]') continue;
 
-          const toParse = (partialJson ? partialJson : '') + jsonData;
-
-          let parsedData: any;
           try {
-            parsedData = JSON.parse(toParse);
-            partialJson = '';
+            const parsedData = JSON.parse(jsonData);
 
             // Handle reasoning delta. OpenRouter does this. 
             if (parsedData.choices &&
@@ -477,7 +376,6 @@ async function processStreamingResponse(
                 }
                 const thinkingResult = extractThinkingFromStream(newContent, accumulatedThinking);
                 accumulatedThinking = thinkingResult.thinking;
-                console.log("rdlogs:rdlogs:accumulatedThinking", accumulatedThinking)
                 onThinkingUpdate(accumulatedThinking)
               }
 
@@ -519,40 +417,6 @@ async function processStreamingResponse(
               }
             }
 
-            // Handle images (typically present in the final event)
-            if (parsedData.choices &&
-              parsedData.choices[0] &&
-              parsedData.choices[0].message &&
-              parsedData.choices[0].message.images && Array.isArray(parsedData.choices[0].message.images)) {
-              try {
-                const imgs = parsedData.choices[0].message.images
-                  .filter((img: any) => img && img.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string')
-                  .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } }));
-                if (imgs.length > 0) {
-                  images = imgs;
-                }
-              } catch {
-                // Ignore malformed image payloads
-              }
-            }
-
-            // Some providers include images inside message.content array
-            if (parsedData.choices &&
-              parsedData.choices[0] &&
-              parsedData.choices[0].message &&
-              Array.isArray(parsedData.choices[0].message.content)) {
-              try {
-                const imgsFromContent = parsedData.choices[0].message.content
-                  .filter((item: any) => item && item.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string')
-                  .map((item: any) => ({ type: 'image_url', image_url: { url: item.image_url.url } as { url: string } }));
-                if (imgsFromContent.length > 0) {
-                  images = (images ?? []).concat(imgsFromContent);
-                }
-              } catch {
-                // Ignore malformed content payloads
-              }
-            }
-
             // Handle usage statistics (usually in the final chunk)
             if (parsedData.usage) {
               usage = {
@@ -574,8 +438,7 @@ async function processStreamingResponse(
               finish_reason = parsedData.choices[0].finish_reason;
             }
           } catch {
-            // Keep accumulating until we have a complete JSON event
-            partialJson = toParse;
+            // Swallow parse errors for streaming chunks
           }
         }
       }
@@ -584,62 +447,12 @@ async function processStreamingResponse(
     }
   }
 
-  // Attempt to parse any leftover partial JSON from SSE
-  if (partialJson && partialJson.trim().length > 0) {
-    try {
-      const parsedData = JSON.parse(partialJson);
-
-      if (parsedData.choices && parsedData.choices[0] && parsedData.choices[0].message) {
-        const msg = parsedData.choices[0].message;
-        // Extract images from message.images
-        if (Array.isArray(msg.images)) {
-          try {
-            const imgs = msg.images
-              .filter((img: any) => img && img.type === 'image_url' && img.image_url && typeof img.image_url.url === 'string')
-              .map((img: any) => ({ type: 'image_url', image_url: { url: img.image_url.url } as { url: string } }));
-            if (imgs.length > 0) {
-              images = (images ?? []).concat(imgs);
-            }
-          } catch {}
-        }
-        // Extract images from message.content blocks
-        if (Array.isArray(msg.content)) {
-          try {
-            const imgsFromContent = msg.content
-              .filter((item: any) => item && item.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string')
-              .map((item: any) => ({ type: 'image_url', image_url: { url: item.image_url.url } as { url: string } }));
-            if (imgsFromContent.length > 0) {
-              images = (images ?? []).concat(imgsFromContent);
-            }
-          } catch {}
-        }
-      }
-
-      if (parsedData.usage) {
-        usage = {
-          total_tokens: parsedData.usage.total_tokens,
-          prompt_tokens: parsedData.usage.prompt_tokens,
-          completion_tokens: parsedData.usage.completion_tokens
-        };
-      }
-      if (parsedData.model) {
-        model = parsedData.model;
-      }
-      if (parsedData.choices && parsedData.choices[0] && parsedData.choices[0].finish_reason) {
-        finish_reason = parsedData.choices[0].finish_reason;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
   return {
     content: accumulatedContent,
     thinking: (modelId && accumulatedThinking) ? accumulatedThinking : undefined,
     usage,
     model,
-    finish_reason,
-    images
+    finish_reason
   };
 }
 
@@ -687,12 +500,10 @@ async function handlePostResponseRefund(params: {
   const refundStatus = await unifiedRefund(mintUrl, baseUrl, usingNip60, receiveToken);
   if (refundStatus.success) {
     if (usingNip60 && refundStatus.refundedAmount !== undefined) {
-      console.log("rdlogs:rdlogs:refunded amount", refundStatus.refundedAmount);
       // For msats, keep decimal precision; for sats, use Math.ceil
       satsSpent = (unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount)) - refundStatus.refundedAmount;
       onBalanceUpdate(initialBalance - satsSpent);
     } else {
-      console.log("rdlogs:rdlogs:fetching balances");
       const { apiBalance, proofsBalance } = await fetchBalances(mintUrl, baseUrl);
       onBalanceUpdate(Math.floor(apiBalance / 1000) + Math.floor(proofsBalance / 1000));
       satsSpent = initialBalance - getBalanceFromStoredProofs();
@@ -724,7 +535,7 @@ async function handlePostResponseRefund(params: {
     // For msats, keep decimal precision; for sats, use Math.ceil
     satsSpent = unit === 'msat' ? tokenAmount : Math.ceil(tokenAmount);
   }
-  console.log("rdlogs:rdlogs:spent: ", satsSpent)
+  console.log("spent: ", satsSpent)
   const netCosts = satsSpent - estimatedCosts;
   
   // Use different thresholds based on unit
