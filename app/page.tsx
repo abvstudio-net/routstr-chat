@@ -141,14 +141,14 @@ function ChatPageContent() {
 
   if (!authChecked) {
     return (
-      <div className="flex items-center justify-center h-dvh w-full bg-black">
+      <div className="flex items-center justify-center h-dvh w-full bg-[#212121]">
         <Loader2 className="h-8 w-8 text-white/50 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-dvh w-full bg-black text-white overflow-hidden">
+    <div className="flex h-dvh w-full bg-[#212121] text-white overflow-hidden">
       <ChatContainer />
 
       {/* Modals */}
@@ -218,7 +218,7 @@ function ChatPageContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-dvh w-full bg-black">
+      <div className="flex items-center justify-center h-dvh w-full bg-[#212121]">
         <Loader2 className="h-8 w-8 text-white/50 animate-spin" />
       </div>
     }>

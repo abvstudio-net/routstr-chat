@@ -10,6 +10,23 @@ const canUseLocalStorage = (): boolean => {
 };
 
 /**
+ * Identify quota exceeded errors across browsers
+ */
+const isQuotaExceeded = (error: unknown): boolean => {
+  const e = error as any;
+  // name: 'QuotaExceededError' (standard),
+  // code: 22 (Safari), 1014 (Firefox)
+  return !!e && (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014);
+};
+
+/**
+ * Keys that are safe to skip persisting when storage is full
+ */
+const NON_CRITICAL_STORAGE_KEYS = new Set<string>([
+  'modelsFromAllProviders'
+]);
+
+/**
  * Interface for a stored Cashu token entry
  */
 export interface CashuTokenEntry {
@@ -27,6 +44,25 @@ export const setStorageItem = <T>(key: string, value: T): void => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
+    // Handle storage full scenarios gracefully
+    if (isQuotaExceeded(error)) {
+      // If the key is non-critical (cache-like), skip persisting silently
+      if (NON_CRITICAL_STORAGE_KEYS.has(key)) {
+        console.warn(`Storage quota exceeded; skipping non-critical key "${key}".`);
+        return;
+      }
+      // Attempt minimal cleanup: remove known large, non-critical caches then retry once
+      try {
+        localStorage.removeItem('modelsFromAllProviders');
+      } catch {}
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return;
+      } catch (retryError) {
+        console.warn(`Storage quota exceeded; unable to persist key "${key}" after cleanup attempt.`, retryError);
+        return;
+      }
+    }
     console.error(`Error storing item with key "${key}":`, error);
   }
 };

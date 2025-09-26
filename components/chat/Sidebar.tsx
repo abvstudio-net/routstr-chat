@@ -38,29 +38,19 @@ export default function Sidebar({
     <div className="relative h-full flex-shrink-0 z-50">
       {/* Sidebar */}
       <div
-        className={`${isMobile ?
-          (isSidebarOpen ? 'fixed inset-0 z-50 w-72 translate-x-0' : 'fixed inset-0 z-50 w-72 -translate-x-full') :
-          isSidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-72'} 
-          bg-zinc-900/95 flex flex-col h-full transition-all duration-300 ease-in-out shadow-lg`}
+        className={`${isMobile
+          ? (isSidebarOpen ? 'fixed inset-0 z-50 w-72 translate-x-0' : 'fixed inset-0 z-50 w-72 -translate-x-full')
+          : `fixed top-0 left-0 h-full w-72 ${isSidebarCollapsed ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}
+          bg-[#181818] flex flex-col transition-all duration-300 ease-in-out shadow-lg`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Mobile Close Button */}
-        {isMobile && (
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="absolute top-4 right-4 p-1 text-white/70 hover:text-white"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
-
-        {/* Top Action Bar with New Chat button and Collapse button */}
-        <div className="flex items-center h-[60px] px-4">
+        {/* Top Action Bar with New Chat button and Collapse/Close button */}
+        <div className="flex items-center h-[60px] px-4 gap-2">
           {/* Desktop Collapse Button (only when sidebar is not collapsed) */}
           {!isMobile && (
             <button
               onClick={() => setIsSidebarCollapsed(true)}
-              className="p-1.5 mr-2 rounded-full bg-black border border-white/10 hover:bg-white/5 transition-colors cursor-pointer"
+              className="p-1.5 mr-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer"
               aria-label="Collapse sidebar"
             >
               <ChevronDown className="h-3.5 w-3.5 rotate-90 text-white/70" />
@@ -73,12 +63,23 @@ export default function Sidebar({
               createNewConversation();
               if (isMobile) setIsSidebarOpen(false);
             }}
-            className="w-full flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+            className="flex-1 min-w-0 flex items-center gap-2 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
             data-tutorial="new-chat-button"
           >
-            <SquarePen className="h-4 w-4 text-white" />
+            <SquarePen className="h-4 w-4" />
             <span>New chat</span>
           </button>
+
+          {/* Mobile Close Button inline with New Chat */}
+          {isMobile && (
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="rounded-full p-1.5 shadow-md border border-white/10 bg-white/5 hover:bg-white/10 text-white"
+              aria-label="Close sidebar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         {/* Conversations List */}
@@ -123,7 +124,7 @@ export default function Sidebar({
                 setIsSettingsOpen(true);
                 setInitialSettingsTab('settings');
               }}
-              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
               data-tutorial="settings-button"
             >
               <Settings className="h-4 w-4" />
@@ -136,7 +137,7 @@ export default function Sidebar({
                 setIsSettingsOpen(true);
                 setInitialSettingsTab('api-keys');
               }}
-              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-md py-2 px-3 h-[36px] text-sm transition-colors cursor-pointer"
             >
               <Key className="h-4 w-4" />
               <span>API Keys</span>
@@ -149,7 +150,7 @@ export default function Sidebar({
       {!isMobile && isSidebarCollapsed && (
         <button
           onClick={() => setIsSidebarCollapsed(false)}
-          className="fixed top-[30px] transform -translate-y-1/2 left-4 z-30 bg-black rounded-full p-1.5 shadow-md transition-all duration-300 ease-in-out border border-white/10 hover:bg-white/5 cursor-pointer"
+          className="fixed top-[30px] transform -translate-y-1/2 left-4 z-30 rounded-full p-1.5 shadow-md transition-all duration-300 ease-in-out border border-white/10 bg-white/5 hover:bg-white/10 text-white cursor-pointer"
           aria-label="Expand sidebar"
         >
           <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-white/70" />

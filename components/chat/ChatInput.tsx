@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { ImagePlus, Loader2, Send, X } from 'lucide-react';
+import { useChat } from '@/context/ChatProvider';
 
 interface ChatInputProps {
   inputMessage: string;
@@ -34,6 +35,8 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isCentered, setIsCentered] = useState(!hasMessages);
+  const { isSidebarOpen } = useChat();
+  const unifiedBgClass = isMobile && isSidebarOpen ? 'bg-[#181818]' : 'bg-[#212121]';
 
   // Handle animation when messages change from external updates
   useEffect(() => {
@@ -114,7 +117,7 @@ export default function ChatInput({
             isMobile || !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
           }`}
           style={{
-            transform: 'translateY(-60px)',
+            transform: isMobile ? 'translateY(48px)' : 'translateY(-40px)',
             opacity: isCentered && !isAnimating ? 1 : 0
           }}
         >
@@ -127,27 +130,27 @@ export default function ChatInput({
       )}
 
       {/* Chat Input Container */}
-      <div 
+        <div 
         className={`${
           isCentered && !isMobile
             ? `fixed z-30 flex items-center justify-center transition-all duration-500 ease-out ${
                 !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
               }`
-            : `${
+              : `${
                 isMobile
-                  ? 'fixed z-30 bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out px-3 pb-3 pt-0'
-                  : 'fixed z-30 bottom-0 bg-black/95 backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 pb-4 pt-0' : isSidebarCollapsed ? 'left-0 right-0 pb-4 pt-0' : 'left-72 right-0 pb-4 pt-0')
+                  ? `fixed z-30 bottom-0 left-0 right-0 ${unifiedBgClass} backdrop-blur-sm transition-all duration-300 ease-in-out px-1 pb-1 pt-0`
+                  : 'fixed z-30 bottom-0 bg-[#212121] backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 pb-4 pt-0' : isSidebarCollapsed ? 'left-0 right-0 pb-4 pt-0' : 'left-72 right-0 pb-4 pt-0')
               }`
         }`}
         style={{
           transform: isCentered && !isMobile
-            ? 'translateY(30px)'
+            ? 'translateY(38px)'
             : 'translateY(0)',
           paddingBottom: 'env(safe-area-inset-bottom)',
-          bottom: !isCentered ? (isMobile ? '12px' : '16px') : undefined
+          bottom: !isCentered ? (isMobile ? '0px' : '16px') : undefined
         }}
       >
-        <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-[38rem]' : 'max-w-[44rem]'} ${isMobile ? 'pb-3 px-3' : ''}`}>
+        <div className={`mx-auto w-full ${isCentered && !isMobile ? 'max-w-[38rem]' : 'max-w-[44rem]'} ${isMobile ? 'pb-3 px-1' : ''}`}>
           {/* Image Preview */}
           {uploadedImages.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
@@ -240,7 +243,7 @@ export default function ChatInput({
         <div
           className={`fixed bottom-0 z-20 pointer-events-none ${
             !isAuthenticated ? 'left-0 right-0' : isSidebarCollapsed ? 'left-0 right-0' : 'left-72 right-0'
-          } ${isMobile ? 'h-3' : 'h-4'} bg-black`}
+          } ${isMobile ? 'h-3' : 'h-4'} ${unifiedBgClass}`}
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         />
       )}

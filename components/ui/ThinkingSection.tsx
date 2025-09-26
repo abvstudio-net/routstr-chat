@@ -55,7 +55,7 @@ export default function ThinkingSection({ thinking, thinkingContent, isStreaming
         className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors"
       >
         <Brain className="w-3 h-3" />
-        <span>{isStreaming ? 'thinking...' : 'thinking'}</span>
+        <span>{isStreaming ? 'Thinking...' : 'Thinking'}</span>
         <ChevronDown 
           className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} 
         />
@@ -75,7 +75,7 @@ export default function ThinkingSection({ thinking, thinkingContent, isStreaming
                 <button
                   onClick={handleCopy}
                   className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-gray-200 bg-white/5 hover:bg-white/10 rounded transition-all opacity-0 group-hover:opacity-100"
-                  aria-label="Copy thinking text"
+                  aria-label="Copy Thinking text"
                 >
                   {copied ? (
                     <Check className="w-3.5 h-3.5" />
@@ -86,7 +86,7 @@ export default function ThinkingSection({ thinking, thinkingContent, isStreaming
               )}
               <div className="text-xs text-gray-300 font-mono leading-relaxed">
                 {thinkingText ? (
-                  <MarkdownRenderer content={thinkingText} />
+                  <MarkdownRenderer content={thinkingText} className="text-xs" />
                 ) : (
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-1 bg-gray-400 rounded-full animate-pulse" />

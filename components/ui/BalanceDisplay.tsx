@@ -834,8 +834,8 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       <PopoverContent 
         align="end" 
         className={`${
-          isMobile ? 'w-[95vw] max-w-sm' : 'w-80'
-        } bg-black/95 backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden`}
+          isMobile ? 'w-[92vw] max-w-[18rem]' : 'w-72'
+        } bg-[#212121] backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10">
@@ -870,7 +870,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       </button>
                       
                       {isMintSelectorOpen && (
-                        <div className="absolute top-full right-0 mt-1 bg-black/95 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
+                        <div className="absolute top-full right-0 mt-1 bg-[#212121] border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
                           {availableMints.map((mintUrl) => (
                             <button
                               key={mintUrl}
@@ -945,7 +945,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
                       </button>
                       
                       {isMintSelectorOpen && (
-                        <div className="absolute top-full right-0 mt-1 bg-black/95 border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
+                        <div className="absolute top-full right-0 mt-1 bg-[#212121] border border-white/20 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto min-w-[200px]">
                           {availableMints.map((mintUrl) => (
                             <button
                               key={mintUrl}

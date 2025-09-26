@@ -335,7 +335,7 @@ export default function ModelSelector({
 
   // Close model drawer when clicking outside (ignore clicks on the toggle button)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (!isModelDrawerOpen) return;
       const target = event.target as Node;
       const clickedInsideDrawer = modelDrawerRef.current?.contains(target);
@@ -345,10 +345,12 @@ export default function ModelSelector({
 
     if (isModelDrawerOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside, { passive: true });
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isModelDrawerOpen, setIsModelDrawerOpen]);
 
@@ -682,7 +684,7 @@ export default function ModelSelector({
     <div className="relative">
       <button
         ref={toggleButtonRef}
-        onMouseDown={(e) => {
+        onClick={(e) => {
           e.stopPropagation();
           if (isAuthenticated) {
             setIsModelDrawerOpen(!isModelDrawerOpen);
@@ -716,7 +718,7 @@ export default function ModelSelector({
         <div
           ref={modelDrawerRef}
           id="model-selector-drawer"
-          className="absolute top-full left-1/2 transform -translate-x-1/2 w-[720px] max-w-[95vw] mt-1 bg-black border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-hidden z-50"
+          className={`${isMobile ? 'fixed left-1/2 -translate-x-1/2 top-[60px] w-[92vw]' : 'absolute top-full left-0 w-[720px] max-w-[95vw] mt-1'} bg-[#212121] border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-hidden z-50`}
           onMouseLeave={() => setHoveredModelId(null)}
         >
           {/* Mobile view: page-like transition between list and details */}
@@ -724,7 +726,7 @@ export default function ModelSelector({
             {activeView === 'list' ? (
               <div>
                 {/* Search bar */}
-                <div className="sticky top-0 p-2 bg-black/90 backdrop-blur-sm border-b border-white/10">
+                <div className="sticky top-0 p-2 bg-[#212121] backdrop-blur-sm border-b border-white/10">
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                       <Search className="h-3.5 w-3.5 text-white/40" />
@@ -834,7 +836,7 @@ export default function ModelSelector({
             {/* Left: Search + List */}
             <div className="border-r border-white/10">
               {/* Search bar */}
-              <div className="sticky top-0 p-2 bg-black/90 backdrop-blur-sm border-b border-white/10">
+              <div className="sticky top-0 p-2 bg-[#212121] backdrop-blur-sm border-b border-white/10">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                     <Search className="h-3.5 w-3.5 text-white/40" />

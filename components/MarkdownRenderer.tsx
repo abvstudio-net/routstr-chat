@@ -10,11 +10,12 @@ import { downloadImageFromSrc } from '../utils/download';
 
 interface MarkdownRendererProps {
   content: string;
+  className?: string;
 }
 
-export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   return (
-    <div className="prose prose-invert max-w-none text-sm leading-relaxed">
+    <div className={`prose prose-invert max-w-none text-[1rem] leading-relaxed ${className || ''}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex]}
@@ -32,7 +33,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
               </CodeBlock>
             );
           },
-
+          
           // Headings
           h1: ({ children }) => (
             <h1 className="text-2xl font-bold text-white mb-4 mt-6 first:mt-0">

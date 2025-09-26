@@ -107,16 +107,16 @@ const SettingsModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose}>
       <div
-        className="bg-black rounded-lg w-screen h-dvh m-0 sm:max-w-2xl sm:h-[80vh] sm:m-4 border border-white/10 flex flex-col"
+        className="bg-[#181818] rounded-lg overflow-hidden w-screen h-dvh m-0 sm:max-w-2xl sm:h-[80vh] sm:m-4 border border-white/10 shadow-lg flex flex-col"
         onClick={e => e.stopPropagation()}
         style={{
           paddingTop: 'env(safe-area-inset-top)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }}
       >
-        <div className="flex justify-between items-center p-4 border-b border-white/10 flex-shrink-0">
+        <div className="bg-[#212121] flex justify-between items-center p-4 border-b border-white/10 flex-shrink-0">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
           <button onClick={onClose} className="text-white/70 hover:text-white cursor-pointer">
             <X className="h-5 w-5" />
