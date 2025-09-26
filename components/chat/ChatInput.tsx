@@ -31,6 +31,7 @@ export default function ChatInput({
   hasMessages
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isCentered, setIsCentered] = useState(!hasMessages);
 
@@ -47,6 +48,14 @@ export default function ChatInput({
       setIsAnimating(false);
     }
   }, [hasMessages, isCentered]);
+
+  // Reset textarea height when input is cleared (e.g., after sending)
+  useEffect(() => {
+    if (inputMessage === '' && textareaRef.current) {
+      textareaRef.current.style.height = '48px';
+      setTextareaHeight(48);
+    }
+  }, [inputMessage, setTextareaHeight]);
 
   const handleSendMessage = () => {
     if (isCentered) {
@@ -172,6 +181,7 @@ export default function ChatInput({
             />
 
             <textarea
+              ref={textareaRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={(e) => {
