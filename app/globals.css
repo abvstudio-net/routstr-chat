@@ -170,3 +170,14 @@ body {
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+
+/* Ensure pointer cursor for all button-like elements */
+@layer base {
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  [role="button"] {
+    cursor: pointer;
+  }
+}

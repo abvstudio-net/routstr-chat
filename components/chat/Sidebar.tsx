@@ -46,17 +46,6 @@ export default function Sidebar({
       >
         {/* Top Action Bar with New Chat button and Collapse/Close button */}
         <div className="flex items-center h-[60px] px-4 gap-2">
-          {/* Desktop Collapse Button (only when sidebar is not collapsed) */}
-          {!isMobile && (
-            <button
-              onClick={() => setIsSidebarCollapsed(true)}
-              className="p-1.5 mr-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer"
-              aria-label="Collapse sidebar"
-            >
-              <ChevronDown className="h-3.5 w-3.5 rotate-90 text-white/70" />
-            </button>
-          )}
-
           {/* New Chat Button */}
           <button
             onClick={() => {
@@ -69,6 +58,17 @@ export default function Sidebar({
             <SquarePen className="h-4 w-4" />
             <span>New chat</span>
           </button>
+
+          {/* Desktop Collapse Button (only when sidebar is not collapsed) */}
+          {!isMobile && (
+            <button
+              onClick={() => setIsSidebarCollapsed(true)}
+              className="p-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronDown className="h-3.5 w-3.5 rotate-90 text-white/70" />
+            </button>
+          )}
 
           {/* Mobile Close Button inline with New Chat */}
           {isMobile && (

@@ -245,22 +245,22 @@ export default function ChatMessages({
                             <textarea
                               value={editingContent}
                               onChange={(e) => setEditingContent(e.target.value)}
-                              className="w-full bg-white/5 border border-white/10 rounded p-3 text-sm text-white focus:outline-none focus:border-white/40"
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-white/40"
                               rows={3}
                               autoFocus
                             />
                             <div className="flex justify-end space-x-2 mt-2">
                               <button
                                 onClick={cancelEditing}
-                                className="text-xs text-gray-300 hover:text-white bg-white/10 px-3 py-1.5 rounded"
+                                className="text-xs text-gray-300 hover:text-white bg-white/10 px-3 py-1.5 rounded-md"
                               >
                                 Cancel
                               </button>
                               <button
                                 onClick={saveInlineEdit}
-                                className="text-xs text-white bg-black px-3 py-1.5 rounded hover:bg-black/80"
+                                className="text-xs text-black bg-white px-3 py-1.5 rounded-md hover:bg-white/90 transition-colors cursor-pointer"
                               >
-                                Save & Send
+                                Send
                               </button>
                             </div>
                           </div>
@@ -275,10 +275,10 @@ export default function ChatMessages({
                               <div className={`flex justify-end mt-1 ${isMobile ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} transition-opacity duration-200`}>
                                 <button
                                   onClick={() => startEditingMessage(index)}
-                                  className="p-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                                  className="p-1 rounded-full text-white/70 hover:text-white transition-colors"
                                   aria-label="Edit message"
                                 >
-                                  <Edit className="w-3 h-3 text-white/70" />
+                                  <Edit className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
