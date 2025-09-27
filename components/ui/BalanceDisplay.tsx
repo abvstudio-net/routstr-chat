@@ -807,9 +807,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <button className={`${
-          isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'
-        } rounded-md bg-white/5 text-white hover:bg-white/10 transition-colors text-sm flex items-center justify-center border border-white/10 cursor-pointer gap-2`}>
+        <button className={"flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 rounded-md py-2 px-3 sm:px-4 h-[36px] text-xs sm:text-sm transition-colors cursor-pointer border border-white/10 justify-center"}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"
