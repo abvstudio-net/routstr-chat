@@ -833,6 +833,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
       </PopoverTrigger>
       <PopoverContent 
         align="end" 
+        sideOffset={isMobile ? 12 : 4}
         className={`${
           isMobile ? 'w-[92vw] max-w-[18rem]' : 'w-72'
         } bg-[#212121] backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden`}
