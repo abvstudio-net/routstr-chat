@@ -84,7 +84,7 @@ export default function ThinkingSection({ thinking, thinkingContent, isStreaming
                   )}
                 </button>
               )}
-              <div className="text-xs text-gray-300 font-mono leading-relaxed">
+              <div className="text-xs text-gray-300 leading-relaxed">
                 {thinkingText ? (
                   <MarkdownRenderer content={thinkingText} className="text-xs" />
                 ) : (

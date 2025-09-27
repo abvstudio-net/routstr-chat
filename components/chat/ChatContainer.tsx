@@ -69,7 +69,7 @@ const ChatContainer: React.FC = () => {
       )}
 
       {/* Main Chat Area */}
-      <div className={`${!isMobile && isAuthenticated && !isSidebarCollapsed ? 'ml-72 w-[calc(100%-18rem)]' : 'flex-1'} flex flex-col h-full overflow-hidden relative`}>
+      <div className={`${!isMobile && isAuthenticated && !isSidebarCollapsed ? 'ml-72' : 'ml-0'} flex-1 flex flex-col h-full overflow-hidden relative transition-[margin] duration-300 ease-in-out`}>
         {/* Fixed Header */}
         <ChatHeader />
 

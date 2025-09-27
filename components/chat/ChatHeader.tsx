@@ -44,7 +44,7 @@ const ChatHeader: React.FC = () => {
   } = useChat();
 
   return (
-    <div className={`fixed top-0 ${isMobile && isSidebarOpen ? 'bg-[#181818]' : 'bg-[#212121]'} backdrop-blur-sm z-30 ${
+    <div className={`fixed top-0 ${isMobile && isSidebarOpen ? 'bg-[#181818]' : 'bg-[#212121]'} backdrop-blur-sm z-30 transition-all duration-300 ease-in-out ${
       isMobile || !isAuthenticated
         ? 'left-0 right-0'
         : isSidebarCollapsed
@@ -94,7 +94,7 @@ const ChatHeader: React.FC = () => {
         )}
 
         {/* Model Selector - left aligned; add padding on mobile and when sidebar is collapsed to avoid overlap */}
-        <div className={`${isMobile ? 'pl-20' : (isAuthenticated && isSidebarCollapsed ? 'pl-28' : '')}`}>
+        <div className={`${isMobile ? 'pl-20' : (isAuthenticated && isSidebarCollapsed ? 'pl-20' : '')}`}>
           <ModelSelector
             selectedModel={selectedModel}
             isModelDrawerOpen={isModelDrawerOpen}

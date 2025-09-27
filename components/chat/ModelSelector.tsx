@@ -53,6 +53,9 @@ export default function ModelSelector({
   const [detailsBaseUrl, setDetailsBaseUrl] = useState<string | null>(null);
   const [pairFilters, setPairFilters] = useState<Set<string>>(new Set());
   const [copiedModelId, setCopiedModelId] = useState<string | null>(null);
+  // Drawer open/close animation state
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const [isDrawerAnimating, setIsDrawerAnimating] = useState(false);
 
   useEffect(() => {
     try {
@@ -353,6 +356,20 @@ export default function ModelSelector({
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isModelDrawerOpen, setIsModelDrawerOpen]);
+
+  // Manage mount/unmount to animate open/close like BalanceDisplay transitions
+  useEffect(() => {
+    if (isModelDrawerOpen && isAuthenticated) {
+      setIsDrawerVisible(true);
+      // next frame to enable transition to visible
+      const raf = requestAnimationFrame(() => setIsDrawerAnimating(true));
+      return () => cancelAnimationFrame(raf);
+    } else {
+      setIsDrawerAnimating(false);
+      const timer = setTimeout(() => setIsDrawerVisible(false), 180);
+      return () => clearTimeout(timer);
+    }
+  }, [isModelDrawerOpen, isAuthenticated]);
 
   // Handle search input keydown events
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -711,14 +728,14 @@ export default function ModelSelector({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-medium truncate whitespace-nowrap">{selectedModel ? getModelNameWithoutProvider(selectedModel.name) : 'Select Model'}</span>
         </div>
-        <ChevronDown className="h-4 w-4 text-white/70 flex-shrink-0" />
+        <ChevronDown className={`h-4 w-4 text-white/70 flex-shrink-0 transition-transform ${isModelDrawerOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isModelDrawerOpen && isAuthenticated && (
+      {isDrawerVisible && isAuthenticated && (
         <div
           ref={modelDrawerRef}
           id="model-selector-drawer"
-          className={`${isMobile ? 'fixed left-1/2 -translate-x-1/2 top-[60px] w-[92vw]' : 'absolute top-full left-0 w-[720px] max-w-[95vw] mt-1'} bg-[#212121] border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-hidden z-50`}
+          className={`${isMobile ? 'fixed left-1/2 -translate-x-1/2 top-[60px] w-[92vw]' : 'absolute top-full left-0 w-[720px] max-w-[95vw] mt-1'} bg-[#212121] border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-hidden z-50 transform transition-all duration-200 ${isDrawerAnimating ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-95'}`}
           onMouseLeave={() => setHoveredModelId(null)}
         >
           {/* Mobile view: page-like transition between list and details */}
