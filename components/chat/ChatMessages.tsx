@@ -40,23 +40,49 @@ export default function ChatMessages({
   const [expandedSystemGroups, setExpandedSystemGroups] = useState<Set<number>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const wasAtBottomRef = useRef(true);
 
   const isScrolledToBottom = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return true;
-    const thresholdPx = 24;
+    const thresholdPx = 120;
     return el.scrollTop + el.clientHeight >= el.scrollHeight - thresholdPx;
   }, []);
 
   const handleScroll = useCallback(() => {
-    setIsUserAtBottom(isScrolledToBottom());
+    const atBottom = isScrolledToBottom();
+    wasAtBottomRef.current = atBottom;
+    setIsUserAtBottom(atBottom);
   }, [isScrolledToBottom]);
 
   const scrollToBottomIfNeeded = useCallback(() => {
-    if (isUserAtBottom && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    }
-  }, [isUserAtBottom, messagesEndRef]);
+    if (!isUserAtBottom) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // Run across a couple frames to handle async layout/reflow during streaming
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToBottom();
+    requestAnimationFrame(() => {
+      scrollToBottom();
+      // A second RAF helps when content expands after markdown/code highlight
+      requestAnimationFrame(scrollToBottom);
+    });
+  }, [isUserAtBottom]);
+
+  const scrollToBottomForce = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToBottom();
+    requestAnimationFrame(() => {
+      scrollToBottom();
+      requestAnimationFrame(scrollToBottom);
+    });
+  }, []);
 
   useEffect(() => {
     // Initial check on mount
@@ -66,6 +92,32 @@ export default function ChatMessages({
   useEffect(() => {
     scrollToBottomIfNeeded();
   }, [messages.length, streamingContent, thinkingContent, scrollToBottomIfNeeded]);
+
+  // When content state toggles (e.g., thinking ends, assistant content appears),
+  // force a bottom pin if the user was at bottom prior to the change.
+  useEffect(() => {
+    if (wasAtBottomRef.current) {
+      scrollToBottomForce();
+    }
+  }, [streamingContent, thinkingContent, scrollToBottomForce]);
+
+  // Keep pinned to bottom when container resizes (e.g., images load, code blocks expand)
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    let resizeObserver: ResizeObserver | null = new ResizeObserver(() => {
+      if (isUserAtBottom) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    resizeObserver.observe(el);
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+    };
+  }, [isUserAtBottom]);
 
   // Helper function to check if a system message should always be shown
   const shouldAlwaysShowSystemMessage = (content: string | MessageContent[]): boolean => {
