@@ -133,13 +133,13 @@ export default function ChatInput({
         <div 
         className={`${
           isCentered && !isMobile
-            ? `fixed z-30 flex items-center justify-center transition-all duration-500 ease-out ${
+            ? `fixed z-20 flex items-center justify-center transition-all duration-500 ease-out ${
                 !isAuthenticated ? 'inset-0' : isSidebarCollapsed ? 'inset-0' : 'left-72 right-0 top-0 bottom-0'
               }`
               : `${
                 isMobile
-                  ? `fixed z-30 bottom-0 left-0 right-0 ${unifiedBgClass} backdrop-blur-sm transition-all duration-300 ease-in-out px-1 pb-1 pt-0`
-                  : 'fixed z-30 bottom-0 bg-[#212121] backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 pb-4 pt-0' : isSidebarCollapsed ? 'left-0 right-0 pb-4 pt-0' : 'left-72 right-0 pb-4 pt-0')
+                  ? `fixed z-20 bottom-0 left-0 right-0 ${unifiedBgClass} backdrop-blur-sm transition-all duration-300 ease-in-out px-1 pb-1 pt-0`
+                  : 'fixed z-20 bottom-0 bg-[#212121] backdrop-blur-sm transition-all duration-300 ease-in-out ' + (!isAuthenticated ? 'left-0 right-0 pb-4 pt-0' : isSidebarCollapsed ? 'left-0 right-0 pb-4 pt-0' : 'left-72 right-0 pb-4 pt-0')
               }`
         }`}
         style={{
