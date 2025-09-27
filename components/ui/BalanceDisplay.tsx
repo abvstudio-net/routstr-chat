@@ -833,8 +833,8 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ setIsSettingsOpen, setI
         align="end" 
         sideOffset={isMobile ? 12 : 4}
         className={`${
-          isMobile ? 'w-[92vw] max-w-[18rem]' : 'w-72'
-        } bg-[#212121] backdrop-blur-sm border-white/10 border-2 p-0 shadow-xl max-h-[600px] overflow-hidden`}
+          isMobile ? 'w-[92vw]' : 'w-72'
+        } bg-[#212121] border border-white/10 rounded-md shadow-lg p-0 max-h-[70vh] overflow-hidden`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10">
